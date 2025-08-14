@@ -1,4 +1,4 @@
-.PHONY: docs
+.PHONY: docs clean all
 
 docs:
 	mkdir -p ../docs/doxygen
@@ -28,3 +28,5 @@ docs:
 
 clean:
 	rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
+
+all: clean docs
