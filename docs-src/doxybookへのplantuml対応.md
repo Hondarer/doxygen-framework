@@ -14,8 +14,6 @@ doxygen の出力した xml ファイルを以下のようにパッチするこ�
 `</plantuml>` を
 
 ````
-**Figure**: 
-
 @enduml
 ```
 ````
