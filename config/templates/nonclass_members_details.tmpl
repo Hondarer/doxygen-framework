@@ -1,0 +1,35 @@
+
+{% if exists("publicFunctions") %}## 関数
+
+{% for child in publicFunctions %}### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("publicAttributes") %}## 変数
+
+{% for child in publicAttributes %}### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("defines") %}## 定数、マクロ
+
+{% for child in defines %}### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("publicTypes") %}## 型
+
+{% for child in publicTypes %}### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("publicClasses") %}## 構造体
+
+{% for child in publicClasses %}### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}

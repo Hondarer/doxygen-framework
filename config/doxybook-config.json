@@ -1,0 +1,10 @@
+{
+  "baseUrl": "",
+  "indexInFolders": false,
+  "linkSuffix": ".md",
+  "filesFilter": [".h", ".c", ".cpp", ".cc"],
+  "sort": true,
+  "useFolders": false,
+  "folderCategories": false,
+  "mainPageInRoot": false
+}

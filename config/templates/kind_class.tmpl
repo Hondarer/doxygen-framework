@@ -1,0 +1,12 @@
+{# C の 構造体出力に特化したテンプレート  #}
+{# group の Markdown に結合するための部品 #}
+
+```{{language}}
+{{kind}} {{name}} {
+{% for param in publicAttributes %}    {{param.typePlain}} {{param.name}};
+{% endfor %}}
+```
+
+{% include "details" %}
+
+{% include "class_members_details" -%}

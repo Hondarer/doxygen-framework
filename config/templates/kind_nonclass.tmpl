@@ -1,0 +1,18 @@
+{% include "header" -%}
+
+{% include "breadcrumbs" -%}
+
+{% if exists("brief") %}{% if not hasDetails %}{{brief}}{% endif %}{% endif %}{# % if hasDetails %} [More...](#detailed-description){% endif % #}
+
+{# Markdown 側で目次を生成するため、テーブルは出力しない #}
+{#% include "nonclass_members_tables" -%#}
+
+{% if hasDetails %}## カテゴリー
+
+ ### {{title}}
+
+{% include "details" %}{% endif -%}
+
+{% include "nonclass_members_details" -%}
+
+{% include "footer" %}
