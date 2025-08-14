@@ -26,6 +26,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 + Reword: 特定の単語や表現を置き換える
 + Paraphrase: 意味を保ったまま言い換える
 
+**単語の強制**
+
+以下に示す単語は、同義語、同じ意味の他言語の単語に優先して使用すること。
+
++ Markdown
+
 **表記に関するルール**
 
 + 本文の文末を `：` で終わらせないでください。きちんと文章として完結させてください。
@@ -69,7 +75,7 @@ sequenceDiagram
 
 これは、Doxygen ドキュメント生成のための設定・テンプレート・スクリプト群を提供するフレームワークです。本リポジトリはメインプロジェクトからサブモジュール doxyfw として参照され、以下の機能を提供します。
 
-- デフォルトの Doxygen 設定ファイル
+- Doxygen 基本設定ファイル
 - Markdown 変換用の Doxybook2 設定・テンプレート
 - XML 前処理・後処理スクリプト
 - 日本語ドキュメント出力用のカスタムテンプレート
@@ -86,9 +92,9 @@ make docs
 
 1. メインプロジェクトに `Doxyfile.part` が存在する場合、基本設定ファイルと結合して一時ファイルを作成し使用 (設定のオーバーライド対応)
 2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `docs/doxygen/html/` に HTML ファイルを生成
-3. `config/templates/preprocess.sh` で XML ファイルを前処理 (PlantUML タグ、パラメータ direction 属性、linebreak タグを変換)
+3. `templates/preprocess.sh` で XML ファイルを前処理 (PlantUML タグ、パラメータ direction 属性、linebreak タグを変換)
 4. Doxybook2 で XML を `docs-src/doxybook/` の Markdown に変換 (カスタム日本語テンプレート使用)
-5. `config/templates/postprocess.sh` で `!include` ディレクティブを処理して関連コンテンツを統合
+5. `templates/postprocess.sh` で `!include` ディレクティブを処理して関連コンテンツを統合
 
 ### クリーンアップ
 
@@ -105,13 +111,12 @@ make clean
 ```text
 main-project/                     # メインプロジェクト
 ├── doxyfw/                    # 本リポジトリ (git submodule)
-│   ├── config/               # 設定ファイル群
-│   │   ├── Doxyfile         # Doxygen 基本設定
-│   │   ├── doxybook-config.json  # Doxybook2 設定
-│   │   └── templates/       # カスタム日本語テンプレート群
-│   │        ├── *.tmpl      # Jinja2 テンプレートファイル
-│   │        ├── preprocess.sh # XML 前処理スクリプト
-│   │        └── postprocess.sh # Markdown 後処理スクリプト
+│   ├── Doxyfile              # Doxygen 基本設定
+│   ├── doxybook-config.json  # Doxybook2 設定
+│   ├── templates/            # カスタム日本語テンプレート群
+│   │   ├── *.tmpl           # Jinja2 テンプレートファイル
+│   │   ├── preprocess.sh    # XML 前処理スクリプト
+│   │   └── postprocess.sh   # Markdown 後処理スクリプト
 │   ├── docs-src/             # 技術ドキュメント
 │   └── makefile              # ドキュメント生成用 Makefile
 ├── Doxyfile.part              # プロジェクト固有設定 (オプション)
@@ -131,19 +136,19 @@ main-project/                     # メインプロジェクト
 
 1. Doxygen: C ソースファイルを解析し、`Doxyfile` 設定に基づいて XML ファイルと HTML ドキュメントを生成
 2. プリプロセッシング: `preprocess.sh` スクリプトが変換前に XML ファイルを処理
-3. Doxybook2: `doxyfw/config/doxybook-config.json` とカスタムテンプレートを使用して Doxygen XML を Markdown に変換
+3. Doxybook2: `doxybook-config.json` とカスタムテンプレートを使用して Doxygen XML を Markdown に変換
 4. ポストプロセッシング: `postprocess.sh` スクリプトが `!include` ディレクティブを処理して関連コンテンツを統合、不要ファイルを削除
 
 ### 主要設定ファイル
 
-- `config/Doxyfile` - Doxygen 基本設定 (UTF-8 エンコーディング、全要素抽出、PlantUML 対応)
+- `Doxyfile` - Doxygen 基本設定 (UTF-8 エンコーディング、全要素抽出、PlantUML 対応)
 - メインプロジェクトの `Doxyfile.part` - プロジェクト固有の設定オーバーライド (存在時は基本設定に追加結合)
-- `config/doxybook-config.json` - Doxybook2 設定 (ソートあり、フォルダ使用なし、.md 拡張子)
+- `doxybook-config.json` - Doxybook2 設定 (ソートあり、フォルダ使用なし、.md 拡張子)
 - `config/templates/` - 日本語フォーマット用のカスタムテンプレート群
 
 ### 処理スクリプト詳細
 
-#### config/templates/preprocess.sh (前処理)
+#### templates/preprocess.sh (前処理)
 
 Doxybook2 変換前の XML ファイル前処理を実行します。
 
@@ -151,7 +156,7 @@ Doxybook2 変換前の XML ファイル前処理を実行します。
 - パラメータ direction 属性 (`direction="in"`→`[in]` プレフィックス追加)
 - linebreak タグ（`<linebreak/>` → 改行文字への変換準備）
 
-#### config/templates/postprocess.sh (後処理)
+#### templates/postprocess.sh (後処理)
 
 Doxybook2 変換後の Markdown ファイル後処理を実行します。
 
@@ -161,7 +166,7 @@ Doxybook2 変換後の Markdown ファイル後処理を実行します。
 
 ### カスタムテンプレート
 
-`config/templates/` 内に日本語ドキュメント用のカスタムテンプレートを配置:
+`templates/` 内に日本語ドキュメント用のカスタムテンプレートを配置しています。
 
 - `nonclass_members_details.tmpl` - API 出力セクション組織化のメインテンプレート
 - `member_details.tmpl` - 関数・構造体等の個別要素書式設定
@@ -181,4 +186,4 @@ Doxybook2 変換後の Markdown ファイル後処理を実行します。
 
 - `!include` ディレクティブで関連コンテンツ統合 (例: 構造体詳細をグループページに統合)
 - 相対パス・絶対パス両方をサポート
-- デバッグ時は `config/templates/postprocess.sh` 内の `set -x` のコメントアウト解除
+- デバッグ時は `templates/postprocess.sh` 内の `set -x` のコメントアウト解除
