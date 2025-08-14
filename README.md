@@ -40,4 +40,4 @@ make clean
 
 ## ライセンス
 
-[LICENSE](./LICENSE) ファイルをご確認ください。
+[LICENSE](./LICENSE) を参照してください。
