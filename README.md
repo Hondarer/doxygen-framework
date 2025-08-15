@@ -29,7 +29,7 @@ make clean
 
 ## 出力形式
 
-- HTML: `../docs/doxygen/html/` に生成
+- HTML: `../docs/doxygen/` に生成
 - Markdown: `../docs-src/doxybook/` に生成
 
 ## 必要なツール

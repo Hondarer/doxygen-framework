@@ -93,7 +93,7 @@ make docs
 このコマンドは以下の処理を順次実行します。
 
 1. メインプロジェクトに `Doxyfile.part` が存在する場合、基本設定ファイルと結合して一時ファイルを作成し使用 (設定のオーバーライド対応)
-2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `docs/doxygen/html/` に HTML ファイルを生成
+2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `docs/doxygen/` に HTML ファイルを生成
 3. `templates/preprocess.sh` で XML ファイルを前処理 (PlantUML タグ、パラメータ direction 属性、linebreak タグを変換)
 4. Doxybook2 で XML を `docs-src/doxybook/` の Markdown に変換 (カスタム日本語テンプレート使用)
 5. `templates/postprocess.sh` で `!include` ディレクティブを処理して関連コンテンツを統合
@@ -123,7 +123,7 @@ main-project/                     # メインプロジェクト
 │   └── Makefile              # ドキュメント生成用 Makefile
 ├── Doxyfile.part              # プロジェクト固有設定 (オプション)
 ├── prod/src/                  # 実際の C ソースコード
-├── docs/doxygen/html/         # Doxygen 生成 HTML 出力
+├── docs/doxygen/              # Doxygen 生成 HTML 出力
 ├── docs-src/doxybook/         # Doxybook2 生成 Markdown 出力
 └── xml/                       # Doxygen XML 中間ファイル
 ```
