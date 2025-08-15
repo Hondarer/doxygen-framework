@@ -1,6 +1,11 @@
 .PHONY: docs clean all
 
 docs:
+# doxygen コマンドが存在しない場合は全体をスキップ
+	@if ! command -v doxygen >/dev/null 2>&1; then \
+		echo "Warning: doxygen command not found. Skipping documentation generation."; \
+		exit 0; \
+	fi
 	mkdir -p ../docs/doxygen
 # Doxyfile.part がある場合は結合した一時 Doxyfile を作成
 	@if [ -f "../Doxyfile.part" ]; then \
@@ -11,6 +16,11 @@ docs:
 		rm -f $$TEMP_DOXYFILE; \
 	else \
 		cd ../prod && doxygen ../doxyfw/Doxyfile; \
+	fi
+# doxybook2 コマンドが存在しない場合は前処理～doxybook2～後処理をスキップ
+	@if ! command -v doxybook2 >/dev/null 2>&1; then \
+		echo "Warning: doxybook2 command not found. Skipping Markdown generation."; \
+		exit 0; \
 	fi
 	mkdir -p ../docs-src/doxybook
 # プリプロセッシング

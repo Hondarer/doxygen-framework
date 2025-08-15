@@ -34,6 +34,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **表記に関するルール**
 
+このルールは、**ソースコード内のコメントでも有効** です。
+
 + 本文の文末を `：` で終わらせないでください。きちんと文章として完結させてください。
 + 全角括弧 `（` `）` や全角コロン `：` は使用せず、半角で記述してください。
 + 日本語と英単語の間は、半角スペースを挿入してください。
@@ -118,7 +120,7 @@ main-project/                     # メインプロジェクト
 │   │   ├── preprocess.sh    # XML 前処理スクリプト
 │   │   └── postprocess.sh   # Markdown 後処理スクリプト
 │   ├── docs-src/             # 技術ドキュメント
-│   └── makefile              # ドキュメント生成用 Makefile
+│   └── Makefile              # ドキュメント生成用 Makefile
 ├── Doxyfile.part              # プロジェクト固有設定 (オプション)
 ├── prod/src/                  # 実際の C ソースコード
 ├── docs/doxygen/html/         # Doxygen 生成 HTML 出力
