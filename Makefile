@@ -23,6 +23,9 @@ docs:
 		exit 0; \
 	fi
 	mkdir -p ../docs-src/doxybook
+# デバッグ用にオリジナルの xml をバックアップ
+#	rm -rf ../xml_org
+#	cp -rp ../xml ../xml_org
 # プリプロセッシング
 	templates/preprocess.sh ../xml
 # xml -> md 変換

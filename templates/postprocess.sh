@@ -237,7 +237,6 @@ done
 # - 構造体ファイル (それぞれに include するので処理後は不要)
 # - クラスインデックス
 # - 名前空間インデックス
-# - Pages インデックス
 # - Exanples インデックス
 # - ディレクトリページ
 # - Todo リスト
@@ -245,7 +244,6 @@ done
 rm -f "$MARKDOWN_DIR"/struct*.md \
       "$MARKDOWN_DIR"/index_classes.md \
       "$MARKDOWN_DIR"/index_namespaces.md \
-      "$MARKDOWN_DIR"/index_pages.md \
       "$MARKDOWN_DIR"/index_examples.md \
       "$MARKDOWN_DIR"/dir_*.md \
       "$MARKDOWN_DIR"/todo.md \
