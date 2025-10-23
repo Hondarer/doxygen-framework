@@ -37,15 +37,10 @@ while IFS= read -r xml_file; do
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
     
     # PlantUML 変換
-    # 「```plantuml 」のように、 の直前にすでに三連バッククオート付きの plantuml コードフェンスがある場合は、それを消してから通常の変換を行う。
-    # 「\n ``` 」のように、 の直後に改行して三連バッククオートがある場合は、それを消してから通常の変換を行う。
-    # 上記に当てはまらない場合は、<plantuml> と </plantuml> をコードフェンス + @startuml / @enduml に変換する。
-    sed -z -E \
-        -e 's/```plantuml[[:space:]]*<plantuml>/<plantuml>/g' \
-        -e 's|</plantuml>[[:space:]]*\n[[:space:]]*```[[:space:]]*|</plantuml>|g' \
-        -e 's|[[:space:]]*<plantuml>|\n\n```plantuml\n@startuml|g' \
+    # <plantuml> と </plantuml> をコードフェンス + @startuml / @enduml に変換する。
+    sed -e 's|\s*<plantuml>|\n\n```plantuml\n@startuml|g' \
         -e 's|</plantuml>|@enduml\n```|g' \
-        -- "$xml_file" | \
+        "$xml_file" | \
     # パラメータ direction 変換
     sed -e 's|<parametername direction="in">\([^<]*\)</parametername>|<parametername>[in] \1</parametername>|g' \
         -e 's|<parametername direction="out">\([^<]*\)</parametername>|<parametername>[out] \1</parametername>|g' \
