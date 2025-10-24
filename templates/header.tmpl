@@ -4,13 +4,13 @@ summary: {{summary}}
 {% endif -%}
 author: doxygen and doxybook
 {% include "meta" %}
-{% if title != "Files" and title != "Modules" %}toc: true{% endif %}
+{% if title != "Examples" and title != "Files" and title != "Modules" and title != "Pages" %}toc: true{% endif %}
 ---
 
 <!-- IMPORTANT: This is an AUTOMATICALLY GENERATED file by doxygen and doxybook. Manual edits are NOT allowed. -->
 
 {% if exists("title") -%}
-# {% if title == "Files" %}ファイルの一覧{% else  if title == "Modules" %}カテゴリーの一覧{% else %}{{title}}{% endif %}
+# {% if title == "Examples" %}使用例の一覧{% else if title == "Files" %}ファイルの一覧{% else  if title == "Modules" %}カテゴリーの一覧{% else if title == "Pages" %}ページの一覧{% else %}{{title}}{% endif %}
 {% else if exists("kind") and kind != "page" -%}
 # {{name}} {{title(kind)}} Reference
 {% endif %}

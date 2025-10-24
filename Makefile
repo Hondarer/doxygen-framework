@@ -36,6 +36,7 @@ docs:
 		--templates templates
 # 正常に変換できたら xml は不要なため削除
 	rm -rf ../xml
+#	rm -rf ../xml_org
 # ポストプロセッシング
 	templates/postprocess.sh ../docs-src/doxybook
 

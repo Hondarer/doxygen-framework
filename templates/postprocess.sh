@@ -234,20 +234,17 @@ done
 # 不要ファイルの削除
 # 現段階で対象としていない Markdown を削除する
 #
-# - 構造体ファイル (それぞれに include するので処理後は不要)
 # - クラスインデックス
+# - Classes
+#   - 構造体ファイル (それぞれに include するので処理後は不要)
 # - 名前空間インデックス
-# - Exanples インデックス
+# - Namespaces
 # - ディレクトリページ
-# - Todo リスト
-# - Deprecated リスト
-rm -f "$MARKDOWN_DIR"/struct*.md \
-      "$MARKDOWN_DIR"/index_classes.md \
-      "$MARKDOWN_DIR"/index_namespaces.md \
-      "$MARKDOWN_DIR"/index_examples.md \
-      "$MARKDOWN_DIR"/dir_*.md \
-      "$MARKDOWN_DIR"/todo.md \
-      "$MARKDOWN_DIR"/deprecated.md
+rm -rf "$MARKDOWN_DIR"/index_classes.md \
+       "$MARKDOWN_DIR"/Classes \
+       "$MARKDOWN_DIR"/index_namespaces.md \
+       "$MARKDOWN_DIR"/Namespaces \
+       "$MARKDOWN_DIR"/Files/dir_*.md
 
 # ファイルインデックスの編集
 # テンプレートでは正しく置換できなかったため、シェルで加工する
@@ -266,6 +263,12 @@ if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
            -e 's/\(\.md\)#[^)]*/\1/g' \
            "$MARKDOWN_DIR/index_files.md"
+fi
+if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
+    sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
+           -e 's/\(\.md\)#[^)]*/\1/g' \
+           -e '/(Pages\/)/d' \
+           "$MARKDOWN_DIR/index_pages.md"
 fi
 
 # 処理終了
