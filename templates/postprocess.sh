@@ -274,6 +274,12 @@ if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
            -e '/(Pages\/)/d' \
            "$MARKDOWN_DIR/index_pages.md"
 fi
+if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
+    sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
+           -e 's/\(\.md\)#[^)]*/\1/g' \
+           -e '/(Pages\/)/d' \
+           "$MARKDOWN_DIR/index_examples.md"
+fi
 
 # 処理終了
 exit 0
