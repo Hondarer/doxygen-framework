@@ -239,11 +239,15 @@ done
 #   - 構造体ファイル (それぞれに include するので処理後は不要)
 # - 名前空間インデックス
 # - Namespaces
+# - 使用例インデックス
+# - Examples
 # - ディレクトリページ
 rm -rf "$MARKDOWN_DIR"/index_classes.md \
        "$MARKDOWN_DIR"/Classes \
        "$MARKDOWN_DIR"/index_namespaces.md \
        "$MARKDOWN_DIR"/Namespaces \
+       "$MARKDOWN_DIR"/index_examples.md \
+       "$MARKDOWN_DIR"/Examples \
        "$MARKDOWN_DIR"/Files/dir_*.md
 
 # ファイルインデックスの編集
