@@ -271,10 +271,30 @@ if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
            "$MARKDOWN_DIR/index_files.md"
 fi
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
+    # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
            -e 's/\(\.md\)#[^)]*/\1/g' \
            -e '/(Pages\/)/d' \
            "$MARKDOWN_DIR/index_pages.md"
+#    # ファイルパスを抽出してタイトルに付与
+#    # 例: * page [markdown のサンプル](Pages/md_src_README.md#page-md-src-readme)
+#    #  → * page [src/README.md (markdown のサンプル)](Pages/md_src_README.md)
+#    # (Pages/) を含む行は削除
+#    awk '{
+#        # (Pages/) を含む行はスキップ
+#        if (match($0, /\(Pages\/\)$/)) {
+#            next
+#        }
+#        if (match($0, /\* page \[([^\]]+)\]\(Pages\/md_([^)#]+)/, arr)) {
+#            filepath = arr[2]
+#            gsub(/_/, "/", filepath)
+#            title = arr[1]
+#            printf "* page [%s (%s)](Pages/md_%s)\n", filepath, title, arr[2]
+#        } else {
+#            print $0
+#        }
+#    }' "$MARKDOWN_DIR/index_pages.md" > "$MARKDOWN_DIR/index_pages.md.tmp"
+#    mv "$MARKDOWN_DIR/index_pages.md.tmp" "$MARKDOWN_DIR/index_pages.md"
 fi
 if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
