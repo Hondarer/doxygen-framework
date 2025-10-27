@@ -242,13 +242,15 @@ done
 # - 使用例インデックス
 # - Examples
 # - ディレクトリページ
+# - インデックスページ
 rm -rf "$MARKDOWN_DIR"/index_classes.md \
        "$MARKDOWN_DIR"/Classes \
        "$MARKDOWN_DIR"/index_namespaces.md \
        "$MARKDOWN_DIR"/Namespaces \
        "$MARKDOWN_DIR"/index_examples.md \
        "$MARKDOWN_DIR"/Examples \
-       "$MARKDOWN_DIR"/Files/dir_*.md
+       "$MARKDOWN_DIR"/Files/dir_*.md \
+       "$MARKDOWN_DIR"/indexpage.md
 
 # ファイルインデックスの編集
 # テンプレートでは正しく置換できなかったため、シェルで加工する
