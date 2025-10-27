@@ -20,10 +20,11 @@ INPUT = /path/to/dir1 \
 
 ## 相対パスでの指定
 
-相対パスでも指定可能です。
+相対パスでも指定可能です。  
+先頭の ./ は中間一致を防くために明示したほうがベターです。
 
 ```text
-INPUT = src include examples
+INPUT = ./src ./include ./examples
 ```
 
 ## ワイルドカードの使用
@@ -31,7 +32,7 @@ INPUT = src include examples
 ワイルドカードパターンも使用できます。
 
 ```text
-INPUT = src/* libs/*/include
+INPUT = ./src/* ./libs/*/include
 ```
 
 ## RECURSIVE 設定との組み合わせ
