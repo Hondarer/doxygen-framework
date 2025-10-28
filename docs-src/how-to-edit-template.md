@@ -66,6 +66,15 @@ doxybook2 --debug-templates ...
 
 このオプションを使用すると、各テンプレートに対応する JSON ファイル (*.md.json) が生成され、テンプレートに渡されるデータ構造を確認できます。
 
+#### テンプレートの中で利用可能なフィールドを確認する方法
+
+```text
+**利用可能フィールド:**
+{% for key, value in param -%}
+- `{{key}}`: "{{value}}"
+{% endfor %}s
+```
+
 ### テンプレートエンジン
 
 doxybook2 は、Python Jinja ライクな C++ テンプレートエンジン「inja」を使用しており、`{% include "template_name" %}` や `{{ render("template_name", data) }}` などの構文が使用できます。

@@ -270,6 +270,125 @@ PlantUML 形式の図を表します。
 double divide(int a, int b);
 ```
 
+## `@code[{<language>}] ~ @endcode`
+
+コードブロックを表します。言語を指定することで、適切なシンタックスハイライトが適用されます。
+
+オプションの `{<language>}` パラメータには、言語名 (c, cpp, python, java など) を指定できます。省略した場合は、コンテキストから言語が推測されます。
+
+以下に例を示します。
+
+```c
+/**
+ *  @brief          文字列を反転します。
+ *  @param[in,out]  str 反転する文字列。
+ *  @details        以下は使用例です。
+ *  @code{.c}
+ *  char text[] = "Hello";
+ *  reverseString(text);
+ *  printf("%s\n", text);  // 出力: olleH
+ *  @endcode
+ */
+void reverseString(char *str);
+```
+
+```c
+/**
+ *  @brief          配列の最大値を取得します。
+ *  @param[in]      arr 配列。
+ *  @param[in]      size 配列のサイズ。
+ *  @return         最大値。
+ *  @details
+ *  この関数は配列内の最大値を線形探索で見つけます。
+ *
+ *  @code
+ *  int numbers[] = {3, 7, 2, 9, 1};
+ *  int max = findMax(numbers, 5);
+ *  printf("最大値: %d\n", max);  // 出力: 最大値: 9
+ *  @endcode
+ */
+int findMax(const int *arr, size_t size);
+```
+
+## `@verbatim ~ @endverbatim`
+
+テキストをそのままの形式で表示します。Doxygen による解釈や整形を行わず、記述したとおりに出力されます。
+
+`@code` と異なり、シンタックスハイライトは適用されません。また、Doxygen のコマンド (タグ) や特殊文字もそのまま表示されます。
+
+以下に例を示します。
+
+```c
+/**
+ *  @brief          環境変数の設定例を表示します。
+ *  @details        以下の形式で環境変数を設定してください。
+ *  @verbatim
+ *  export PATH=/usr/local/bin:$PATH
+ *  export CC=gcc
+ *  export CFLAGS="-Wall -O2"
+ *  @endverbatim
+ */
+void showEnvironmentSetup();
+```
+
+```c
+/**
+ *  @brief          ビルド手順を表示します。
+ *  @details
+ *  以下のコマンドを順に実行してください。
+ *
+ *  @verbatim
+ *  $ cd project_directory
+ *  $ mkdir build
+ *  $ cd build
+ *  $ cmake ..
+ *  $ make
+ *  $ make install
+ *  @endverbatim
+ */
+void showBuildInstructions();
+```
+
+## Markdown 形式のコードブロック
+
+Doxygen は Markdown 形式のコードブロック (バッククォート3つ) もサポートしています。
+
+以下に例を示します。
+
+```c
+/**
+ *  @brief          エラーコードを返します。
+ *  @return         エラーコード。
+ *  @details
+ *  以下のようにエラーコードを処理します:
+ *
+ *  ```c
+ *  int result = getErrorCode();
+ *  if (result != 0) {
+ *      fprintf(stderr, "Error: %d\n", result);
+ *      return EXIT_FAILURE;
+ *  }
+ *  ```
+ */
+int getErrorCode();
+```
+
+## コードブロックの使い分けガイド
+
+| コマンド | シンタックスハイライト | Doxygen コマンド解釈 | 主な用途 |
+| --- | --- | --- | --- |
+| `@code ~ @endcode` | ✅ あり | ❌ なし | プログラミングコードの例示 |
+| `@verbatim ~ @endverbatim` | ❌ なし | ❌ なし | シェルコマンド、設定ファイルの内容 |
+| Markdown 形式 | ✅ あり | ❌ なし | 一般的なコード例、複数言語の混在 |
+
+### 選択基準
+
+- **プログラミングコードの例**: `@code{.c}` または Markdown 形式を使用
+- **シェルコマンドや実行例**: `@verbatim` を使用
+- **設定ファイルの内容**: `@verbatim` を使用
+- **複数の言語が混在**: Markdown 形式を使用
+- **Doxygen コマンド自体を表示**: `@verbatim` を使用
+
 ## `@f[ ~ @f]`, `@f$ ~ @f$`
 
 Latex の式を表します。複数行形式と行内形式の 2 つの書式があります。

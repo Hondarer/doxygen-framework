@@ -150,8 +150,133 @@ Markdown pipe tables 形式の表はサポートされません。サポート�
  *  |   1 | 内容1<br />内容2   |
  *  |   2 | テスト             |
  *  |   3 | Test               |
- *  
+ *
  *  Table: セル内での改行を含む表
  *******************************************************************************
  */
+```
+
+### コードの埋め込み
+
+#### `@code ~ @endcode` を使用した例
+
+```c
+/**
+ *******************************************************************************
+ *  @brief          文字列を連結します。
+ *  @param[out]     dest 連結先のバッファ。
+ *  @param[in]      src 連結元の文字列。
+ *  @param[in]      destSize dest のバッファサイズ。
+ *  @return         成功した場合は 0、失敗した場合は -1。
+ *  @details
+ *  この関数は安全に文字列を連結します。
+ *
+ *  使用例:
+ *  @code{.c}
+ *  char buffer[100] = "Hello, ";
+ *  const char *name = "World";
+ *  if (concatenateString(buffer, name, sizeof(buffer)) == 0) {
+ *      printf("%s\n", buffer);  // 出力: Hello, World
+ *  }
+ *  @endcode
+ *******************************************************************************
+ */
+int concatenateString(char *dest, const char *src, size_t destSize);
+```
+
+#### `@verbatim ~ @endverbatim` を使用した例
+
+```c
+/**
+ *******************************************************************************
+ *  @brief          設定ファイルを読み込みます。
+ *  @param[in]      configPath 設定ファイルのパス。
+ *  @return         設定情報を格納した構造体へのポインタ。
+ *  @details
+ *  以下の形式の設定ファイルを読み込みます:
+ *
+ *  @verbatim
+ *  # Configuration file
+ *  server.host=localhost
+ *  server.port=8080
+ *  database.name=mydb
+ *  database.user=admin
+ *  @endverbatim
+ *
+ *  コメント行 (#) は無視されます。
+ *******************************************************************************
+ */
+Config *loadConfig(const char *configPath);
+```
+
+#### Markdown 形式を使用した例
+
+```c
+/**
+ *******************************************************************************
+ *  @brief          データベースに接続します。
+ *  @param[in]      connectionString 接続文字列。
+ *  @return         接続ハンドル。
+ *  @details
+ *  以下のように接続文字列を指定します:
+ *
+ *  ```text
+ *  host=localhost port=5432 dbname=mydb user=admin password=secret
+ *  ```
+ *
+ *  接続に失敗した場合は NULL を返します。
+ *
+ *  使用例:
+ *
+ *  ```c
+ *  const char *connStr = "host=localhost dbname=test";
+ *  DbHandle *handle = connectDatabase(connStr);
+ *  if (handle != NULL) {
+ *      // データベース操作
+ *      disconnectDatabase(handle);
+ *  }
+ *  ```
+ *******************************************************************************
+ */
+DbHandle *connectDatabase(const char *connectionString);
+```
+
+#### 複数のコード例を含む場合
+
+```c
+/**
+ *******************************************************************************
+ *  @brief          ファイルの内容を読み込みます。
+ *  @param[in]      filename ファイル名。
+ *  @param[out]     buffer 読み込んだ内容を格納するバッファ。
+ *  @param[in]      bufferSize バッファのサイズ。
+ *  @return         読み込んだバイト数。失敗時は -1。
+ *
+ *  @details
+ *  基本的な使用例:
+ *  @code{.c}
+ *  char buffer[1024];
+ *  ssize_t bytesRead = readFile("data.txt", buffer, sizeof(buffer));
+ *  if (bytesRead > 0) {
+ *      printf("Read %zd bytes\n", bytesRead);
+ *  }
+ *  @endcode
+ *
+ *  エラー処理を含む例:
+ *  @code{.c}
+ *  char buffer[1024];
+ *  ssize_t bytesRead = readFile("data.txt", buffer, sizeof(buffer));
+ *  if (bytesRead == -1) {
+ *      fprintf(stderr, "Error: Failed to read file\n");
+ *      return EXIT_FAILURE;
+ *  } else if (bytesRead == 0) {
+ *      printf("File is empty\n");
+ *  } else {
+ *      buffer[bytesRead] = '\0';
+ *      printf("Content: %s\n", buffer);
+ *  }
+ *  @endcode
+ *******************************************************************************
+ */
+ssize_t readFile(const char *filename, char *buffer, size_t bufferSize);
 ```
