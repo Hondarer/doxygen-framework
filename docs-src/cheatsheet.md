@@ -79,6 +79,32 @@ Doxygen の生成処理は制限が多く、記載した内容が正しくドキ
     int     intval;         /*!< 変数の説明 */
 ```
 
+```c
+ /**
+ *  @ingroup        public_api
+ *  @brief          サンプルの列挙体を定義します。
+ */
+enum SampleEnum
+{
+    one,  /*!< 1 つめの要素 */
+    two,  /*!< 2 つめの要素 */
+    three /*!< 3 つめの要素 */
+};
+```
+
+```c
+/**
+ *  @ingroup        public_api
+ *  @brief          ユーザー情報を保持する構造体を定義します。
+ */
+typedef struct
+{
+    int id;               /*!< ユーザーID */
+    const char *name;     /*!< ユーザー名 */
+    SampleEnum enumValue; /*!< 列挙値 */
+} UserInfo;
+```
+
 ## シナリオ別の記載例
 
 ### リスト
