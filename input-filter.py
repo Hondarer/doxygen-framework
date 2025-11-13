@@ -2,6 +2,17 @@
 import sys
 import re
 
+# 標準出力を UTF-8 に固定する
+# Windows 環境では sys.stdout のエンコーディングが ANSI のため、
+# この措置を行わないと文字化けしてしまう
+try:
+    # Python 3.7+
+    sys.stdout.reconfigure(encoding='utf-8')
+except AttributeError:
+    # Python 3.6 など
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 with open(sys.argv[1], 'r', encoding='utf-8') as f:
     content = f.read()
 
