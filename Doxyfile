@@ -2413,7 +2413,7 @@ DIAFILE_DIRS           =
 # will not generate output for the diagram.
 
 # NOTE: The file name must be "plantuml.jar".
-PLANTUML_JAR_PATH      = /usr/local/bin/plantuml.jar
+PLANTUML_JAR_PATH      = $(PLANTUML_HOME)/plantuml.jar
 
 # When using plantuml, the PLANTUML_CFG_FILE tag can be used to specify a
 # configuration file for plantuml.

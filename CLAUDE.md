@@ -179,7 +179,7 @@ Doxybook2 変換後の Markdown ファイル後処理を実行します。
 ### Doxygen 仕様とベストプラクティス
 
 - 全パブリック関数に `@ingroup public_api` を付与して API をグループ化
-- PlantUML サポート (前提: `Doxyfile` に `PLANTUML_JAR_PATH` が設定されていること)
+- PlantUML サポート (前提: 環境変数 `PLANTUML_HOME` に `plantuml.jar` の属するパスが設定されていること)
 - UTF-8 エンコーディングで日本語コメント対応
 - 関数宣言はヘッダーで簡潔に、詳細実装コメントは .c ファイルに記述
 - プロジェクト固有設定はメインプロジェクトの `Doxyfile.part` で上書き (PROJECT_NAME 等)
