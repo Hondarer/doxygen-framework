@@ -242,6 +242,8 @@ done
 # - 使用例インデックス
 # - Examples
 # - ディレクトリページ
+# - ページインデックス
+# - Pages
 # - インデックスページ
 rm -rf "$MARKDOWN_DIR"/index_classes.md \
        "$MARKDOWN_DIR"/Classes \
@@ -250,6 +252,8 @@ rm -rf "$MARKDOWN_DIR"/index_classes.md \
        "$MARKDOWN_DIR"/index_examples.md \
        "$MARKDOWN_DIR"/Examples \
        "$MARKDOWN_DIR"/Files/dir_*.md \
+       "$MARKDOWN_DIR"/index_pages.md \
+       "$MARKDOWN_DIR"/Pages \
        "$MARKDOWN_DIR"/indexpage.md
 
 # ファイルインデックスの編集
