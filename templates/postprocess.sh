@@ -9,7 +9,7 @@
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
-    echo "例: $0 docs-src/doxybook2"
+    echo "例: $0 docs-src/doxybook"
     exit 1
 fi
 
