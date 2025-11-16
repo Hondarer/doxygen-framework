@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+
 # collect-pages.sh - Markdown ファイルをツリー構造を維持してコピーするスクリプト
 #
 # 使用方法:
@@ -7,7 +7,6 @@
 #
 # 例:
 #   ./collect-pages.sh D:\Users\tetsuo\Local\repos\c-modernization-kit prod docs-src\doxybook\Pages
-#
 
 set -e
 
@@ -72,7 +71,7 @@ EOF
 TEMP_FILE=$(mktemp)
 
 # Markdown ファイルの検索とコピー
-find "$SOURCE_PATH" -type f -name "*.md" | sort | while read -r md_file; do
+find "$SOURCE_PATH" -type f -name "*.md" | LC_ALL=C sort | while read -r md_file; do
     # 基準ディレクトリからの相対パスを取得
     rel_path="${md_file#$BASE_DIR/}"
 
@@ -97,6 +96,9 @@ done
 if [ -f "$TEMP_FILE" ]; then
     # 出力済みディレクトリを追跡する連想配列
     declare -A printed_dirs
+
+    # 一時ファイルをソートして順序を統一
+    LC_ALL=C sort "$TEMP_FILE" -o "$TEMP_FILE"
 
     while IFS= read -r file_path; do
         # ディレクトリとファイル名を分離
