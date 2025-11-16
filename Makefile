@@ -39,6 +39,8 @@ docs:
 #	rm -rf ../xml_org
 # ポストプロセッシング
 	templates/postprocess.sh ../docs-src/doxybook
+# Markdown 収集
+	collect-pages.sh ../ prod docs-src/doxybook/Pages
 
 clean:
 	rm -rf ../docs/doxygen ../docs-src/doxybook ../xml

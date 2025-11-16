@@ -217,20 +217,6 @@ process_markdown_file() {
     fi
 }
 
-# .mdファイルを配列に収集
-mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
-
-# 処理対象ファイル数をカウント
-total_files=${#md_files[@]}
-processed_files=0
-
-# 各ファイルを処理
-for file in "${md_files[@]}"; do
-    if process_markdown_file "$file"; then
-        ((processed_files++))
-    fi
-done
-
 # 不要ファイルの削除
 # 現段階で対象としていない Markdown を削除する
 #
@@ -255,6 +241,20 @@ rm -rf "$MARKDOWN_DIR"/index_classes.md \
        "$MARKDOWN_DIR"/index_pages.md \
        "$MARKDOWN_DIR"/Pages \
        "$MARKDOWN_DIR"/indexpage.md
+
+# .mdファイルを配列に収集
+mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
+
+# 処理対象ファイル数をカウント
+total_files=${#md_files[@]}
+processed_files=0
+
+# 各ファイルを処理
+for file in "${md_files[@]}"; do
+    if process_markdown_file "$file"; then
+        ((processed_files++))
+    fi
+done
 
 # ファイルインデックスの編集
 # テンプレートでは正しく置換できなかったため、シェルで加工する
