@@ -11,11 +11,11 @@ docs:
 	@if [ -f "../Doxyfile.part" ]; then \
 		echo "Merging Doxyfile.part..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
-		cat Doxyfile ../Doxyfile.part > $$TEMP_DOXYFILE; \
-		cd ../prod && doxygen $$TEMP_DOXYFILE; \
+		cat Doxyfile ../Doxyfile.part > $$TEMP_DOXYFILE || exit 1; \
+		cd ../prod && doxygen $$TEMP_DOXYFILE || exit 1; \
 		rm -f $$TEMP_DOXYFILE; \
 	else \
-		cd ../prod && doxygen ../doxyfw/Doxyfile; \
+		cd ../prod && doxygen ../doxyfw/Doxyfile || exit 1; \
 	fi
 # doxybook2 コマンドが存在しない場合は前処理～doxybook2～後処理をスキップ
 	@if ! command -v doxybook2 >/dev/null 2>&1; then \
@@ -27,20 +27,20 @@ docs:
 #	rm -rf ../xml_org
 #	cp -rp ../xml ../xml_org
 # プリプロセッシング
-	templates/preprocess.sh ../xml
+	templates/preprocess.sh ../xml || exit 1
 # xml -> md 変換
 	doxybook2 \
 		-i ../xml \
 		-o ../docs-src/doxybook \
 		--config doxybook-config.json \
-		--templates templates
+		--templates templates || exit 1
 # 正常に変換できたら xml は不要なため削除
 	rm -rf ../xml
 #	rm -rf ../xml_org
 # ポストプロセッシング
-	templates/postprocess.sh ../docs-src/doxybook
+	templates/postprocess.sh ../docs-src/doxybook || exit 1
 # Markdown 収集
-	./collect-pages.sh ../ prod docs-src/doxybook/Pages
+	./collect-pages.sh ../ prod docs-src/doxybook/Pages || exit 1
 
 clean:
 	rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
