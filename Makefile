@@ -6,6 +6,7 @@ docs:
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
 		exit 0; \
 	fi
+	-rm -rf ../docs/doxygen
 	mkdir -p ../docs/doxygen
 # Doxyfile.part がある場合は結合した一時 Doxyfile を作成
 	@if [ -f "../Doxyfile.part" ]; then \
@@ -22,6 +23,7 @@ docs:
 		echo "Warning: doxybook2 command not found. Skipping Markdown generation."; \
 		exit 0; \
 	fi
+	-rm -rf ../docs-src/doxybook
 	mkdir -p ../docs-src/doxybook
 # デバッグ用にオリジナルの xml をバックアップ
 #	rm -rf ../xml_org

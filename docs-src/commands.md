@@ -115,7 +115,6 @@ Doxygen によって生成された対応する HTML ドキュメントについ
  */
 
 /**
- *  @ingroup        MenuTests
  *  @test           Menu item selection test.
  *                  1. Open the application menu.
  *                  2. Click on "File" menu item.
@@ -432,7 +431,6 @@ Latex の式を表します。複数行形式と行内形式の 2 つの書式�
  */
 
 /**
- *  @ingroup        MathFunctions
  *  @brief          Calculates the factorial of a number.
  *  @param[in]      n An integer number.
  *  @return         The factorial of @p n.
@@ -445,6 +443,8 @@ int factorial(int n);
 既存のグループに機能を追加します。
 
 `@ingroup` コマンドを用いることで、複数のファイルや異なる箇所に置かれた関連機能を一つのグループとしてドキュメント化できます。
+
+**重要**: `@ingroup` コマンドを使用すると、ファイル側の記載が出力から除かれます。これは Doxygen の仕様ですが、ファイル側のドキュメントにおける網羅性を下げるため、本コマンドの使用は非推奨です。
 
 ```c
 /**

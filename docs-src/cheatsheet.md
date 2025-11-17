@@ -96,7 +96,6 @@ int calcHandler(int kind, int a, int b)
 
 ```c
  /**
- *  @ingroup        public_api
  *  @brief          サンプルの列挙体を定義します。
  */
 enum SampleEnum
@@ -109,7 +108,6 @@ enum SampleEnum
 
 ```c
 /**
- *  @ingroup        public_api
  *  @brief          ユーザー情報を保持する構造体を定義します。
  */
 typedef struct

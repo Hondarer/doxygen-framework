@@ -130,8 +130,8 @@ main-project/                     # メインプロジェクト
 
 ### ソースコード構造
 
-- `prod/src/calculator.h` - 関数宣言と `@ingroup public_api` による API 分類、ZERO_DEVIDE 定数定義
-- `prod/src/calculator.c` - `@ingroup public_api` を使用した Doxygen コメント付きの実装
+- `prod/src/calculator.h` - 関数宣言、ZERO_DEVIDE 定数定義
+- `prod/src/calculator.c` - Doxygen コメント付きの実装
 - `prod/src/samplestruct.h` - UserInfo 構造体とその他のサンプル定義
 
 ### ドキュメント生成パイプライン
@@ -178,7 +178,6 @@ Doxybook2 変換後の Markdown ファイル後処理を実行します。
 
 ### Doxygen 仕様とベストプラクティス
 
-- 全パブリック関数に `@ingroup public_api` を付与して API をグループ化
 - PlantUML サポート (前提: 環境変数 `PLANTUML_HOME` に `plantuml.jar` の属するパスが設定されていること)
 - UTF-8 エンコーディングで日本語コメント対応
 - 関数宣言はヘッダーで簡潔に、詳細実装コメントは .c ファイルに記述

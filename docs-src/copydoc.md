@@ -64,31 +64,6 @@ int processData(const std::string& data, int flags);
 
 `@brief` や本文の詳細説明は `@copydoc` でコピーされたものがそのまま使われます。完全に別の説明にしたい場合は、`@copydoc` を使わず最初から書いた方が明確です。
 
-## グループへの所属
-
-`@copydoc` の後に `@ingroup` を追加すれば、その関数だけを特定のグループに所属させられます。
-
-```{.cpp caption="example.cpp"}
-/**
- * @brief データを処理する
- * @param data 入力データ
- * @return 処理結果
- */
-int processData(const char* data);
-
-/**
- * @copydoc processData(const char*)
- * @ingroup string_utilities
- */
-int processData(const std::string& data);
-```
-
-この例では、2 番目の `processData` 関数だけが `string_utilities` グループに含まれます。1 番目の関数はどのグループにも属しません。
-
-`@ingroup` は構造的な情報なので、`@copydoc` でコピーされる説明内容とは独立して扱われます。そのため、コピー先だけに追加しても問題なく動作します。
-
-逆に、コピー元に `@ingroup` があってもコピー先には引き継がれないので、必要なら明示的に書く必要があります。
-
 ## まとめ
 
 `@copydoc` を活用すると、似た関数のドキュメントを効率よく管理できます。基本の説明を共有しつつ、関数ごとの違いだけを上書きすることで、メンテナンス性の高いドキュメントを作成できます。
