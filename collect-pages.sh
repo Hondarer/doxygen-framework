@@ -128,7 +128,7 @@ if [ -f "$TEMP_FILE" ]; then
                         indent="    $indent"
                     done
 
-                    echo "${indent}* dir ${part}" >> "$INDEX_FILE"
+                    echo "${indent}* 📁 ${part}" >> "$INDEX_FILE"
                     printed_dirs[$current_path]=1
                 fi
             done
@@ -169,9 +169,9 @@ if [ -f "$TEMP_FILE" ]; then
 
         # ファイルエントリを出力
         if [ -n "$description" ]; then
-            echo "${indent}* page [${file_path}](${link_path}) <br/>${description}" >> "$INDEX_FILE"
+            echo "${indent}* 📄 [${file_path}](${link_path}) <br/>${description}" >> "$INDEX_FILE"
         else
-            echo "${indent}* page [${file_path}](${link_path})" >> "$INDEX_FILE"
+            echo "${indent}* 📄 [${file_path}](${link_path})" >> "$INDEX_FILE"
         fi
 
     done < "$TEMP_FILE"
