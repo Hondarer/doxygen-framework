@@ -1,12 +1,7 @@
-# デフォルトターゲットは何もしない
-# Default target does nothing
 .DEFAULT_GOAL := default
-.PHONY: default docs clean
 
-default:
-	@:
-
-docs: clean
+.PHONY: default
+default: clean
 # doxygen コマンドが存在しない場合は全体をスキップ
 	@if ! command -v doxygen >/dev/null 2>&1; then \
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
@@ -48,5 +43,6 @@ docs: clean
 # Markdown 収集
 	./collect-pages.sh ../ prod docs-src/doxybook/Pages || exit 1
 
+.PHONY: clean
 clean:
 	-rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
