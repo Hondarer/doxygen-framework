@@ -1,12 +1,17 @@
-.PHONY: docs clean all
+# デフォルトターゲットは何もしない
+# Default target does nothing
+.DEFAULT_GOAL := default
+.PHONY: default docs clean
 
-docs:
+default:
+	@:
+
+docs: clean
 # doxygen コマンドが存在しない場合は全体をスキップ
 	@if ! command -v doxygen >/dev/null 2>&1; then \
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
 		exit 0; \
 	fi
-	-rm -rf ../docs/doxygen
 	mkdir -p ../docs/doxygen
 # Doxyfile.part がある場合は結合した一時 Doxyfile を作成
 	@if [ -f "../Doxyfile.part" ]; then \
@@ -23,7 +28,6 @@ docs:
 		echo "Warning: doxybook2 command not found. Skipping Markdown generation."; \
 		exit 0; \
 	fi
-	-rm -rf ../docs-src/doxybook
 	mkdir -p ../docs-src/doxybook
 # デバッグ用にオリジナルの xml をバックアップ
 #	rm -rf ../xml_org
@@ -45,6 +49,4 @@ docs:
 	./collect-pages.sh ../ prod docs-src/doxybook/Pages || exit 1
 
 clean:
-	rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
-
-all: clean docs
+	-rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
