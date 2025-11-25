@@ -70,7 +70,7 @@ int calcHandler(int kind, int a, int b)
  *  @since          コードや API がいつから利用可能になったかを記載します。
  * 
  *  PlantUML の図を挿入することができます。<br>
- *  VSCode の PlantUML プラグインを使用するために、
+ *  VS Code の PlantUML プラグインを使用するために、
  *  `@startuml` ~ `@enduml` の範囲は行頭の * を記載しません。
  * 
     @startuml
