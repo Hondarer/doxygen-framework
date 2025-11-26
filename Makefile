@@ -1,3 +1,6 @@
+# このMakefileのディレクトリ (絶対パス) を取得
+MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
 .DEFAULT_GOAL := default
 
 .PHONY: default
@@ -13,10 +16,13 @@ default: clean
 		echo "Merging Doxyfile.part..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
 		cat Doxyfile ../Doxyfile.part > $$TEMP_DOXYFILE || exit 1; \
-		cd ../prod && doxygen $$TEMP_DOXYFILE || exit 1; \
+		cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+		DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
 		rm -f $$TEMP_DOXYFILE; \
+		exit $$DOXYGEN_EXIT; \
 	else \
-		cd ../prod && doxygen ../doxyfw/Doxyfile || exit 1; \
+		cd ../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+		exit $${PIPESTATUS[0]}; \
 	fi
 # doxybook2 コマンドが存在しない場合は前処理～doxybook2～後処理をスキップ
 	@if ! command -v doxybook2 >/dev/null 2>&1; then \
