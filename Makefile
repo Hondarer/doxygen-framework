@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := default
 
-.PHONY: default
+.PHONY: default docs
 default: clean
+docs: clean
 # doxygen コマンドが存在しない場合は全体をスキップ
 	@if ! command -v doxygen >/dev/null 2>&1; then \
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
@@ -13,10 +14,13 @@ default: clean
 		echo "Merging Doxyfile.part..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
 		cat Doxyfile ../Doxyfile.part > $$TEMP_DOXYFILE || exit 1; \
-		cd ../prod && doxygen $$TEMP_DOXYFILE || exit 1; \
+		cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | ../doxyfw/templates/colorize-output.sh; \
+		DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
 		rm -f $$TEMP_DOXYFILE; \
+		exit $$DOXYGEN_EXIT; \
 	else \
-		cd ../prod && doxygen ../doxyfw/Doxyfile || exit 1; \
+		cd ../prod && doxygen ../doxyfw/Doxyfile 2>&1 | ../doxyfw/templates/colorize-output.sh; \
+		exit $${PIPESTATUS[0]}; \
 	fi
 # doxybook2 コマンドが存在しない場合は前処理～doxybook2～後処理をスキップ
 	@if ! command -v doxybook2 >/dev/null 2>&1; then \
