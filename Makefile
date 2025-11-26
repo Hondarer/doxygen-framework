@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := default
 
-.PHONY: default docs
+.PHONY: default doxy
 default: clean
-docs: clean
+doxy: clean
 # doxygen コマンドが存在しない場合は全体をスキップ
 	@if ! command -v doxygen >/dev/null 2>&1; then \
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
