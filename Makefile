@@ -40,7 +40,9 @@ default: clean
 		-i ../xml \
 		-o ../docs-src/doxybook \
 		--config doxybook-config.json \
-		--templates templates || exit 1
+		--templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
+	DOXYBOOK_EXIT=$${PIPESTATUS[0]}; \
+	if [ $$DOXYBOOK_EXIT -ne 0 ]; then exit $$DOXYBOOK_EXIT; fi
 # 正常に変換できたら xml は不要なため削除
 	rm -rf ../xml
 #	rm -rf ../xml_org
