@@ -2,7 +2,7 @@
 
 ## 概要
 
-`doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラーコードを除去するフィルタースクリプトです。`[info]` ログを完全に脱色し、`[warning]` と `[error]` の太字を除去します。
+`doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラーコードを除去するフィルタースクリプトです。`[info]` ログを完全に脱色し、`[warning]` / `[error]` / `[critical]` の太字を除去します。
 
 ## ファイルパス
 
@@ -23,6 +23,7 @@ doxybook2-decolorize-output.sh
 | ログレベル | 検出パターン | 処理内容 | 処理後の表示 |
 |------------|--------------|----------|--------------|
 | Info | `[info]` | 全ての ANSI コードを削除 | デフォルト (着色なし) |
+| Critical | `[critical]` | 全ての ANSI コードを削除して赤色に変換 | 🔴 赤 (通常の太さ、背景なし) |
 | Warning | `[warning]` | 太字コードを除去、黄色は維持 | 🟡 黄 (通常の太さ) |
 | Error | `[error]` | 太字コードを除去、赤色は維持 | 🔴 赤 (通常の太さ) |
 | その他 | (該当なし) | そのまま出力 | 変更なし |
@@ -41,6 +42,9 @@ while (標準入力に行がある?) is (yes)
   if ('[info]' を含む?) then (yes)
     :全ての ANSI コードを削除;
     :脱色して出力;
+  elseif ('[critical]' を含む?) then (yes)
+    :全ての ANSI コードを削除;
+    :赤色 (\\033[0;31m) で出力;
   elseif ('[warning]' または '[error]' を含む?) then (yes)
     :太字コード (\\033[1;) を通常 (\\033[0;) に変換;
     :調整して出力;
@@ -62,6 +66,14 @@ if [[ "$line" == *"[info]"* ]]; then
 ```
 
 行内に `[info]` が含まれる場合にマッチします。
+
+#### Critical ログの検出
+
+```bash
+elif [[ "$line" == *"[critical]"* ]]; then
+```
+
+行内に `[critical]` が含まれる場合にマッチします。
 
 #### Warning/Error ログの検出
 
@@ -85,6 +97,19 @@ echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
 - `\[`: 左角括弧
 - `[0-9;]*`: 数字とセミコロンの 0 回以上の繰り返し
 - `m`: 終端文字
+
+#### Critical ログの完全脱色と赤色適用
+
+```bash
+# 全ての ANSI エスケープコードを削除
+cleaned=$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g')
+# 通常の赤色で全行を出力
+echo -e "\033[0;31m${cleaned}\033[0m"
+```
+
+処理内容:
+- 太字 + 赤背景 (`\033[1;41m`) を含む全ての ANSI コードを除去
+- 通常の太さの赤文字 (`\033[0;31m`) で再着色
 
 #### Warning/Error ログの太字除去
 
@@ -141,9 +166,10 @@ exit $DOXYBOOK_EXIT;
 [2025-11-26 10:30:15.123] [info] Processing file calculator.h
 [2025-11-26 10:30:15.124] [warning] Missing brief description
 [2025-11-26 10:30:15.125] [error] Failed to parse member
+[2025-11-26 10:30:15.126] [critical] Fatal error occurred
 ```
 
-(ターミナルでは `[info]` が緑、`[warning]` が太字黄色、`[error]` が太字赤色で表示)
+(ターミナルでは `[info]` が緑、`[warning]` が太字黄色、`[error]` が太字赤色、`[critical]` が太字 + 赤背景で表示)
 
 ### 処理後
 
@@ -152,8 +178,9 @@ exit $DOXYBOOK_EXIT;
 ```
 <span style="color: #ffaa00">[2025-11-26 10:30:15.124] [warning] Missing brief description</span>
 <span style="color: #ff0000">[2025-11-26 10:30:15.125] [error] Failed to parse member</span>
+<span style="color: #ff0000">[2025-11-26 10:30:15.126] [critical] Fatal error occurred</span>
 
-(`[info]` は着色なし、`[warning]` は通常の太さの黄色、`[error]` は通常の太さの赤色で表示)
+(`[info]` は着色なし、`[warning]` は通常の太さの黄色、`[error]` と `[critical]` は通常の太さの赤色で表示)
 
 ## 制限事項
 
@@ -181,12 +208,14 @@ Normal output line
 Another normal line
 [2025-11-26 10:30:15.124] [warning] Missing description
 [2025-11-26 10:30:15.125] [error] Parse failed
+[2025-11-26 10:30:15.126] [critical] Fatal error
 More normal output
 EOF
 ```
 
 期待される結果:
 - `[info]` 行: ANSI コードが完全に削除される
+- `[critical]` 行: ANSI コードが削除され、通常の太さの赤色になる
 - `[warning]` 行: 太字が除去され、通常の太さの黄色になる
 - `[error]` 行: 太字が除去され、通常の太さの赤色になる
 
@@ -198,6 +227,7 @@ Normal output line
 [2025-11-26 10:30:15.123] [32m[info][0m Processing file
 [2025-11-26 10:30:15.124] [1;33m[warning][0m Missing description
 [2025-11-26 10:30:15.125] [1;31m[error][0m Parse failed
+[2025-11-26 10:30:15.126] [1;41m[critical][0m Fatal error
 EOF
 ```
 
