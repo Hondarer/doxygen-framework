@@ -1,13 +1,13 @@
-# colorize-output.sh 仕様書
+# doxygen-colorize-output.sh 仕様
 
 ## 概要
 
-`templates/colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラーコードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルタースクリプトです。
+`doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラーコードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルタースクリプトです。
 
 ## ファイルパス
 
 ```text
-templates/colorize-output.sh
+doxygen-colorize-output.sh
 ```
 
 ## 実行権限
@@ -89,7 +89,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 ### Makefile からの呼び出し
 
 ```bash
-doxygen Doxyfile 2>&1 | ../doxyfw/templates/colorize-output.sh
+doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -98,7 +98,7 @@ doxygen Doxyfile 2>&1 | ../doxyfw/templates/colorize-output.sh
 ### 終了コードの保持
 
 ```bash
-doxygen Doxyfile 2>&1 | ../doxyfw/templates/colorize-output.sh;
+doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh;
 DOXYGEN_EXIT=${PIPESTATUS[0]};
 exit $DOXYGEN_EXIT;
 ```
@@ -143,7 +143,7 @@ ANSI カラーコードを含む出力をファイルにリダイレクトする
 以下のコマンドでスクリプト単体のテストが可能です。
 
 ```bash
-cat <<'EOF' | templates/colorize-output.sh
+cat <<'EOF' | doxygen-colorize-output.sh
 Normal output line
 /path/to/file.c:42: warning: undocumented parameter 'foo'
 Another normal line
