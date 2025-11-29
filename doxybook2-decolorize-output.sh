@@ -8,9 +8,9 @@ while IFS= read -r line; do
         # [info] 行から全ての ANSI エスケープコードを削除
         echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
     elif [[ "$line" == *"[critical]"* ]]; then
-        # [critical] 行から全ての ANSI エスケープコードを削除して赤色で出力
-        cleaned=$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g')
-        echo -e "\033[0;31m${cleaned}\033[0m"
+        # [critical] の太字と背景色を除去し、通常の赤文字に変換
+        # \033[1;41m → \033[0;31m (太字 + 赤背景 → 通常 + 赤文字)
+        echo "$line" | sed 's/\x1b\[1;41m/\x1b[0;31m/g'
     elif [[ "$line" == *"[warning]"* ]] || [[ "$line" == *"[error]"* ]]; then
         # [warning] / [error] 行の太字コードを通常の太さに変換
         # \033[1;XX → \033[0;XX

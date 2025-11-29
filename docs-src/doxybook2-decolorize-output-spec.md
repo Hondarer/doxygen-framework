@@ -4,6 +4,26 @@
 
 `doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラーコードを除去するフィルタースクリプトです。`[info]` ログを完全に脱色し、`[warning]` / `[error]` / `[critical]` の太字を除去します。
 
+## 背景と目的
+
+### 問題点
+
+Doxybook2 は spdlog ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラーコードによる着色が有効になっています。実行時、以下の問題が発生します。
+
+- `[info]` レベルのログが緑色で大量に出力され、視認性が低下する
+- Doxygen とは逆に、着色が過剰である
+- `[info]` は情報メッセージであり、着色の必要性が低い
+- `[warning]`、`[error]`、`[critical]` の太字も、強調が過剰である
+- `[critical]` の赤背景も過剰であり、通常の赤文字で十分である
+
+### 目標
+
+Doxygen 着色スクリプト (`doxygen-colorize-output.sh`) とは逆のアプローチを採用します。
+
+- 着色の削除: 過剰な ANSI エスケープコードを除去
+- 選択的処理: `[info]` は完全脱色、`[warning]` / `[error]` / `[critical]` は太字を除去
+- 単語のみ着色: すべてのログレベルで、`[単語]` のみが着色される
+
 ## ファイルパス
 
 ```text
@@ -23,7 +43,7 @@ doxybook2-decolorize-output.sh
 | ログレベル | 検出パターン | 処理内容 | 処理後の表示 |
 |------------|--------------|----------|--------------|
 | Info | `[info]` | 全ての ANSI コードを削除 | デフォルト (着色なし) |
-| Critical | `[critical]` | 全ての ANSI コードを削除して赤色に変換 | 🔴 赤 (通常の太さ、背景なし) |
+| Critical | `[critical]` | 太字と背景色を除去し、赤色に変換 | 🔴 赤 (通常の太さ、背景なし) |
 | Warning | `[warning]` | 太字コードを除去、黄色は維持 | 🟡 黄 (通常の太さ) |
 | Error | `[error]` | 太字コードを除去、赤色は維持 | 🔴 赤 (通常の太さ) |
 | その他 | (該当なし) | そのまま出力 | 変更なし |
@@ -43,8 +63,8 @@ while (標準入力に行がある?) is (yes)
     :全ての ANSI コードを削除;
     :脱色して出力;
   elseif ('[critical]' を含む?) then (yes)
-    :全ての ANSI コードを削除;
-    :赤色 (\\033[0;31m) で出力;
+    :太字と背景色を除去 (\\033[1;41m → \\033[0;31m);
+    :調整して出力;
   elseif ('[warning]' または '[error]' を含む?) then (yes)
     :太字コード (\\033[1;) を通常 (\\033[0;) に変換;
     :調整して出力;
@@ -98,18 +118,17 @@ echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
 - `[0-9;]*`: 数字とセミコロンの 0 回以上の繰り返し
 - `m`: 終端文字
 
-#### Critical ログの完全脱色と赤色適用
+#### Critical ログの太字と背景色の除去
 
 ```bash
-# 全ての ANSI エスケープコードを削除
-cleaned=$(echo "$line" | sed 's/\x1b\[[0-9;]*m//g')
-# 通常の赤色で全行を出力
-echo -e "\033[0;31m${cleaned}\033[0m"
+# 太字と背景色を除去し、通常の赤文字に変換
+# \033[1;41m → \033[0;31m (太字 + 赤背景 → 通常 + 赤文字)
+echo "$line" | sed 's/\x1b\[1;41m/\x1b[0;31m/g'
 ```
 
 処理内容:
-- 太字 + 赤背景 (`\033[1;41m`) を含む全ての ANSI コードを除去
-- 通常の太さの赤文字 (`\033[0;31m`) で再着色
+- 太字 + 赤背景 (`\033[1;41m`) を通常の赤文字 (`\033[0;31m`) に変換
+- `[critical]` という単語のみが赤色で表示される
 
 #### Warning/Error ログの太字除去
 
@@ -128,7 +147,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 
 | 項目 | doxygen-colorize-output.sh | doxybook2-decolorize-output.sh |
 |------|----------------------------|--------------------------------|
-| 目的 | 着色を **追加** | 着色を **削除/調整** |
+| 目的 | 着色を追加 | 着色を削除/調整 |
 | 対象 | error, warning | info, warning, error |
 | 処理 | ANSI コードを付与 | ANSI コードを除去/変換 |
 | 理由 | 着色が不足 | 着色が過剰 |
@@ -176,11 +195,11 @@ exit $DOXYBOOK_EXIT;
 ```text
 [2025-11-26 10:30:15.123] [info] Processing file calculator.h
 ```
-<span style="color: #ffaa00">[2025-11-26 10:30:15.124] [warning] Missing brief description</span>
-<span style="color: #ff0000">[2025-11-26 10:30:15.125] [error] Failed to parse member</span>
-<span style="color: #ff0000">[2025-11-26 10:30:15.126] [critical] Fatal error occurred</span>
+[2025-11-26 10:30:15.124] <span style="color: #ffaa00">[warning]</span> Missing brief description
+[2025-11-26 10:30:15.125] <span style="color: #ff0000">[error]</span> Failed to parse member
+[2025-11-26 10:30:15.126] <span style="color: #ff0000">[critical]</span> Fatal error occurred
 
-(`[info]` は着色なし、`[warning]` は通常の太さの黄色、`[error]` と `[critical]` は通常の太さの赤色で表示)
+(`[info]` は着色なし、`[warning]` 単語は通常の太さの黄色、`[error]` と `[critical]` 単語は通常の太さの赤色で表示)
 
 ## 制限事項
 
@@ -215,9 +234,9 @@ EOF
 
 期待される結果:
 - `[info]` 行: ANSI コードが完全に削除される
-- `[critical]` 行: ANSI コードが削除され、通常の太さの赤色になる
-- `[warning]` 行: 太字が除去され、通常の太さの黄色になる
-- `[error]` 行: 太字が除去され、通常の太さの赤色になる
+- `[critical]` 行: 太字と背景色が除去され、`[critical]` 単語が通常の太さの赤色になる
+- `[warning]` 行: 太字が除去され、`[warning]` 単語が通常の太さの黄色になる
+- `[error]` 行: 太字が除去され、`[error]` 単語が通常の太さの赤色になる
 
 実際の ANSI コードを含むテストは以下の通りです。
 
