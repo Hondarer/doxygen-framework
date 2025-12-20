@@ -1,12 +1,17 @@
-{# C の 構造体出力に特化したテンプレート  #}
-{# group の Markdown に結合するための部品 #}
+{% include "header" %}
 
+{% if exists("publicAttributes") %}
+{% if length(publicAttributes) > 0 %}
 ```{{language}}
 {{kind}} {{name}} {
 {% for param in publicAttributes %}    {{param.typePlain}} {{param.name}};
 {% endfor %}}
 ```
+{% endif %}
+{% endif %}
 
 {% include "details" %}
 
 {% include "class_members_details" -%}
+
+{% include "footer" %}

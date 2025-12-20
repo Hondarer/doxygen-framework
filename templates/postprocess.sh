@@ -220,11 +220,6 @@ process_markdown_file() {
 # 不要ファイルの削除
 # 現段階で対象としていない Markdown を削除する
 #
-# - クラスインデックス
-# - Classes
-#   - 構造体ファイル (それぞれに include するので処理後は不要)
-# - 名前空間インデックス
-# - Namespaces
 # - 使用例インデックス
 # - Examples
 # - ディレクトリページ
@@ -233,11 +228,7 @@ process_markdown_file() {
 # - グループインデックス
 # - Modules
 # - インデックスページ
-rm -rf "$MARKDOWN_DIR"/index_classes.md \
-       "$MARKDOWN_DIR"/Classes \
-       "$MARKDOWN_DIR"/index_namespaces.md \
-       "$MARKDOWN_DIR"/Namespaces \
-       "$MARKDOWN_DIR"/index_examples.md \
+rm -rf "$MARKDOWN_DIR"/index_examples.md \
        "$MARKDOWN_DIR"/Examples \
        "$MARKDOWN_DIR"/Files/dir_*.md \
        "$MARKDOWN_DIR"/index_pages.md \
