@@ -1,6 +1,23 @@
 # このMakefileのディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+# ドキュメント大分類オプション (デフォルトは空)
+CATEGORY ?=
+
+# CATEGORY に応じたパスの設定
+ifdef CATEGORY
+    CATEGORY_SUFFIX := /$(CATEGORY)
+    DOXYFILE_PART := ../Doxyfile.part.$(CATEGORY)
+else
+    CATEGORY_SUFFIX :=
+    DOXYFILE_PART := ../Doxyfile.part
+endif
+
+DOCS_DOXYGEN_DIR := ../docs/doxygen$(CATEGORY_SUFFIX)
+DOCS_DOXYBOOK_DIR := ../docs-src/doxybook$(CATEGORY_SUFFIX)
+XML_DIR := ../xml$(CATEGORY_SUFFIX)
+XML_ORG_DIR := ../xml_org$(CATEGORY_SUFFIX)
+
 .DEFAULT_GOAL := default
 
 .PHONY: default
@@ -10,47 +27,75 @@ default: clean
 		echo "Warning: doxygen command not found. Skipping documentation generation."; \
 		exit 0; \
 	fi
-	mkdir -p ../docs/doxygen
+	mkdir -p $(DOCS_DOXYGEN_DIR)
 # Doxyfile.part がある場合は結合した一時 Doxyfile を作成
-	@if [ -f "../Doxyfile.part" ]; then \
-		echo "Merging Doxyfile.part..."; \
+	@if [ -f "$(DOXYFILE_PART)" ]; then \
+		echo "Merging $(DOXYFILE_PART)..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
-		cat Doxyfile ../Doxyfile.part > $$TEMP_DOXYFILE || exit 1; \
+		cat Doxyfile $(DOXYFILE_PART) > $$TEMP_DOXYFILE || exit 1; \
+		if [ -n "$(CATEGORY)" ]; then \
+			TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../xml/$(CATEGORY)|' \
+			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
+			rm -f $$TEMP_DOXYFILE; \
+			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
+		fi; \
 		cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 		DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
 		rm -f $$TEMP_DOXYFILE; \
 		exit $$DOXYGEN_EXIT; \
 	else \
-		cd ../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-		exit $${PIPESTATUS[0]}; \
+		TEMP_DOXYFILE=$$(mktemp); \
+		if [ -n "$(CATEGORY)" ]; then \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../xml/$(CATEGORY)|' \
+			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
+			cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
+			rm -f $$TEMP_DOXYFILE; \
+			exit $$DOXYGEN_EXIT; \
+		else \
+			cd ../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			exit $${PIPESTATUS[0]}; \
+		fi; \
 	fi
 # doxybook2 コマンドが存在しない場合は前処理～doxybook2～後処理をスキップ
 	@if ! command -v doxybook2 >/dev/null 2>&1; then \
 		echo "Warning: doxybook2 command not found. Skipping Markdown generation."; \
 		exit 0; \
 	fi
-	mkdir -p ../docs-src/doxybook
+	mkdir -p $(DOCS_DOXYBOOK_DIR)
 # デバッグ用にオリジナルの xml をバックアップ
-#	rm -rf ../xml_org
-#	cp -rp ../xml ../xml_org
+#	rm -rf $(XML_ORG_DIR)
+#	mkdir -p $(XML_ORG_DIR)
+#	cp -rp $(XML_DIR)/* $(XML_ORG_DIR)/
 # プリプロセッシング
-	templates/preprocess.sh ../xml || exit 1
+	templates/preprocess.sh $(XML_DIR) || exit 1
 # xml -> md 変換
 	doxybook2 \
-		-i ../xml \
-		-o ../docs-src/doxybook \
+		-i $(XML_DIR) \
+		-o $(DOCS_DOXYBOOK_DIR) \
 		--config doxybook-config.json \
 		--templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
 	DOXYBOOK_EXIT=$${PIPESTATUS[0]}; \
 	if [ $$DOXYBOOK_EXIT -ne 0 ]; then exit $$DOXYBOOK_EXIT; fi
 # 正常に変換できたら xml は不要なため削除
-	rm -rf ../xml
-#	rm -rf ../xml_org
+	rm -rf $(XML_DIR)
+#	rm -rf $(XML_ORG_DIR)
+    # rmdir コマンドは空のディレクトリのみを削除する
+	@rmdir ../xml 2>/dev/null || true
+	@rmdir ../xml_org 2>/dev/null || true
 # ポストプロセッシング
-	templates/postprocess.sh ../docs-src/doxybook || exit 1
+	templates/postprocess.sh $(DOCS_DOXYBOOK_DIR) || exit 1
 # Markdown 収集
-	./collect-pages.sh ../ prod docs-src/doxybook/Pages || exit 1
+	./collect-pages.sh ../ prod $(DOCS_DOXYBOOK_DIR)/Pages || exit 1
 
 .PHONY: clean
 clean:
-	-rm -rf ../docs/doxygen ../docs-src/doxybook ../xml
+	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK_DIR) $(XML_DIR) $(XML_ORG_DIR)
+    # rmdir コマンドは空のディレクトリのみを削除する
+	@rmdir ../docs/doxygen 2>/dev/null || true
+	@rmdir ../docs-src/doxybook 2>/dev/null || true
+	@rmdir ../xml 2>/dev/null || true
+	@rmdir ../xml_org 2>/dev/null || true
