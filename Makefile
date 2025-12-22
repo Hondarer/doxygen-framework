@@ -28,6 +28,7 @@ default: clean
 		exit 0; \
 	fi
 	mkdir -p $(DOCS_DOXYGEN_DIR)
+	mkdir -p $(XML_DIR)
 # Doxyfile.part がある場合は結合した一時 Doxyfile を作成
 	@if [ -f "$(DOXYFILE_PART)" ]; then \
 		echo "Merging $(DOXYFILE_PART)..."; \
@@ -35,8 +36,8 @@ default: clean
 		cat Doxyfile $(DOXYFILE_PART) > $$TEMP_DOXYFILE || exit 1; \
 		if [ -n "$(CATEGORY)" ]; then \
 			TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 			rm -f $$TEMP_DOXYFILE; \
 			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
@@ -48,8 +49,8 @@ default: clean
 	else \
 		TEMP_DOXYFILE=$$(mktemp); \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
 			cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
