@@ -267,6 +267,7 @@ done
 if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
            -e 's/\(\.md\)#[^)]*/\1/g' \
+           -e 's/<br\/>\([^&]\)/<br\/>\&nbsp;\&nbsp;\&nbsp;\&nbsp;\&nbsp;\1/g' \
            "$MARKDOWN_DIR/index_files.md"
 fi
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
@@ -299,8 +300,13 @@ if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
            -e 's/\(\.md\)#[^)]*/\1/g' \
            -e '/(Pages\/)/d' \
+           -e 's/<br\/>\([^&]\)/<br\/>\&nbsp;\&nbsp;\&nbsp;\&nbsp;\&nbsp;\1/g' \
            "$MARKDOWN_DIR/index_examples.md"
 fi
+
+# Markdown ファイルを INPUT からコピー
+SCRIPT_DIR=$(dirname "$0")
+"$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
 
 # 処理終了
 exit 0

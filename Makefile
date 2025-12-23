@@ -4,6 +4,9 @@ MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # ドキュメント大分類オプション (デフォルトは空)
 CATEGORY ?=
 
+# CATEGORY を環境変数としてエクスポート (postprocess.sh で使用)
+export CATEGORY
+
 # CATEGORY に応じたパスの設定
 ifdef CATEGORY
     CATEGORY_SUFFIX := /$(CATEGORY)
@@ -89,8 +92,8 @@ default: clean
 	@rmdir ../xml_org 2>/dev/null || true
 # ポストプロセッシング
 	templates/postprocess.sh $(DOCS_DOXYBOOK_DIR) || exit 1
-# Markdown 収集
-	./collect-pages.sh ../ prod $(DOCS_DOXYBOOK_DIR)/Pages || exit 1
+# Markdown 収集 (copy-markdown-from-input.sh により postprocess.sh 内で実行されるため不要)
+#	./collect-pages.sh ../ prod $(DOCS_DOXYBOOK_DIR)/Pages || exit 1
 
 .PHONY: clean
 clean:
