@@ -112,20 +112,20 @@ make clean
 
 ```text
 main-project/                     # メインプロジェクト
-├── doxyfw/                    # 本リポジトリ (git submodule)
-│   ├── Doxyfile              # Doxygen 基本設定
-│   ├── doxybook-config.json  # Doxybook2 設定
-│   ├── templates/            # カスタム日本語テンプレート群
-│   │   ├── *.tmpl           # Jinja2 テンプレートファイル
-│   │   ├── preprocess.sh    # XML 前処理スクリプト
-│   │   └── postprocess.sh   # Markdown 後処理スクリプト
-│   ├── docs-src/             # 技術ドキュメント
-│   └── Makefile              # ドキュメント生成用 Makefile
-├── Doxyfile.part              # プロジェクト固有設定 (オプション)
-├── prod/src/                  # 実際の C ソースコード
-├── docs/doxygen/              # Doxygen 生成 HTML 出力
-├── docs-src/doxybook/         # Doxybook2 生成 Markdown 出力
-└── xml/                       # Doxygen XML 中間ファイル
++-- doxyfw/                    # 本リポジトリ (git submodule)
+|   +-- Doxyfile              # Doxygen 基本設定
+|   +-- doxybook-config.json  # Doxybook2 設定
+|   +-- templates/            # カスタム日本語テンプレート群
+|   |   +-- *.tmpl           # Jinja2 テンプレートファイル
+|   |   +-- preprocess.sh    # XML 前処理スクリプト
+|   |   +-- postprocess.sh   # Markdown 後処理スクリプト
+|   +-- docs-src/             # 技術ドキュメント
+|   +-- Makefile              # ドキュメント生成用 Makefile
++-- Doxyfile.part              # プロジェクト固有設定 (オプション)
++-- prod/src/                  # 実際の C ソースコード
++-- docs/doxygen/              # Doxygen 生成 HTML 出力
++-- docs-src/doxybook/         # Doxybook2 生成 Markdown 出力
++-- xml/                       # Doxygen XML 中間ファイル
 ```
 
 ### ソースコード構造

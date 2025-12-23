@@ -117,12 +117,12 @@ CATEGORY を使用する場合、メインプロジェクトのルートディ�
 
 ```text
 main-project/
-├── doxyfw/                  # doxyfw サブモジュール
-├── Doxyfile.part            # デフォルト設定
-├── Doxyfile.part.api        # API ドキュメント設定
-├── Doxyfile.part.internal   # 内部仕様ドキュメント設定
-├── Doxyfile.part.test       # テストドキュメント設定
-└── prod/                    # ソースコード
++-- doxyfw/                  # doxyfw サブモジュール
++-- Doxyfile.part            # デフォルト設定
++-- Doxyfile.part.api        # API ドキュメント設定
++-- Doxyfile.part.internal   # 内部仕様ドキュメント設定
++-- Doxyfile.part.test       # テストドキュメント設定
++-- prod/                    # ソースコード
 ```
 
 ### Doxyfile.part の設定例
