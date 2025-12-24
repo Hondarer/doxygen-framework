@@ -81,6 +81,8 @@ default: clean
 	fi
 	@if [ ! -f $(SKIP_MARKER) ]; then \
 		$(MAKE) markdown-generation; \
+	else \
+		rm -rf $(XML_DIR); \
 	fi
 	@rm -f $(SKIP_MARKER)
 
