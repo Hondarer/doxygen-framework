@@ -2,7 +2,7 @@
   "baseUrl": "",
   "indexInFolders": false,
   "linkSuffix": ".md",
-  "filesFilter": [".h", ".c", ".cpp", ".cc"],
+  "filesFilter": [".h", ".c", ".cpp", ".cc", ".cs"],
   "sort": true,
   "useFolders": true,
   "folderCategories": false,

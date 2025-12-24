@@ -265,10 +265,73 @@ done
 #     * **file [calculator.h](calculator_8h.md)** <br/>簡単な計算機のヘッダーファイル
 #
 if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
-    sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
-           -e 's/\(\.md\)#[^)]*/\1/g' \
-           -e 's/<br\/>\([^&]\)/<br\/>\&nbsp;\&nbsp;\&nbsp;\&nbsp;\&nbsp;\1/g' \
-           "$MARKDOWN_DIR/index_files.md"
+    # ディレクトリパスとファイルパスを階層的な相対パスに変換
+    awk '
+    BEGIN {
+        # 各インデントレベルでの最後のディレクトリパスを記憶
+        for (i = 0; i < 20; i++) {
+            last_dir[i] = ""
+        }
+    }
+
+    # ディレクトリ行を検出 (📁 を含む行)
+    /\* 📁/ {
+        # インデントの空白数を数える
+        match($0, /^( *)/)
+        indent_spaces = RLENGTH
+        indent_level = indent_spaces / 4
+
+        # ディレクトリパスを抽出
+        if (match($0, /📁 (.+)$/, arr)) {
+            full_path = arr[1]
+
+            # 親ディレクトリのパスを取得
+            if (indent_level > 0) {
+                parent_path = last_dir[indent_level - 1]
+                # full_path が parent_path/ で始まる場合、それを除去
+                if (index(full_path, parent_path "/") == 1) {
+                    relative_path = substr(full_path, length(parent_path) + 2)
+                } else {
+                    relative_path = full_path
+                }
+            } else {
+                relative_path = full_path
+            }
+
+            # 現在のレベルのパスを記憶
+            last_dir[indent_level] = full_path
+
+            # 行を置換
+            sub(/📁 .+$/, "📁 " relative_path)
+        }
+    }
+
+    # ファイル行を検出 (📄 を含む行)
+    /\* 📄/ {
+        # ファイルパスを短縮: [path/to/file.ext] → [file.ext]
+        # スラッシュを含むパスのみ処理（置換後は再マッチしない）
+        while (match($0, /\[[^\]]*\/([^\]\/]+)\]/, arr)) {
+            # arr[0] = マッチ全体 (例: [path/to/file.ext])
+            # arr[1] = 最後のスラッシュ以降 (例: file.ext)
+            before = substr($0, 1, RSTART - 1)
+            after = substr($0, RSTART + RLENGTH)
+            $0 = before "[" arr[1] "]" after
+        }
+
+        # リンクアンカーを削除: (file.md#anchor) → (file.md)
+        gsub(/\.md#[^)]*/, ".md")
+
+        # <br/> の後にスペースを追加（&で始まらない文字の場合のみ）
+        while (match($0, /<br\/>([^&\n])/, arr)) {
+            before = substr($0, 1, RSTART - 1)
+            after = substr($0, RSTART + RLENGTH)
+            $0 = before "<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" arr[1] after
+        }
+    }
+
+    { print }
+    ' "$MARKDOWN_DIR/index_files.md" > "$MARKDOWN_DIR/index_files.md.tmp"
+    mv "$MARKDOWN_DIR/index_files.md.tmp" "$MARKDOWN_DIR/index_files.md"
 fi
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
@@ -304,9 +367,16 @@ if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
            "$MARKDOWN_DIR/index_examples.md"
 fi
 
-# Markdown ファイルを INPUT からコピー
-SCRIPT_DIR=$(dirname "$0")
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Markdown ファイルのコピー処理
+# copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
+
+# index_files.md と index_pages.md のマージ処理
+# merge-index-files.py を呼び出して index_files_and_pages.md を生成
+python3 "$SCRIPT_DIR/merge-index-files.py" "$MARKDOWN_DIR" || exit 1
 
 # 処理終了
 exit 0
