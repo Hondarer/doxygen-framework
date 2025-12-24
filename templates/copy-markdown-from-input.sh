@@ -339,168 +339,79 @@ EOF
             # 出力済みディレクトリを追跡する連想配列
             declare -A printed_dirs
 
-            # すべてのディレクトリを収集（空ディレクトリも含む）
-            declare -A all_dirs
+            # 一時ファイルをソートして順序を統一
+            LC_ALL=C sort "$TEMP_FILE" -o "$TEMP_FILE"
+
+            # すべてのディレクトリを収集してソート（空ディレクトリも含む）
+            TEMP_DIRS=$(mktemp)
             find "$PAGES_DIR" -mindepth 1 -type d | while read -r dir; do
                 rel_path="${dir#$PAGES_DIR/}"
                 echo "$rel_path"
-            done | while IFS= read -r dir_path; do
-                all_dirs[$dir_path]=1
-            done
+            done | LC_ALL=C sort > "$TEMP_DIRS"
 
-            # 一時ファイルをソートして順序を統一
-            LC_ALL=C sort "$TEMP_FILE" -o "$TEMP_FILE"
+            # まず、すべてのディレクトリを階層順に処理
+            while IFS= read -r dir_path; do
+                # このディレクトリが既に出力済みかチェック
+                if [ -n "${printed_dirs[$dir_path]}" ]; then
+                    continue
+                fi
+
+                # ディレクトリの階層レベルを計算
+                IFS='/' read -ra DIR_PARTS <<< "$dir_path"
+                depth=${#DIR_PARTS[@]}
+
+                # インデントを計算
+                indent=""
+                for ((j=1; j<depth; j++)); do
+                    indent="    $indent"
+                done
+
+                # ディレクトリ名を取得
+                dir_name=$(basename "$dir_path")
+
+                # このディレクトリに README.md があるかチェック
+                readme_path="$dir_path/README.md"
+                if [ -f "$PAGES_DIR/$readme_path" ]; then
+                    # README.md がある場合、ディレクトリ名をリンクにする
+                    link_path="Pages/${readme_path}"
+                    description=$(awk '
+                        BEGIN { in_frontmatter=0; found=0 }
+                        /^---$/ {
+                            if (NR==1) { in_frontmatter=1; next }
+                            else if (in_frontmatter) { in_frontmatter=0; next }
+                        }
+                        in_frontmatter { next }
+                        /^# / && !found {
+                            sub(/^# /, "");
+                            print;
+                            found=1;
+                            exit
+                        }
+                    ' "$PAGES_DIR/$readme_path")
+
+                    if [ -n "$description" ]; then
+                        echo "${indent}* 📁 [${dir_name}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
+                    else
+                        echo "${indent}* 📁 [${dir_name}](${link_path})" >> "$INDEX_PAGES_FILE"
+                    fi
+
+                    # README.md を出力済みとしてマーク
+                    printed_dirs[$readme_path]=1
+                else
+                    # README.md がない場合、通常のディレクトリ行
+                    echo "${indent}* 📁 ${dir_name}" >> "$INDEX_PAGES_FILE"
+                fi
+
+                # ディレクトリを出力済みとしてマーク
+                printed_dirs[$dir_path]=1
+            done < "$TEMP_DIRS"
+
+            rm -f "$TEMP_DIRS"
 
             while IFS= read -r file_path; do
                 # ディレクトリとファイル名を分離
                 dir_path=$(dirname "$file_path")
                 file_name=$(basename "$file_path")
-
-                # ディレクトリ構造を出力
-                if [ "$dir_path" != "." ]; then
-                    IFS='/' read -ra DIR_PARTS <<< "$dir_path"
-
-                    # 各階層のディレクトリを出力 (未出力の場合のみ)
-                    current_path=""
-                    for ((i=0; i<${#DIR_PARTS[@]}; i++)); do
-                        part="${DIR_PARTS[$i]}"
-
-                        # 現在のパスを構築
-                        if [ -z "$current_path" ]; then
-                            current_path="$part"
-                        else
-                            current_path="$current_path/$part"
-                        fi
-
-                        # まだ出力していない場合のみ出力
-                        if [ -z "${printed_dirs[$current_path]}" ]; then
-                            indent=""
-                            for ((j=0; j<i; j++)); do
-                                indent="    $indent"
-                            done
-
-                            # このディレクトリ直下に README.md があるかチェック
-                            readme_path="$current_path/README.md"
-                            if [ -f "$PAGES_DIR/$readme_path" ]; then
-                                # README.md がある場合、ディレクトリ名をリンクにする
-                                link_path="Pages/${readme_path}"
-                                description=$(awk '
-                                    BEGIN { in_frontmatter=0; found=0 }
-                                    /^---$/ {
-                                        if (NR==1) { in_frontmatter=1; next }
-                                        else if (in_frontmatter) { in_frontmatter=0; next }
-                                    }
-                                    in_frontmatter { next }
-                                    /^# / && !found {
-                                        sub(/^# /, "");
-                                        print;
-                                        found=1;
-                                        exit
-                                    }
-                                ' "$PAGES_DIR/$readme_path")
-
-                                if [ -n "$description" ]; then
-                                    echo "${indent}* 📁 [${part}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
-                                else
-                                    echo "${indent}* 📁 [${part}](${link_path})" >> "$INDEX_PAGES_FILE"
-                                fi
-
-                                # README.md を出力済みとしてマーク
-                                printed_dirs[$readme_path]=1
-                            else
-                                # README.md がない場合、通常のディレクトリ行
-                                echo "${indent}* 📁 ${part}" >> "$INDEX_PAGES_FILE"
-                            fi
-
-                            printed_dirs[$current_path]=1
-
-                            # このディレクトリの直下にあるすべてのサブディレクトリを再帰的に出力（空ディレクトリも含む）
-                            # プロセス置換を使用してサブシェル問題を回避
-                            while IFS= read -r subdir; do
-                                subdir_rel="${subdir#$PAGES_DIR/}"
-                                subdir_name=$(basename "$subdir")
-
-                                # このディレクトリがまだ出力されていない場合のみ出力
-                                if [ -z "${printed_dirs[$subdir_rel]}" ]; then
-                                    # サブディレクトリ直下に README.md があるかチェック
-                                    subdir_readme_path="$subdir_rel/README.md"
-                                    sub_indent="$indent    "
-
-                                    if [ -f "$PAGES_DIR/$subdir_readme_path" ]; then
-                                        # README.md がある場合、ディレクトリ名をリンクにする
-                                        sub_link_path="Pages/${subdir_readme_path}"
-                                        sub_description=$(awk '
-                                            BEGIN { in_frontmatter=0; found=0 }
-                                            /^---$/ {
-                                                if (NR==1) { in_frontmatter=1; next }
-                                                else if (in_frontmatter) { in_frontmatter=0; next }
-                                            }
-                                            in_frontmatter { next }
-                                            /^# / && !found {
-                                                sub(/^# /, "");
-                                                print;
-                                                found=1;
-                                                exit
-                                            }
-                                        ' "$PAGES_DIR/$subdir_readme_path")
-
-                                        if [ -n "$sub_description" ]; then
-                                            echo "${sub_indent}* 📁 [${subdir_name}](${sub_link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${sub_description}" >> "$INDEX_PAGES_FILE"
-                                        else
-                                            echo "${sub_indent}* 📁 [${subdir_name}](${sub_link_path})" >> "$INDEX_PAGES_FILE"
-                                        fi
-                                        printed_dirs[$subdir_readme_path]=1
-                                    else
-                                        # README.md がない場合、通常のディレクトリ行
-                                        echo "${sub_indent}* 📁 ${subdir_name}" >> "$INDEX_PAGES_FILE"
-                                    fi
-
-                                    printed_dirs[$subdir_rel]=1
-
-                                    # このサブディレクトリの子ディレクトリも再帰的に出力
-                                    while IFS= read -r subsubdir; do
-                                        subsubdir_rel="${subsubdir#$PAGES_DIR/}"
-                                        subsubdir_name=$(basename "$subsubdir")
-
-                                        if [ -z "${printed_dirs[$subsubdir_rel]}" ]; then
-                                            subsubdir_readme_path="$subsubdir_rel/README.md"
-                                            subsub_indent="$sub_indent    "
-
-                                            if [ -f "$PAGES_DIR/$subsubdir_readme_path" ]; then
-                                                subsub_link_path="Pages/${subsubdir_readme_path}"
-                                                subsub_description=$(awk '
-                                                    BEGIN { in_frontmatter=0; found=0 }
-                                                    /^---$/ {
-                                                        if (NR==1) { in_frontmatter=1; next }
-                                                        else if (in_frontmatter) { in_frontmatter=0; next }
-                                                    }
-                                                    in_frontmatter { next }
-                                                    /^# / && !found {
-                                                        sub(/^# /, "");
-                                                        print;
-                                                        found=1;
-                                                        exit
-                                                    }
-                                                ' "$PAGES_DIR/$subsubdir_readme_path")
-
-                                                if [ -n "$subsub_description" ]; then
-                                                    echo "${subsub_indent}* 📁 [${subsubdir_name}](${subsub_link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${subsub_description}" >> "$INDEX_PAGES_FILE"
-                                                else
-                                                    echo "${subsub_indent}* 📁 [${subsubdir_name}](${subsub_link_path})" >> "$INDEX_PAGES_FILE"
-                                                fi
-                                                printed_dirs[$subsubdir_readme_path]=1
-                                            else
-                                                echo "${subsub_indent}* 📁 ${subsubdir_name}" >> "$INDEX_PAGES_FILE"
-                                            fi
-
-                                            printed_dirs[$subsubdir_rel]=1
-                                        fi
-                                    done < <(find "$subdir" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
-                                fi
-                            done < <(find "$PAGES_DIR/$current_path" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
-                        fi
-                    done
-                fi
 
                 # ファイルが既にディレクトリ行にマージされている場合はスキップ
                 if [ -n "${printed_dirs[$file_path]}" ]; then
