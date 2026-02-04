@@ -1,3 +1,4 @@
+::: {.collapsible-list}
 {% for child0 in children %}* {% if child0.kind == "dir" %}📁{% else %}📄{% endif %} {% if child0.kind == "dir" %}{{child0.title}}{% else %}[{{child0.title}}]({{child0.url}}){% endif %} {% if existsIn(child0, "brief") %}<br/>{{child0.brief}}{% endif %}{% if existsIn(child0, "children") %}{% for child1 in child0.children %}
     * {% if child1.kind == "dir" %}📁{% else %}📄{% endif %} {% if child1.kind == "dir" %}{{child1.title}}{% else %}[{{child1.title}}]({{child1.url}}){% endif %} {% if existsIn(child1, "brief") %}<br/>{{child1.brief}}{% endif %}{% if existsIn(child1, "children") %}{% for child2 in child1.children %}
         * {% if child2.kind == "dir" %}📁{% else %}📄{% endif %} {% if child2.kind == "dir" %}{{child2.title}}{% else %}[{{child2.title}}]({{child2.url}}){% endif %} {% if existsIn(child2, "brief") %}<br/>{{child2.brief}}{% endif %}{% if existsIn(child2, "children") %}{% for child3 in child2.children %}
@@ -7,3 +8,4 @@
                         * {% if child6.kind == "dir" %}📁{% else %}📄{% endif %} {% if child6.kind == "dir" %}{{child6.title}}{% else %}[{{child6.title}}]({{child6.url}}){% endif %} {% if existsIn(child6, "brief") %}<br/>{{child6.brief}}{% endif %}{% if existsIn(child6, "children") %}{% for child7 in child6.children %}
                             * {% if child7.kind == "dir" %}📁{% else %}📄{% endif %} {% if child7.kind == "dir" %}{{child7.title}}{% else %}[{{child7.title}}]({{child7.url}}){% endif %} {% if existsIn(child7, "brief") %}<br/>{{child7.brief}}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}
 {% endfor %}
+:::

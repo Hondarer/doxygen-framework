@@ -213,9 +213,11 @@ def merge_index_files(files_path: str, pages_path: str, output_path: str):
         f.write('# ファイルとページの一覧\n')
         f.write('\n')
 
-        # マージされたコンテンツを書き込む
+        # 展開可能リストとしてマージされたコンテンツを書き込む
+        f.write('::: {.collapsible-list}\n')
         for line in merged_lines:
             f.write(line + '\n')
+        f.write(':::\n')
 
 def main():
     if len(sys.argv) != 2:
