@@ -1,4 +1,4 @@
-# このMakefileのディレクトリ (絶対パス) を取得
+# この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # ドキュメント大分類オプション (デフォルトは空)

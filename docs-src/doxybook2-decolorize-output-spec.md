@@ -158,7 +158,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 
 ## 使用方法
 
-### Makefile からの呼び出し
+### makefile からの呼び出し
 
 ```bash
 doxybook2 -i ../xml -o ../docs-src/doxybook --config doxybook-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh
@@ -252,6 +252,6 @@ EOF
 
 ## 関連ファイル
 
-- `Makefile`: 本スクリプトを doxybook2 実行時に適用
+- `makefile`: 本スクリプトを doxybook2 実行時に適用
 - `docs-src/doxybook2-decolorize-output-research.md`: 調査結果と背景情報
 - `doxygen-colorize-output.sh`: Doxygen 用の着色スクリプト (対比参考)

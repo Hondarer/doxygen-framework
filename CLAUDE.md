@@ -120,7 +120,7 @@ main-project/                     # メインプロジェクト
 |   |   +-- preprocess.sh    # XML 前処理スクリプト
 |   |   +-- postprocess.sh   # Markdown 後処理スクリプト
 |   +-- docs-src/             # 技術ドキュメント
-|   +-- Makefile              # ドキュメント生成用 Makefile
+|   +-- makefile              # ドキュメント生成用 makefile
 +-- Doxyfile.part              # プロジェクト固有設定 (オプション)
 +-- prod/src/                  # 実際の C ソースコード
 +-- docs/doxygen/              # Doxygen 生成 HTML 出力

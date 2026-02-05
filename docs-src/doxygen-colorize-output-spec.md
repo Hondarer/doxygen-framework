@@ -86,7 +86,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 
 ## 使用方法
 
-### Makefile からの呼び出し
+### makefile からの呼び出し
 
 ```bash
 doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh
@@ -156,6 +156,6 @@ EOF
 
 ## 関連ファイル
 
-- `Makefile`: 本スクリプトを doxygen 実行時に適用
+- `makefile`: 本スクリプトを doxygen 実行時に適用
 - `Doxyfile`: Doxygen の警告フォーマット設定 (`WARN_FORMAT`)
 - `docs-src/doxygen-colored-output-research.md`: 調査結果と背景情報

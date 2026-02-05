@@ -1,6 +1,6 @@
-# Makefile 使用方法
+# makefile 使用方法
 
-このドキュメントでは、doxyfw の Makefile の使用方法とオプションについて説明します。
+このドキュメントでは、doxyfw の makefile の使用方法とオプションについて説明します。
 
 ## 基本的な使用方法
 
@@ -156,7 +156,7 @@ INPUT                  = test/src
 
 #### ドキュメント生成時
 
-CATEGORY が指定された場合、Makefile は以下の処理を自動的に行います。
+CATEGORY が指定された場合、makefile は以下の処理を自動的に行います。
 
 1. `Doxyfile.part.{CATEGORY}` を基本 Doxyfile と結合
 2. 結合した一時 Doxyfile の `OUTPUT_DIRECTORY` と `XML_OUTPUT` を書き換え
@@ -167,14 +167,14 @@ CATEGORY が指定された場合、Makefile は以下の処理を自動的に�
 
 #### デバッグ用 XML バックアップ
 
-Makefile にはデバッグ用の XML バックアップ機能がコメントアウトされています。この機能を有効にすると、前処理前の XML ファイルを `xml_org` ディレクトリにバックアップできます。
+makefile にはデバッグ用の XML バックアップ機能がコメントアウトされています。この機能を有効にすると、前処理前の XML ファイルを `xml_org` ディレクトリにバックアップできます。
 
 バックアップディレクトリの構造は `xml` と同じ階層構造になります。
 
 - **CATEGORY 未指定時**: `xml_org/`
 - **CATEGORY 指定時**: `xml_org/{CATEGORY}/`
 
-Makefile の以下の行のコメントを解除することで有効化できます。
+makefile の以下の行のコメントを解除することで有効化できます。
 
 ```makefile
 #	rm -rf $(XML_ORG_DIR)
