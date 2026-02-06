@@ -214,8 +214,73 @@ void sortArray(int *arr, size_t size);
  *                      - 子リスト1
  *                      - 子リスト2
  *                  - yyyy/mm/dd [修正ID](https://example.com/id/5678) 修正の概要を記載します。
- *                      - 子リスト1  
+ *                      - 子リスト1
  *                        子リスト1の続き
+ */
+```
+
+## `@section <section-name> (section title)`
+
+ファイルドキュメント内にセクション見出しを作成します。主にヘッダーファイルの `@file` コメント内で、関連するマクロや定義をグループ化して説明するために使用します。
+
+`<section-name>` はセクションの内部識別子 (英数字とアンダースコア)、`(section title)` は表示されるセクションタイトルです。
+
+以下に例を示します。
+
+```c
+/**
+ *******************************************************************************
+ *  @file           compiler.h
+ *  @brief          コンパイラ検出マクロのヘッダーファイル。
+ *
+ *  @section        compiler_detection コンパイラ検出マクロ
+ *
+ *  検出されたコンパイラに応じて、以下のマクロを定義します。
+ *
+ *  | コンパイラ | 識別マクロ    | COMPILER_NAME |
+ *  | ---------- | ------------- | ------------- |
+ *  | MSVC       | COMPILER_MSVC | "MSVC"        |
+ *  | GCC        | COMPILER_GCC  | "GCC"         |
+ *  | Clang      | COMPILER_CLANG| "Clang"       |
+ *
+ *  @section        inline_control インライン制御マクロ
+ *
+ *  コンパイラ固有のインライン属性を抽象化します。
+ *
+ *  使用例:
+ *
+ *  @code{.c}
+ *  FORCE_INLINE int fast_add(int a, int b) { return a + b; }
+ *  @endcode
+ *
+ *******************************************************************************
+ */
+```
+
+### `@par` との使い分け
+
+| コマンド | 用途 | 見出しレベル |
+| --- | --- | --- |
+| `@section` | ファイル全体の構造化、複数のマクロや定義のグループ化 | 独立したセクション見出し |
+| `@par` | 関数やメンバーの補足情報、履歴などの追加項目 | 段落見出し |
+
+`@section` は主にファイルレベルのドキュメントで使用し、`@par` は関数やメンバーのドキュメントで使用します。
+
+### `@subsection <subsection-name> (subsection title)`
+
+`@section` の下位レベルのセクションを作成します。
+
+```c
+/**
+ *  @section        platform プラットフォーム検出
+ *
+ *  @subsection     platform_os OS 検出マクロ
+ *
+ *  OS を検出して識別マクロを定義します。
+ *
+ *  @subsection     platform_arch アーキテクチャ検出マクロ
+ *
+ *  CPU アーキテクチャを検出して識別マクロを定義します。
  */
 ```
 

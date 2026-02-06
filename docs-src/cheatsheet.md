@@ -36,18 +36,65 @@ int calcHandler(int kind, int a, int b)
  *                      - 子リスト1
  *                      - 子リスト2
  *                  - yyyy/mm/dd [修正ID](https://example.com/id/5678) 修正の概要
- *                      - 子リスト1  
+ *                      - 子リスト1
  *                        子リスト1の続き
- * 
- *  コマンド (タグ) のないコメントは、details として扱われます。  
+ *
+ *  コマンド (タグ) のないコメントは、details として扱われます。
  *  前のブロックと分離するために 1 行あけて記載します。
- * 
+ *
  *  もし、ブロック内での改行を行いたい場合は、\n
  *  を使って改行します。`<br />` での改行は VS Code のツールチップで
  *  改行と解釈されないことから非推奨です。
- * 
+ *
  *  @copyright Copyright (C) CompanyName, Ltd. 2023-2025. All rights reserved.
- * 
+ *
+ *******************************************************************************
+ */
+```
+
+### ヘッダーファイル (`@section` を使用した構造化)
+
+複数のマクロや定義をグループ化して説明する場合は、`@section` を使用します。
+
+```c
+/**
+ *******************************************************************************
+ *  @file           compiler.h
+ *  @brief          コンパイラ検出および抽象化マクロのヘッダーファイル。
+ *  @author         c-modernization-kit sample team
+ *  @date           2026/02/06
+ *
+ *  コンパイラの種類とバージョンを検出し、統一的なマクロを定義します。
+ *
+ *  @section        compiler_detection コンパイラ検出マクロ
+ *
+ *  検出されたコンパイラに応じて、以下のマクロを定義します。
+ *
+ *  | コンパイラ | 識別マクロ       | COMPILER_NAME |
+ *  | ---------- | ---------------- | ------------- |
+ *  | MSVC       | COMPILER_MSVC    | "MSVC"        |
+ *  | GCC        | COMPILER_GCC     | "GCC"         |
+ *  | Clang      | COMPILER_CLANG   | "Clang"       |
+ *
+ *  @note           Clang は __GNUC__ も定義するため、Clang を GCC より先に判定しています。
+ *
+ *  @section        inline_control インライン制御マクロ
+ *
+ *  コンパイラ固有のインライン制御属性を抽象化します。
+ *
+ *  使用例:
+ *
+ *  @code{.c}
+ *  #include "compiler.h"
+ *
+ *  FORCE_INLINE int fast_add(int a, int b)
+ *  {
+ *      return a + b;
+ *  }
+ *  @endcode
+ *
+ *  @copyright      Copyright (C) CompanyName, Ltd. 2025. All rights reserved.
+ *
  *******************************************************************************
  */
 ```

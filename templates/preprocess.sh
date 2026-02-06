@@ -48,7 +48,16 @@ while IFS= read -r xml_file; do
         -e 's|<parametername direction="in, out">\([^<]*\)</parametername>|<parametername>[in,out] \1</parametername>|g' \
         -e 's|<parametername direction="inout">\([^<]*\)</parametername>|<parametername>[inout] \1</parametername>|g' | \
     # linebreak 変換 (<linebreak/> を !linebreak! に変換、postprocess で最終的に改行に置換)
-    sed ':a;N;$!ba;s|<linebreak/>\n|!linebreak!|g' \
+    sed ':a;N;$!ba;s|<linebreak/>\n|!linebreak!|g' | \
+    # セクション見出しレベル変換
+    # doxybook2 は <sect1> を Markdown の # (レベル1) に変換するが、
+    # ファイルドキュメントの構造上 ##### (レベル5) が正しい。
+    # doxybook2 はセクションレベルのオフセット機能を持たないため、
+    # XML 段階で sect1→sect5, sect2→sect6 に変換して対応する。
+    sed -e 's|<sect1|<sect5|g' \
+        -e 's|</sect1>|</sect5>|g' \
+        -e 's|<sect2|<sect6|g' \
+        -e 's|</sect2>|</sect6>|g' \
         > "${xml_file}.tmp" && mv "${xml_file}.tmp" "$xml_file"
     
 done <<< "$XML_FILES"
