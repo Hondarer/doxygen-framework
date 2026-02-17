@@ -204,11 +204,12 @@ REFERENCES_RELATION    = YES
 
 ### ノード数の上限
 
-`extract-graphs.py` では、グラフあたりの最大ノード数を 20 に設定しています。この値を超えるグラフは生成をスキップします。上限値はスクリプト先頭の `MAX_GRAPH_NODES` 定数で変更できます。
+`extract-graphs.py` では、グラフあたりの最大ノード数を 50 に設定しています。この値は Doxygen の `DOT_GRAPH_MAX_NODES` (デフォルト 50) に合わせています。この値を超えるグラフは生成をスキップします。上限値はスクリプト先頭の `DOT_GRAPH_MAX_NODES` 定数で変更できます。
 
 ```python
 # グラフあたりの最大ノード数 (これを超えるグラフは生成しない)
-MAX_GRAPH_NODES = 20
+# Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
+DOT_GRAPH_MAX_NODES = 50
 ```
 
 ### スキップ条件
@@ -227,16 +228,18 @@ MAX_GRAPH_NODES = 20
 
 ### 挿入位置
 
-生成された `<plantuml>` タグは、対象要素の `<detaileddescription>` 閉じタグの直前に `<para>` 要素で囲んで挿入されます。Doxybook2 はこれを Markdown の "Details" セクション内にテキストとして出力します。
+生成された `<plantuml>` タグは、対象要素の `<detaileddescription>` 閉じタグの直前に `<simplesect kind="par">` 要素で囲んで挿入されます。Doxybook2 の `details.tmpl` はこれを `par` セクションとして処理し、`####` 見出し付きの独立セクションとして出力します。
+
+compound レベルのグラフ (インクルード依存図等) は、`content.rfind()` により compounddef 自身の `</detaileddescription>` を検索するため、memberdef 内ではなく正しい位置に挿入されます。
 
 ```text
 <detaileddescription>
   <para>既存の説明テキスト</para>
-  <para><plantuml>
+  <para><simplesect kind="par"><title>... のコールグラフ</title><para><plantuml>
 caption ... のコールグラフ
 rectangle "**...**" as current #LightBlue
 ...
-</plantuml></para>                        ← ここに挿入
+</plantuml></para></simplesect></para>     ← ここに挿入
 </detaileddescription>
 ```
 

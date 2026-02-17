@@ -26,7 +26,8 @@ import glob
 import re
 
 # グラフあたりの最大ノード数 (これを超えるグラフは生成しない)
-MAX_GRAPH_NODES = 20
+# Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
+DOT_GRAPH_MAX_NODES = 50
 
 
 def parse_graph_nodes(xml_text, graph_tag):
@@ -134,9 +135,9 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None):
 
     Returns:
         PlantUML テキスト (caption 行を含む、@startuml/@enduml は含まない)。
-        ノードが MAX_GRAPH_NODES を超える場合は None を返す。
+        ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
-    if not nodes or len(nodes) > MAX_GRAPH_NODES:
+    if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
         return None
 
     # エッジがない場合はグラフを生成しない
@@ -188,9 +189,9 @@ def callgraph_to_plantuml(func_name, called_funcs, title):
         title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが MAX_GRAPH_NODES を超える場合は None を返す。
+        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
-    if not called_funcs or len(called_funcs) + 1 > MAX_GRAPH_NODES:
+    if not called_funcs or len(called_funcs) + 1 > DOT_GRAPH_MAX_NODES:
         return None
 
     # 重複を除去 (順序は保持)
@@ -226,9 +227,9 @@ def callergraph_to_plantuml(func_name, caller_funcs, title):
         title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが MAX_GRAPH_NODES を超える場合は None を返す。
+        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
-    if not caller_funcs or len(caller_funcs) + 1 > MAX_GRAPH_NODES:
+    if not caller_funcs or len(caller_funcs) + 1 > DOT_GRAPH_MAX_NODES:
         return None
 
     # 重複を除去 (順序は保持)
@@ -255,16 +256,24 @@ def callergraph_to_plantuml(func_name, caller_funcs, title):
     return '\n'.join(lines)
 
 
-def build_plantuml_tag(plantuml_body):
-    """PlantUML テキストを <para><plantuml> タグで囲む。
+def build_plantuml_tag(plantuml_body, title):
+    """PlantUML テキストを <simplesect kind="par"> タグで囲む。
+
+    Doxybook2 の details.tmpl で par セクションとして処理され、
+    #### 見出し付きの独立セクションとして出力される。
 
     Args:
         plantuml_body: PlantUML テキスト (@startuml/@enduml は含まない)
+        title: セクションの見出しタイトル
 
     Returns:
         挿入用の XML 文字列
     """
-    return f'<para><plantuml>\n{plantuml_body}\n</plantuml></para>\n'
+    return (
+        f'<para><simplesect kind="par"><title>{title}</title>'
+        f'<para><plantuml>\n{plantuml_body}\n</plantuml></para>'
+        f'</simplesect></para>\n'
+    )
 
 
 def inject_compound_graphs(xml_text):
@@ -303,25 +312,27 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 first_id = next(iter(nodes)) if nodes else None
+                title = f'{display_name} のインクルード依存'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    f'{display_name} のインクルード依存',
+                    title,
                     first_node_id=first_id
                 )
                 if puml:
-                    injections.append(puml)
+                    injections.append((title, puml))
 
             # 逆インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'invincdepgraph')
             for nodes, edges in graphs:
                 first_id = next(iter(nodes)) if nodes else None
+                title = f'{display_name} の被インクルード関係'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    f'{display_name} の被インクルード関係',
+                    title,
                     first_node_id=first_id
                 )
                 if puml:
-                    injections.append(puml)
+                    injections.append((title, puml))
 
         elif kind in ('class', 'struct'):
             # コンパウンド名を取得
@@ -336,37 +347,43 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'inheritancegraph')
             for nodes, edges in graphs:
                 first_id = next(iter(nodes)) if nodes else None
+                title = f'{compound_name} の継承関係'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    f'{compound_name} の継承関係',
+                    title,
                     first_node_id=first_id
                 )
                 if puml:
-                    injections.append(puml)
+                    injections.append((title, puml))
 
             # コラボレーション図
             graphs = parse_graph_nodes(content, 'collaborationgraph')
             for nodes, edges in graphs:
                 first_id = next(iter(nodes)) if nodes else None
+                title = f'{compound_name} のコラボレーション図'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    f'{compound_name} のコラボレーション図',
+                    title,
                     first_node_id=first_id
                 )
                 if puml:
-                    injections.append(puml)
+                    injections.append((title, puml))
 
         if not injections:
             return match.group(0)
 
         # detaileddescription の閉じタグの直前に挿入
         injection_text = ''.join(
-            build_plantuml_tag(puml) for puml in injections
+            build_plantuml_tag(puml, title) for title, puml in injections
         )
 
         # detaileddescription が存在する場合、その閉じタグの前に挿入
+        # rfind で最後の </detaileddescription> を検索する。
+        # Doxygen XML では compounddef の detaileddescription が
+        # sectiondef/memberdef の後に出力されるため、最後のものが
+        # compounddef 自身のものとなる。
         desc_close = '</detaileddescription>'
-        pos = content.find(desc_close)
+        pos = content.rfind(desc_close)
         if pos != -1:
             content = (
                 content[:pos] + injection_text + content[pos:]
@@ -414,28 +431,30 @@ def inject_member_graphs(xml_text):
         # コールグラフ (references)
         called = parse_references(content)
         if called:
+            title = f'{func_name} のコールグラフ'
             puml = callgraph_to_plantuml(
                 func_name, called,
-                f'{func_name} のコールグラフ'
+                title
             )
             if puml:
-                injections.append(puml)
+                injections.append((title, puml))
 
         # 呼び出し元グラフ (referencedby)
         callers = parse_referencedby(content)
         if callers:
+            title = f'{func_name} の呼び出し元'
             puml = callergraph_to_plantuml(
                 func_name, callers,
-                f'{func_name} の呼び出し元'
+                title
             )
             if puml:
-                injections.append(puml)
+                injections.append((title, puml))
 
         if not injections:
             return match.group(0)
 
         injection_text = ''.join(
-            build_plantuml_tag(puml) for puml in injections
+            build_plantuml_tag(puml, title) for title, puml in injections
         )
 
         # detaileddescription の閉じタグの直前に挿入
