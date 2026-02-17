@@ -276,6 +276,26 @@ def build_plantuml_tag(plantuml_body, title):
     )
 
 
+def find_self_node(nodes, compound_name):
+    """ノード辞書から自身 (対象要素) のノード ID を検索する。
+
+    ラベルが compound_name と完全一致、または basename が一致するノードを返す。
+    一致するノードがない場合は None を返す。
+
+    Args:
+        nodes: {node_id: label} のノード辞書
+        compound_name: compounddef の名前 (例: 'calc/src/calc/calc.c', 'UserInfo')
+
+    Returns:
+        一致するノードの ID。見つからない場合は None。
+    """
+    basename = os.path.basename(compound_name)
+    for node_id, label in nodes.items():
+        if label == compound_name or os.path.basename(label) == basename:
+            return node_id
+    return None
+
+
 def inject_compound_graphs(xml_text):
     """compounddef レベルのグラフ (インクルード依存、継承、コラボレーション) を挿入する。
 
@@ -304,19 +324,21 @@ def inject_compound_graphs(xml_text):
             name_match = re.search(
                 r'<compoundname>([^<]*)</compoundname>', content
             )
+            compound_fullname = 'unknown'
             display_name = 'unknown'
             if name_match:
-                display_name = os.path.basename(name_match.group(1))
+                compound_fullname = name_match.group(1)
+                display_name = os.path.basename(compound_fullname)
 
             # インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
-                first_id = next(iter(nodes)) if nodes else None
+                self_id = find_self_node(nodes, compound_fullname)
                 title = f'{display_name} のインクルード依存'
                 puml = graph_to_plantuml(
                     nodes, edges,
                     title,
-                    first_node_id=first_id
+                    first_node_id=self_id
                 )
                 if puml:
                     injections.append((title, puml))
@@ -324,12 +346,12 @@ def inject_compound_graphs(xml_text):
             # 逆インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'invincdepgraph')
             for nodes, edges in graphs:
-                first_id = next(iter(nodes)) if nodes else None
+                self_id = find_self_node(nodes, compound_fullname)
                 title = f'{display_name} の被インクルード関係'
                 puml = graph_to_plantuml(
                     nodes, edges,
                     title,
-                    first_node_id=first_id
+                    first_node_id=self_id
                 )
                 if puml:
                     injections.append((title, puml))
@@ -346,12 +368,12 @@ def inject_compound_graphs(xml_text):
             # 継承グラフ
             graphs = parse_graph_nodes(content, 'inheritancegraph')
             for nodes, edges in graphs:
-                first_id = next(iter(nodes)) if nodes else None
+                self_id = find_self_node(nodes, compound_name)
                 title = f'{compound_name} の継承関係'
                 puml = graph_to_plantuml(
                     nodes, edges,
                     title,
-                    first_node_id=first_id
+                    first_node_id=self_id
                 )
                 if puml:
                     injections.append((title, puml))
@@ -359,12 +381,12 @@ def inject_compound_graphs(xml_text):
             # コラボレーション図
             graphs = parse_graph_nodes(content, 'collaborationgraph')
             for nodes, edges in graphs:
-                first_id = next(iter(nodes)) if nodes else None
+                self_id = find_self_node(nodes, compound_name)
                 title = f'{compound_name} のコラボレーション図'
                 puml = graph_to_plantuml(
                     nodes, edges,
                     title,
-                    first_node_id=first_id
+                    first_node_id=self_id
                 )
                 if puml:
                     injections.append((title, puml))
