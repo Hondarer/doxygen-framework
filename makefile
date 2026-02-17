@@ -93,6 +93,8 @@ markdown-generation:
 #	rm -rf $(XML_ORG_DIR)
 #	mkdir -p $(XML_ORG_DIR)
 #	cp -rp $(XML_DIR)/* $(XML_ORG_DIR)/
+    # グラフ抽出 (XML のグラフ情報から PlantUML を生成し XML に挿入)
+	python3 templates/extract-graphs.py $(XML_DIR) || exit 1
     # プリプロセッシング
 	templates/preprocess.sh $(XML_DIR) || exit 1
     # xml -> md 変換
