@@ -51,9 +51,10 @@ default: clean
 			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
 		fi; \
 		cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-		DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
+		PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 		rm -f $$TEMP_DOXYFILE; \
-		exit $$DOXYGEN_EXIT; \
+		if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
+		exit $$COLORIZE_EXIT; \
 	else \
 		TEMP_DOXYFILE=$$(mktemp); \
 		if [ -n "$(CATEGORY)" ]; then \
@@ -61,12 +62,15 @@ default: clean
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
 			cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-			DOXYGEN_EXIT=$${PIPESTATUS[0]}; \
+			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 			rm -f $$TEMP_DOXYFILE; \
-			exit $$DOXYGEN_EXIT; \
+			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
+			exit $$COLORIZE_EXIT; \
 		else \
 			cd ../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-			exit $${PIPESTATUS[0]}; \
+			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
+			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
+			exit $$COLORIZE_EXIT; \
 		fi; \
 	fi
 

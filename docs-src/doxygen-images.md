@@ -1,105 +1,122 @@
 # Doxygen における画像の仕様
 
-## Markdown 画像参照の対応
-
-Doxygen は `![alt](path_to_png)` 形式の Markdown 画像参照を Pages として処理できます。
-
-`.md` または `.markdown` 拡張子のファイルは自動的にページとして変換され、その中の Markdown 画像構文もサポートされます。
+Doxygen 1.14.0 を使用した実験、および Doxygen ソースコード (`src/doxygen.cpp`, `src/docparser.cpp`, `src/docnode.cpp`) の調査に基づく仕様をまとめます。
 
 ## IMAGE_PATH の設定
 
-画像を正しく表示するには、Doxyfile で `IMAGE_PATH` の設定が必要です。
-
-```{.doxyfile caption="基本設定"}
-IMAGE_PATH = path/to/your/images
-```
-
-### 複数パスの指定
-
-```{.doxyfile caption="複数のディレクトリを指定"}
-IMAGE_PATH = docs/images \
-             examples/images \
-             ../shared/images
-```
-
-IMAGE_PATH は以下の形式で指定できます。
-
-- Doxygen を実行する場所からの相対パス
-- 絶対パス
-
-## 画像検索の仕組み
-
-Doxygen の画像検索には特殊な仕組みがあります。
-
-- 画像が見つかるには、ファイル名とパスが実際のフルパスの一部と一致する必要がある
-- Markdown ファイルからの相対パスではなく、IMAGE_PATH で指定したディレクトリから画像を探す
-
-### 具体例
+画像を HTML 出力に含めるには、Doxyfile で `IMAGE_PATH` を設定します。
 
 ```text
-/project/docs/page.md
-/project/docs/images/screenshot.png
+IMAGE_PATH = path/to/dir
 ```
 
-この場合の設定は次のようになります。
+Doxygen を実行するディレクトリからの相対パス、または絶対パスで指定します。
 
-```{.doxyfile caption="Doxyfile"}
-IMAGE_PATH = docs/images
-```
+### 再帰探索
 
-Markdown 内では次のように参照できます。
-
-```{.markdown caption="page.md"}
-![スクリーンショット](screenshot.png)
-```
-
-## ワイルドカードと再帰探索
-
-**重要:** IMAGE_PATH ではワイルドカード記法は使用できません。
-
-- `*/images` のような記法は使えない
-- 再帰的な探索オプションも存在しない
-
-すべてのパスを個別に列挙する必要があります。
-
-```{.doxyfile caption="複数の images ディレクトリを列挙"}
-IMAGE_PATH = docs/module1/images \
-             docs/module2/images \
-             docs/module3/images \
-             examples/images
-```
-
-## 過去の問題と現状
-
-過去には以下の問題がありましたが、現在は修正されています。
-
-- Markdown 構文 `![caption](filename)` を使った場合に画像ファイルがコピーされない問題 → Doxygen 1.8.1 で修正済み
-
-ただし、相対パスを使った場合に画像が出力ディレクトリにコピーされず、パスの変換だけが行われる問題が報告されることもあります。
-
-## 推奨される使い方
-
-確実に動作させるには次のいずれかを選択してください。
-
-### 方法 1: Markdown 構文を使用
-
-IMAGE_PATH に画像ディレクトリを設定し、ファイル名のみで参照します。
-
-```{.doxyfile caption="Doxyfile"}
-IMAGE_PATH = docs/images
-```
-
-```{.markdown caption="page.md"}
-![ロゴ画像](logo.png)
-```
-
-### 方法 2: Doxygen コマンドを使用（より確実）
+`RECURSIVE = YES` が設定されている場合、`IMAGE_PATH` で指定したディレクトリは再帰的に検索されます。画像が深いサブディレクトリにある場合でも、共通の親ディレクトリを一つ指定するだけで十分です。
 
 ```text
-\image html logo.png "ロゴ画像"
+# images/calc-flow.png も images/sub/diagram.png も対象になる
+IMAGE_PATH = ./src
+RECURSIVE  = YES
 ```
 
-## 参考情報
+`INPUT` と同じディレクトリを `IMAGE_PATH` に指定するのが確実です。
 
-- [Doxygen Markdown サポート](https://www.doxygen.nl/manual/markdown.html)
-- [Doxygen 設定リファレンス](https://www.doxygen.nl/manual/config.html)
+## コピーされる画像の条件
+
+**Markdown から参照された画像のみが HTML 出力ディレクトリにコピーされます。**
+
+`IMAGE_PATH` に画像ファイルを配置しても、Markdown から参照されていなければコピーされません。
+
+| 状況 | コピーされるか |
+|---|---|
+| Markdown で `![...](filename.png)` と参照している | ✅ コピーされる |
+| `IMAGE_PATH` に置いているが Markdown から未参照 | ❌ コピーされない |
+
+### コピー対象の拡張子
+
+**Doxygen のソースコードに拡張子フィルタは存在しません。**
+
+`src/doxygen.cpp` の `adjustConfiguration()` では、IMAGE_PATH のディレクトリを `readFileOrDirectory()` でスキャンする際に `patList=nullptr` を渡しており、すべてのファイルが `imageNameLinkedMap` に登録されます。Markdown から参照されたファイルをコピーする `findAndCopyImage()` にも拡張子チェックはありません。
+
+```text
+(Doxygen ソースコード: src/doxygen.cpp / adjustConfiguration())
+readFileOrDirectory(path,
+    Doxygen::imageNameLinkedMap,
+    nullptr,   // exclSet
+    nullptr,   // patList  ← 拡張子フィルタなし
+    ...
+```
+
+つまり、Markdown から参照したファイルは拡張子に関係なくコピーされます。
+
+HTML での表示はブラウザに依存します。公式ドキュメントの `\image` コマンドには次の記載があります。
+
+> "The image format for HTML is limited to what your browser supports."
+> "Doxygen does not check if the image is in the correct format."
+>
+> — [Doxygen: Special Commands — \image](https://www.doxygen.nl/manual/commands.html#cmdimage)
+
+HTML 出力での実用的な対応形式は以下の通りです。
+
+| 拡張子 | HTML 出力での扱い | ブラウザでの表示 |
+|---|---|---|
+| `.png` | `<img>` タグ | ✅ |
+| `.jpg` / `.jpeg` | `<img>` タグ | ✅ |
+| `.gif` | `<img>` タグ | ✅ |
+| `.webp` | `<img>` タグ | ✅ (主要ブラウザ) |
+| `.svg` | `<object type="image/svg+xml">` タグ | ✅ |
+| その他 | `<img>` タグ | ブラウザ依存 |
+
+`.svg` のみ、Doxygen ソースコード内の `DocImage::isSVG()` (`src/docnode.cpp`) が拡張子を判定して `<object>` タグに切り替えます。
+
+```html
+<!-- SVG の場合 -->
+<object type="image/svg+xml" data="sample.svg" style="pointer-events: none;"></object>
+
+<!-- それ以外の場合 -->
+<img src="sample.png" alt=""/>
+```
+
+## Markdown からの参照記法と VS Code プレビューとの共存
+
+VS Code のプレビューでは、Markdown ファイルから画像を相対パスで参照する必要があります。
+
+```markdown
+![キャプション](images/diagram.png)
+```
+
+この記法を使った場合の Doxygen の動作を確認します。
+
+- Doxygen は `IMAGE_PATH` を再帰的に検索してファイル名 (`diagram.png`) のみで照合する
+- 見つかった画像を HTML 出力ルートにフラットにコピーする
+- HTML には `<img src="diagram.png">` とファイル名のみを出力する (パスが置き換えられる)
+
+```text
+Markdown の記述:   images/diagram.png
+↓
+HTML の出力:       <img src="diagram.png">
+コピー先:          docs/doxygen/diagram.png (フラット)
+```
+
+この置き換えにより、VS Code プレビューと Doxygen HTML の両方で画像が表示されます。
+
+| 環境 | パスの解決 | 結果 |
+|---|---|---|
+| VS Code プレビュー | `images/diagram.png` (相対パス) | ✅ 表示される |
+| Doxygen HTML | `diagram.png` (ファイル名のみ) | ✅ 表示される |
+
+### 注意点
+
+異なるディレクトリに同名の画像ファイルが存在する場合、Doxygen は以下の警告を出し、どちらか一方のみをコピーします (ファイル名のユニーク化は行われません)。
+
+```text
+warning: image file name 'images/duplicate.png' is ambiguous.
+  /path/to/dir1/images/duplicate.png
+  /path/to/dir2/images/duplicate.png
+```
+
+ドキュメントセットが意図した出力になるためには、画像ファイル名がプロジェクト全体で一意であることが必要です。  
+本フレームワークでは、同名画像ファイルの警告を検出した場合、`make doxy` にて失敗します。これにより、CI/CD で問題を発見、対処できます。
