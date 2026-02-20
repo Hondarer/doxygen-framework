@@ -366,3 +366,25 @@ DbHandle *connectDatabase(const char *connectionString);
  */
 ssize_t readFile(const char *filename, char *buffer, size_t bufferSize);
 ```
+
+### 画像の挿入
+
+`@image` コマンドを使用して、ドキュメントに画像を挿入できます。
+
+```c
+/**
+ *******************************************************************************
+ *  @brief          プログラムのエントリーポイント。
+ *  @param[in]      argc コマンドライン引数の数。
+ *  @param[in]      argv コマンドライン引数の配列。
+ *  @return         成功時は 0、失敗時は 0 以外の値を返します。
+ *
+ *  @details        以下に、calc コマンドの処理フローを示します。
+ *
+ *  @image          html calc-flow.png "calc コマンドの処理フロー"
+ *
+ *  @attention      引数は正確に 3 つ必要です。
+ *******************************************************************************
+ */
+int main(int argc, char *argv[]);
+```

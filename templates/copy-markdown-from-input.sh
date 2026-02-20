@@ -130,9 +130,8 @@ extract_gitignore_patterns() {
 
 # Markdown ファイルから参照されている画像ファイルをコピー
 copy_referenced_images() {
-    local md_src="$1"            # コピー元 .md ファイル
-    local md_dest="$2"           # コピー先 .md ファイル
-    local root_images_dir="$3"   # 省略可: 同名ファイルを削除する images/ ディレクトリ
+    local md_src="$1"   # コピー元 .md ファイル
+    local md_dest="$2"  # コピー先 .md ファイル
 
     local src_dir dest_dir
     src_dir="$(dirname "$md_src")"
@@ -153,17 +152,6 @@ copy_referenced_images() {
             mkdir -p "$(dirname "$dest_img")"
             cp "$src_img" "$dest_img"
             echo "  Copied image: $img_path (referenced from $(basename "$md_src"))"
-
-            # root_images_dir に同名ファイルがあれば削除
-            if [ -n "$root_images_dir" ]; then
-                local img_basename
-                img_basename="$(basename "$img_path")"
-                local root_img="$root_images_dir/$img_basename"
-                if [ -f "$root_img" ]; then
-                    rm "$root_img"
-                    echo "  Removed duplicate: $img_basename from $(basename "$root_images_dir")/"
-                fi
-            fi
         fi
     done
 }
@@ -177,10 +165,6 @@ copy_markdown_files() {
     # コピー先をクリーンアップして作成
     rm -rf "$dest_dir"
     mkdir -p "$dest_dir"
-
-    # doxybook ルートの images/ ディレクトリ (Pages の一つ上)
-    local root_images_dir
-    root_images_dir="$(dirname "$dest_dir")/images"
 
     # .gitignore パターンを抽出
     local gitignore_patterns=""
@@ -210,7 +194,7 @@ copy_markdown_files() {
                 local dest_file="$dest_dir/$filename"
                 cp "$src_path" "$dest_file"
                 echo "  Copied file: $input_path"
-                copy_referenced_images "$src_path" "$dest_file" "$root_images_dir"
+                copy_referenced_images "$src_path" "$dest_file"
             fi
         # ディレクトリの場合
         elif [ -d "$src_path" ]; then
@@ -277,7 +261,7 @@ copy_markdown_files() {
                     mkdir -p "$dest_file_dir"
                     cp "$md_file" "$dest_file"
                     echo "  Copied: $input_path/$rel_path"
-                    copy_referenced_images "$md_file" "$dest_file" "$root_images_dir"
+                    copy_referenced_images "$md_file" "$dest_file"
                 done
             fi
         else

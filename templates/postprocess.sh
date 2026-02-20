@@ -251,6 +251,39 @@ for file in "${md_files[@]}"; do
     fi
 done
 
+# サブディレクトリ内 Markdown の画像パスを修正
+# Doxybook2 は Files/ 等のサブディレクトリに Markdown を配置するが、
+# 画像は doxybook ルートの images/ に置かれるため、
+# 相対パス images/{name} は ../images/{name} に修正する必要がある
+#
+# 修正対象ファイルで参照された画像ファイル名を収集し、
+# Pages のみで参照される画像の後処理 (削除) に使用する
+SUBDIR_IMAGES="$TEMP_DIR/subdir_images.txt"
+touch "$SUBDIR_IMAGES"
+
+for file in "${md_files[@]}"; do
+    rel_path="${file#$MARKDOWN_DIR/}"
+    # スラッシュが含まれる = サブディレクトリ内のファイル
+    if [[ "$rel_path" == */* ]] && grep -qE '!\[[^]]*\]\([^)]+\)' "$file" 2>/dev/null; then
+        # パス修正前に参照画像の basename を収集 (外部 URL は除外)
+        # ([^/)]*\/)* でディレクトリ部分を読み飛ばし、([^/)?# ]+) で basename を取得する
+        grep -oE '!\[[^]]*\]\([^)]+\)' "$file" | \
+            grep -Ev '\(https?://' | \
+            sed -E 's/!\[[^]]*\]\(([^/)]*\/)*([^/)?# ]+)\).*/\2/' >> "$SUBDIR_IMAGES"
+        # 画像パスの修正とキャプション補正を同時に適用
+        # - ディレクトリ部分を strip して ../images/{basename} に統一する
+        #   ([^/)]*\/)* でディレクトリ部分を除去し basename のみ残す
+        # - ![filename](url)caption → ![caption](url):
+        #   Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する。
+        #   ) の直後が非スペース文字で始まる場合にキャプションと判定する。
+        sed -i -E \
+            -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](..\/images\/\3)/g' \
+            -e 's/!\[[^]]*\]\(([^)]+)\)([^ ].*)/![\2](\1)/g' \
+            "$file"
+        echo "  Fixed image path/caption: $rel_path"
+    fi
+done
+
 # ファイルインデックスの編集
 # テンプレートでは正しく置換できなかったため、シェルで加工する
 #
@@ -373,6 +406,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Markdown ファイルのコピー処理
 # copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
+
+# Pages のみで参照される画像を images/ から削除
+# サブディレクトリ (Files/ 等) から参照されていない画像は
+# Pages/ 以下に正しい相対パスでコピー済みのため、images/ の該当ファイルは不要
+IMAGES_DIR="$MARKDOWN_DIR/images"
+if [ -d "$IMAGES_DIR" ]; then
+    find "$IMAGES_DIR" -maxdepth 1 -type f | while read -r img_file; do
+        img_name="$(basename "$img_file")"
+        if ! grep -qxF "$img_name" "$SUBDIR_IMAGES" 2>/dev/null; then
+            rm "$img_file"
+            echo "  Removed Pages-only image: $img_name from images/"
+        fi
+    done
+fi
 
 # index_files.md と index_pages.md のマージ処理
 # merge-index-files.py を呼び出して index_files_and_pages.md を生成
