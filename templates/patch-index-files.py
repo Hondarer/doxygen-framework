@@ -14,6 +14,7 @@ merge-index-files.py でのマージ時に index_pages.md のローカル名と�
 
 import sys
 import re
+from typing import Match
 
 
 def patch_index_files(path: str) -> None:
@@ -26,11 +27,11 @@ def patch_index_files(path: str) -> None:
 
     text = data.decode('utf-8')
 
-    def strip_dir(m: re.Match) -> str:
+    def strip_dir(m: Match[str]) -> str:
         """📁 path/to/dir → 📁 dir"""
         return '📁 ' + m.group(1).rsplit('/', 1)[-1]
 
-    def strip_file(m: re.Match) -> str:
+    def strip_file(m: Match[str]) -> str:
         """[path/to/file](Files/...) → [file](Files/...)"""
         return '[' + m.group(1).rsplit('/', 1)[-1] + '](' + m.group(2) + ')'
 
