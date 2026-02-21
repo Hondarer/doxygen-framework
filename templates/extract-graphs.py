@@ -29,6 +29,11 @@ import re
 # Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
 DOT_GRAPH_MAX_NODES = 50
 
+# インクルード依存グラフ・被インクルード関係グラフのノードラベルをファイル名のみにするフラグ
+# True : ファイル名のみ表示 (別フォルダに同名ファイルがない前提)
+# False: フルパスをそのまま表示
+INC_GRAPH_LABEL_BASENAME_ONLY = True
+
 
 def parse_graph_nodes(xml_text, graph_tag):
     """XML テキストから graphType 要素のノードとエッジを抽出する。
@@ -334,9 +339,16 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
+                # INC_GRAPH_LABEL_BASENAME_ONLY が True の場合、
+                # find_self_node() 呼び出し後にラベルをファイル名のみに変換する
+                display_nodes = nodes
+                if INC_GRAPH_LABEL_BASENAME_ONLY:
+                    display_nodes = {
+                        k: os.path.basename(v) for k, v in nodes.items()
+                    }
                 title = f'{display_name} のインクルード依存'
                 puml = graph_to_plantuml(
-                    nodes, edges,
+                    display_nodes, edges,
                     title,
                     first_node_id=self_id
                 )
@@ -347,9 +359,16 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'invincdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
+                # INC_GRAPH_LABEL_BASENAME_ONLY が True の場合、
+                # find_self_node() 呼び出し後にラベルをファイル名のみに変換する
+                display_nodes = nodes
+                if INC_GRAPH_LABEL_BASENAME_ONLY:
+                    display_nodes = {
+                        k: os.path.basename(v) for k, v in nodes.items()
+                    }
                 title = f'{display_name} の被インクルード関係'
                 puml = graph_to_plantuml(
-                    nodes, edges,
+                    display_nodes, edges,
                     title,
                     first_node_id=self_id
                 )
