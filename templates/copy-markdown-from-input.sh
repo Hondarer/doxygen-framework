@@ -367,105 +367,99 @@ EOF
 
         # インデックスファイルの生成
         if [ -s "$TEMP_FILE" ]; then
-            # 出力済みディレクトリを追跡する連想配列
+            # 出力済みエントリを追跡する連想配列
             declare -A printed_dirs
 
-            # 一時ファイルをソートして順序を統一
-            LC_ALL=C sort "$TEMP_FILE" -o "$TEMP_FILE"
-
-            # すべてのディレクトリを収集してソート（空ディレクトリも含む）
-            TEMP_DIRS=$(mktemp)
-            find "$PAGES_DIR" -mindepth 1 -type d | while read -r dir; do
-                rel_path="${dir#$PAGES_DIR/}"
-                echo "$rel_path"
-            done | LC_ALL=C sort > "$TEMP_DIRS"
-
-            # まず、すべてのディレクトリを階層順に処理
-            while IFS= read -r dir_path; do
-                # このディレクトリが既に出力済みかチェック
-                if [ -n "${printed_dirs[$dir_path]}" ]; then
-                    continue
-                fi
-
-                # ディレクトリの階層レベルを計算
-                IFS='/' read -ra DIR_PARTS <<< "$dir_path"
-                depth=${#DIR_PARTS[@]}
+            # ディレクトリを再帰的に処理する関数
+            # $1: PAGES_DIR からの相対パス (ルートは空文字列)
+            # $2: 現在の深さ (インデントレベル)
+            # 各レベルで: 1. サブディレクトリ (昇順) → 2. 非 README ファイル (昇順) の順に出力
+            process_directory() {
+                local dir_rel="$1"
+                local depth="$2"
 
                 # インデントを計算
-                indent=""
-                for ((j=1; j<depth; j++)); do
+                local indent=""
+                for ((j=0; j<depth; j++)); do
                     indent="    $indent"
                 done
 
-                # ディレクトリ名を取得
-                dir_name=$(basename "$dir_path")
+                # 対象ディレクトリの絶対パス
+                local parent_dir
+                if [ -z "$dir_rel" ]; then
+                    parent_dir="$PAGES_DIR"
+                else
+                    parent_dir="$PAGES_DIR/$dir_rel"
+                fi
 
-                # このディレクトリに README.md があるかチェック
-                readme_path="$dir_path/README.md"
-                if [ -f "$PAGES_DIR/$readme_path" ]; then
-                    # README.md がある場合、ディレクトリ名をリンクにする
-                    link_path="Pages/${readme_path}"
-                    description=$(awk '
-                        BEGIN { in_frontmatter=0; found=0 }
-                        /^---$/ {
-                            if (NR==1) { in_frontmatter=1; next }
-                            else if (in_frontmatter) { in_frontmatter=0; next }
-                        }
-                        in_frontmatter { next }
-                        /^# / && !found {
-                            sub(/^# /, "");
-                            print;
-                            found=1;
-                            exit
-                        }
-                    ' "$PAGES_DIR/$readme_path")
-
-                    if [ -n "$description" ]; then
-                        echo "${indent}* 📁 [${dir_name}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
+                # 1. サブディレクトリを先に処理 (フォルダをファイルより前に出力)
+                while IFS= read -r subdir; do
+                    local subdir_name
+                    subdir_name=$(basename "$subdir")
+                    local subdir_rel
+                    if [ -z "$dir_rel" ]; then
+                        subdir_rel="$subdir_name"
                     else
-                        echo "${indent}* 📁 [${dir_name}](${link_path})" >> "$INDEX_PAGES_FILE"
+                        subdir_rel="$dir_rel/$subdir_name"
                     fi
 
-                    # README.md を出力済みとしてマーク
-                    printed_dirs[$readme_path]=1
-                else
-                    # README.md がない場合、通常のディレクトリ行
-                    echo "${indent}* 📁 ${dir_name}" >> "$INDEX_PAGES_FILE"
-                fi
+                    # .md ファイルが存在しない空ディレクトリはスキップ
+                    if ! find "$PAGES_DIR/$subdir_rel" -type f -name "*.md" -print -quit | grep -q .; then
+                        continue
+                    fi
 
-                # ディレクトリを出力済みとしてマーク
-                printed_dirs[$dir_path]=1
-            done < "$TEMP_DIRS"
+                    # README.md があるかチェック
+                    local readme_path="$subdir_rel/README.md"
+                    if [ -f "$PAGES_DIR/$readme_path" ]; then
+                        local link_path="Pages/$readme_path"
+                        local description
+                        description=$(awk '
+                            BEGIN { in_frontmatter=0; found=0 }
+                            /^---$/ {
+                                if (NR==1) { in_frontmatter=1; next }
+                                else if (in_frontmatter) { in_frontmatter=0; next }
+                            }
+                            in_frontmatter { next }
+                            /^# / && !found {
+                                sub(/^# /, "");
+                                print;
+                                found=1;
+                                exit
+                            }
+                        ' "$PAGES_DIR/$readme_path")
+                        if [ -n "$description" ]; then
+                            echo "${indent}* 📁 [${subdir_name}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
+                        else
+                            echo "${indent}* 📁 [${subdir_name}](${link_path})" >> "$INDEX_PAGES_FILE"
+                        fi
+                        printed_dirs[$readme_path]=1
+                    else
+                        echo "${indent}* 📁 ${subdir_name}" >> "$INDEX_PAGES_FILE"
+                    fi
+                    printed_dirs[$subdir_rel]=1
 
-            rm -f "$TEMP_DIRS"
+                    # 再帰的に処理
+                    process_directory "$subdir_rel" $((depth + 1))
+                done < <(find "$parent_dir" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
 
-            while IFS= read -r file_path; do
-                # ディレクトリとファイル名を分離
-                dir_path=$(dirname "$file_path")
-                file_name=$(basename "$file_path")
+                # 2. このディレクトリ直下の非 README .md ファイルを出力
+                #    サブディレクトリの後に出力することでフォルダ後ファイルの順序を保証する
+                #    find | LC_ALL=C sort によりファイル名昇順で挿入する
+                while IFS= read -r md_file; do
+                    local file_name
+                    file_name=$(basename "$md_file")
 
-                # ファイルが既にディレクトリ行にマージされている場合はスキップ
-                if [ -n "${printed_dirs[$file_path]}" ]; then
-                    continue
-                fi
+                    local file_rel
+                    if [ -z "$dir_rel" ]; then
+                        file_rel="$file_name"
+                    else
+                        file_rel="$dir_rel/$file_name"
+                    fi
 
-                # ファイルを出力
-                indent=""
-                if [ "$dir_path" != "." ]; then
-                    IFS='/' read -ra DIR_PARTS <<< "$dir_path"
-                    for ((j=0; j<${#DIR_PARTS[@]}; j++)); do
-                        indent="    $indent"
-                    done
-                fi
+                    # 出力済みはスキップ (ディレクトリリンクとして使用済みの README.md もここで除外される)
+                    if [ -n "${printed_dirs[$file_rel]}" ]; then continue; fi
 
-                # Pages サブディレクトリからの相対パスでリンクを作成
-                link_path="Pages/${file_path}"
-
-                # コピー済みファイルから最初の見出しを抽出
-                copied_file="${PAGES_DIR}/${file_path}"
-                description=""
-                if [ -f "$copied_file" ]; then
-                    # YAML フロントマター以降の最初の # 見出しを取得
+                    local description
                     description=$(awk '
                         BEGIN { in_frontmatter=0; found=0 }
                         /^---$/ {
@@ -479,17 +473,19 @@ EOF
                             found=1;
                             exit
                         }
-                    ' "$copied_file")
-                fi
+                    ' "$md_file")
+                    local link_path="Pages/$file_rel"
+                    if [ -n "$description" ]; then
+                        echo "${indent}* 📄 [${file_name}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
+                    else
+                        echo "${indent}* 📄 [${file_name}](${link_path})" >> "$INDEX_PAGES_FILE"
+                    fi
+                    printed_dirs[$file_rel]=1
+                done < <(find "$parent_dir" -mindepth 1 -maxdepth 1 -type f -name "*.md" | LC_ALL=C sort)
+            }
 
-                # ファイルエントリを出力（ファイル名のみ表示、パスは除外）
-                if [ -n "$description" ]; then
-                    echo "${indent}* 📄 [${file_name}](${link_path}) <br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${description}" >> "$INDEX_PAGES_FILE"
-                else
-                    echo "${indent}* 📄 [${file_name}](${link_path})" >> "$INDEX_PAGES_FILE"
-                fi
-
-            done < "$TEMP_FILE"
+            # ルートディレクトリから再帰的に処理
+            process_directory "" 0
         fi
 
         rm -f "$TEMP_FILE"

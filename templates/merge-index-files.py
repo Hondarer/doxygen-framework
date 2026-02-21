@@ -142,6 +142,8 @@ def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
                 # ファイル版のみ: 追加（特にファイルエントリ）
                 result.append(files_node)
 
+        # フォルダ優先・名前順でソート
+        result.sort(key=lambda n: (n.is_file, n.name))
         return result
 
     return merge_nodes(pages_tree, files_tree)
