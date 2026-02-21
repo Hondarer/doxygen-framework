@@ -99,11 +99,8 @@ def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
         pages_dict: Dict[str, Node] = {node.name: node for node in pages_nodes}
         files_dict: Dict[str, Node] = {node.name: node for node in files_nodes}
 
-        # すべてのキーを取得（ページ優先でソート維持）
-        all_names = list(pages_dict.keys())
-        for name in files_dict.keys():
-            if name not in pages_dict:
-                all_names.append(name)
+        # 両辞書のキーの和集合を取得（末尾でソートするため挿入順は不問）
+        all_names = list(pages_dict.keys() | files_dict.keys())
 
         for name in all_names:
             pages_node = pages_dict.get(name)
