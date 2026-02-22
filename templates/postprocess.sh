@@ -122,6 +122,24 @@ process_markdown_file() {
     sed 's/[[:space:]]*$//' | \
     sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/g' | \
     sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/g' | \
+    # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
+    # コードブロックの種別に応じて変換先を切り替える。
+    # - PlantUML コードブロック内: !dunder! と __ の両方を ~_~_ に変換
+    #   PlantUML では __ がアンダーライン記法として解釈されるため、
+    #   ~ (エスケープ文字) で1文字ずつエスケープする。
+    # - 通常コードブロック内 (cpp など): !dunder! を __ に復元
+    # - コードブロック外: !dunder! を \_\_ にエスケープ (Markdown 強調記法を防ぐ)
+    #   コードブロック外に直接 __ が残る場合も同様にエスケープする。
+    awk '
+    /^[[:space:]]*```/ {
+        if (in_code_block) { in_code_block = 0; is_plantuml = 0 }
+        else { in_code_block = 1; is_plantuml = ($0 ~ /```[[:space:]]*plantuml/) }
+    }
+    in_code_block && is_plantuml { gsub(/!dunder!/, "~_~_"); gsub(/__/, "~_~_") }
+    in_code_block && !is_plantuml { gsub(/!dunder!/, "__") }
+    !in_code_block { gsub(/!dunder!/, "\\_\\_"); gsub(/__/, "\\_\\_") }
+    { print }
+    ' | \
     
     # 連続空行統合
     # - 空白文字のみの行 (空行含む) を空行として扱う
