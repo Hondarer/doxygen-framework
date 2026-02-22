@@ -120,8 +120,8 @@ process_markdown_file() {
     # - !linebreak! を空白 2 つ + 改行に変換
     # - 表内 (| で始まる) の !linebreak! は <br/> に変換
     sed 's/[[:space:]]*$//' | \
-    sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/' | \
-    sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/' | \
+    sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/g' | \
+    sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/g' | \
     
     # 連続空行統合
     # - 空白文字のみの行 (空行含む) を空行として扱う
