@@ -149,7 +149,31 @@ process_markdown_file() {
     !in_code_block { gsub(/!dunder!/, "\\_\\_"); gsub(/__/, "\\_\\_") }
     { print }
     ' | \
-    
+
+    # コードフェンス前の改行不足対策
+    # テキストに続いてコードフェンス開始 (```lang) が同一行にある場合、
+    # テキストとコードフェンスの間に空行を挿入する
+    awk '
+    BEGIN { in_code_block = 0 }
+    /^[[:space:]]*```/ {
+        if (in_code_block) { in_code_block = 0 } else { in_code_block = 1 }
+        print
+        next
+    }
+    !in_code_block && match($0, /[[:space:]]*```[a-zA-Z0-9]/) && RSTART > 1 {
+        text = substr($0, 1, RSTART - 1)
+        fence = substr($0, RSTART)
+        sub(/^[[:space:]]*/, "", fence)
+        sub(/[[:space:]]*$/, "", text)
+        print text
+        print ""
+        print fence
+        in_code_block = 1
+        next
+    }
+    { print }
+    ' | \
+
     # 連続空行統合
     # - 空白文字のみの行 (空行含む) を空行として扱う
     # - 連続する空行を1つの空行に置換
