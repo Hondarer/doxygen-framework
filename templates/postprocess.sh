@@ -56,8 +56,17 @@ process_markdown_file() {
             # インクルードファイルの存在チェック
             if [ -f "$include_path" ]; then
                 #echo "  -> インクルード: $include_file"
-                # ファイルの内容を出力
-                cat "$include_path"
+                # YAML フロントマター、HTML コメント行、H1 見出しを除いてファイル内容を出力
+                # (インクルード先はファイルルート Markdown のため、埋め込み時にヘッダー部分を除去する)
+                awk '
+                BEGIN { in_frontmatter = 0; frontmatter_done = 0; h1_removed = 0 }
+                NR==1 && /^---[[:space:]]*$/ { in_frontmatter = 1; next }
+                in_frontmatter && /^---[[:space:]]*$/ { in_frontmatter = 0; frontmatter_done = 1; next }
+                in_frontmatter { next }
+                frontmatter_done && !h1_removed && /^<!--/ { next }
+                frontmatter_done && !h1_removed && /^# / { h1_removed = 1; next }
+                { print }
+                ' "$include_path"
             else
                 echo "  -> 警告: インクルードファイルが見つかりません: $include_file"
                 # 元の行をそのまま出力
