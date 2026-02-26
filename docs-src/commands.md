@@ -249,9 +249,9 @@ void sortArray(int *arr, size_t size);
  *
  *  使用例:
  *
- *  @code{.c}
- *  FORCE_INLINE int fast_add(int a, int b) { return a + b; }
- *  @endcode
+    @code{.c}
+    FORCE_INLINE int fast_add(int a, int b) { return a + b; }
+    @endcode
  *
  *******************************************************************************
  */
@@ -377,11 +377,11 @@ int main(int argc, char *argv[]);
  *  @brief          文字列を反転します。
  *  @param[in,out]  str 反転する文字列。
  *  @details        以下は使用例です。
- *  @code{.c}
- *  char text[] = "Hello";
- *  reverseString(text);
- *  printf("%s\n", text);  // 出力: olleH
- *  @endcode
+    @code{.c}
+    char text[] = "Hello";
+    reverseString(text);
+    printf("%s\n", text);  // 出力: olleH
+    @endcode
  */
 void reverseString(char *str);
 ```
@@ -395,11 +395,11 @@ void reverseString(char *str);
  *  @details
  *  この関数は配列内の最大値を線形探索で見つけます。
  *
- *  @code
- *  int numbers[] = {3, 7, 2, 9, 1};
- *  int max = findMax(numbers, 5);
- *  printf("最大値: %d\n", max);  // 出力: 最大値: 9
- *  @endcode
+    @code
+    int numbers[] = {3, 7, 2, 9, 1};
+    int max = findMax(numbers, 5);
+    printf("最大値: %d\n", max);  // 出力: 最大値: 9
+    @endcode
  */
 int findMax(const int *arr, size_t size);
 ```
@@ -416,11 +416,11 @@ int findMax(const int *arr, size_t size);
 /**
  *  @brief          環境変数の設定例を表示します。
  *  @details        以下の形式で環境変数を設定してください。
- *  @verbatim
- *  export PATH=/usr/local/bin:$PATH
- *  export CC=gcc
- *  export CFLAGS="-Wall -O2"
- *  @endverbatim
+    @verbatim
+    export PATH=/usr/local/bin:$PATH
+    export CC=gcc
+    export CFLAGS="-Wall -O2"
+    @endverbatim
  */
 void showEnvironmentSetup();
 ```
@@ -431,14 +431,14 @@ void showEnvironmentSetup();
  *  @details
  *  以下のコマンドを順に実行してください。
  *
- *  @verbatim
- *  $ cd project_directory
- *  $ mkdir build
- *  $ cd build
- *  $ cmake ..
- *  $ make
- *  $ make install
- *  @endverbatim
+    @verbatim
+    $ cd project_directory
+    $ mkdir build
+    $ cd build
+    $ cmake ..
+    $ make
+    $ make install
+    @endverbatim
  */
 void showBuildInstructions();
 ```
@@ -457,11 +457,11 @@ Doxygen は Markdown 形式のコードブロック (バッククォート3つ) 
  *  以下のようにエラーコードを処理します:
  *
  *  ```c
- *  int result = getErrorCode();
- *  if (result != 0) {
- *      fprintf(stderr, "Error: %d\n", result);
- *      return EXIT_FAILURE;
- *  }
+    int result = getErrorCode();
+    if (result != 0) {
+        fprintf(stderr, "Error: %d\n", result);
+        return EXIT_FAILURE;
+    }
  *  ```
  */
 int getErrorCode();
@@ -800,7 +800,7 @@ int exampleFunction(int param1) {
 }
 ```
 
-または
+または (非推奨)
 
 ```c
 /**
