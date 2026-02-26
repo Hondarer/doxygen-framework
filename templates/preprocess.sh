@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# preprocess.sh - Doxybook 前処理スクリプト
+# preprocess.sh - Doxybook2 前処理スクリプト
 # 使用方法: ./preprocess.sh <xml_directory>
 # 例: ./preprocess.sh ../xml
 

@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# postprocess.sh - Doxybook 後処理スクリプト
+# postprocess.sh - Doxybook2 後処理スクリプト
 # 使用方法: ./postprocess.sh <markdown_directory>
-# 例: ./postprocess.sh docs-src/doxybook
+# 例: ./postprocess.sh docs-src/doxybook2
 
 # set -x # デバッグ時のみ有効にする
 
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
-    echo "例: $0 docs-src/doxybook"
+    echo "例: $0 docs-src/doxybook2"
     exit 1
 fi
 
@@ -280,7 +280,7 @@ done
 
 # サブディレクトリ内 Markdown の画像パスを修正
 # Doxybook2 は Files/ 等のサブディレクトリに Markdown を配置するが、
-# 画像は doxybook ルートの images/ に置かれるため、
+# 画像は doxybook2 ルートの images/ に置かれるため、
 # 相対パス images/{name} は ../images/{name} に修正する必要がある
 #
 # 修正対象ファイルで参照された画像ファイル名を収集し、

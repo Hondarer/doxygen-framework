@@ -22,7 +22,7 @@ else
 endif
 
 DOCS_DOXYGEN_DIR := ../docs/doxygen$(CATEGORY_SUFFIX)
-DOCS_DOXYBOOK_DIR := ../docs-src/doxybook$(CATEGORY_SUFFIX)
+DOCS_DOXYBOOK2_DIR := ../docs-src/doxybook2$(CATEGORY_SUFFIX)
 XML_DIR := ../xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := ../xml_org$(CATEGORY_SUFFIX)
 
@@ -92,7 +92,7 @@ default: clean
 
 .PHONY: markdown-generation
 markdown-generation:
-	mkdir -p $(DOCS_DOXYBOOK_DIR)
+	mkdir -p $(DOCS_DOXYBOOK2_DIR)
     # デバッグ用にオリジナルの xml をバックアップ
 #	rm -rf $(XML_ORG_DIR)
 #	mkdir -p $(XML_ORG_DIR)
@@ -104,11 +104,11 @@ markdown-generation:
     # xml -> md 変換
 	doxybook2 \
 		-i $(XML_DIR) \
-		-o $(DOCS_DOXYBOOK_DIR) \
-		--config doxybook-config.json \
+		-o $(DOCS_DOXYBOOK2_DIR) \
+		--config doxybook2-config.json \
 		--templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
-	DOXYBOOK_EXIT=$${PIPESTATUS[0]}; \
-	if [ $$DOXYBOOK_EXIT -ne 0 ]; then exit $$DOXYBOOK_EXIT; fi
+	DOXYBOOK2_EXIT=$${PIPESTATUS[0]}; \
+	if [ $$DOXYBOOK2_EXIT -ne 0 ]; then exit $$DOXYBOOK2_EXIT; fi
     # 正常に変換できたら xml は不要なため削除
 	rm -rf $(XML_DIR)
 #	rm -rf $(XML_ORG_DIR)
@@ -116,13 +116,13 @@ markdown-generation:
 	@rmdir ../xml 2>/dev/null || true
 	@rmdir ../xml_org 2>/dev/null || true
     # ポストプロセッシング
-	templates/postprocess.sh $(DOCS_DOXYBOOK_DIR) || exit 1
+	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
 
 .PHONY: clean
 clean:
-	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK_DIR) $(XML_DIR) $(XML_ORG_DIR)
+	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR) $(XML_DIR) $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
 	@rmdir ../docs/doxygen 2>/dev/null || true
-	@rmdir ../docs-src/doxybook 2>/dev/null || true
+	@rmdir ../docs-src/doxybook2 2>/dev/null || true
 	@rmdir ../xml 2>/dev/null || true
 	@rmdir ../xml_org 2>/dev/null || true

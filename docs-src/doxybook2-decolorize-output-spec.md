@@ -161,7 +161,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 ### makefile からの呼び出し
 
 ```bash
-doxybook2 -i ../xml -o ../docs-src/doxybook --config doxybook-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh
+doxybook2 -i ../xml -o ../docs-src/doxybook2 --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -170,9 +170,9 @@ doxybook2 -i ../xml -o ../docs-src/doxybook --config doxybook-config.json --temp
 ### 終了コードの保持
 
 ```bash
-doxybook2 -i ../xml -o ../docs-src/doxybook --config doxybook-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh;
-DOXYBOOK_EXIT=${PIPESTATUS[0]};
-exit $DOXYBOOK_EXIT;
+doxybook2 -i ../xml -o ../docs-src/doxybook2 --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh;
+DOXYBOOK2_EXIT=${PIPESTATUS[0]};
+exit $DOXYBOOK2_EXIT;
 ```
 
 `PIPESTATUS[0]` を使用して、パイプの最初のコマンド (doxybook2) の終了コードを取得し、ビルドの成否を正しく判定します。

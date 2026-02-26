@@ -95,7 +95,7 @@ make docs
 1. メインプロジェクトに `Doxyfile.part` が存在する場合、基本設定ファイルと結合して一時ファイルを作成し使用 (設定のオーバーライド対応)
 2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `docs/doxygen/` に HTML ファイルを生成
 3. `templates/preprocess.sh` で XML ファイルを前処理 (PlantUML タグ、パラメータ direction 属性、linebreak タグを変換)
-4. Doxybook2 で XML を `docs-src/doxybook/` の Markdown に変換 (カスタム日本語テンプレート使用)
+4. Doxybook2 で XML を `docs-src/doxybook2/` の Markdown に変換 (カスタム日本語テンプレート使用)
 5. `templates/postprocess.sh` で `!include` ディレクティブを処理して関連コンテンツを統合
 
 ### クリーンアップ
@@ -104,7 +104,7 @@ make docs
 make clean
 ```
 
-生成されたドキュメント (`docs/doxygen`、`docs-src/doxybook`、`xml`) を削除します。
+生成されたドキュメント (`docs/doxygen`、`docs-src/doxybook2`、`xml`) を削除します。
 
 ## アーキテクチャ
 
@@ -114,7 +114,7 @@ make clean
 main-project/                     # メインプロジェクト
 +-- doxyfw/                    # 本リポジトリ (git submodule)
 |   +-- Doxyfile              # Doxygen 基本設定
-|   +-- doxybook-config.json  # Doxybook2 設定
+|   +-- doxybook2-config.json # Doxybook2 設定
 |   +-- templates/            # カスタム日本語テンプレート群
 |   |   +-- *.tmpl           # Jinja2 テンプレートファイル
 |   |   +-- preprocess.sh    # XML 前処理スクリプト
@@ -124,7 +124,7 @@ main-project/                     # メインプロジェクト
 +-- Doxyfile.part              # プロジェクト固有設定 (オプション)
 +-- prod/src/                  # 実際の C ソースコード
 +-- docs/doxygen/              # Doxygen 生成 HTML 出力
-+-- docs-src/doxybook/         # Doxybook2 生成 Markdown 出力
++-- docs-src/doxybook2/        # Doxybook2 生成 Markdown 出力
 +-- xml/                       # Doxygen XML 中間ファイル
 ```
 
@@ -138,14 +138,14 @@ main-project/                     # メインプロジェクト
 
 1. Doxygen: C ソースファイルを解析し、`Doxyfile` 設定に基づいて XML ファイルと HTML ドキュメントを生成
 2. プリプロセッシング: `preprocess.sh` スクリプトが変換前に XML ファイルを処理
-3. Doxybook2: `doxybook-config.json` とカスタムテンプレートを使用して Doxygen XML を Markdown に変換
+3. Doxybook2: `doxybook2-config.json` とカスタムテンプレートを使用して Doxygen XML を Markdown に変換
 4. ポストプロセッシング: `postprocess.sh` スクリプトが `!include` ディレクティブを処理して関連コンテンツを統合、不要ファイルを削除
 
 ### 主要設定ファイル
 
 - `Doxyfile` - Doxygen 基本設定 (UTF-8 エンコーディング、全要素抽出、PlantUML 対応)
 - メインプロジェクトの `Doxyfile.part` - プロジェクト固有の設定オーバーライド (存在時は基本設定に追加結合)
-- `doxybook-config.json` - Doxybook2 設定 (ソートあり、フォルダ使用なし、.md 拡張子)
+- `doxybook2-config.json` - Doxybook2 設定 (ソートあり、フォルダ使用なし、.md 拡張子)
 - `config/templates/` - 日本語フォーマット用のカスタムテンプレート群
 
 ### 処理スクリプト詳細

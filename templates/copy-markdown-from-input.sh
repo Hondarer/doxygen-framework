@@ -2,14 +2,14 @@
 
 # copy-markdown-from-input.sh - Doxyfile の INPUT から Markdown ファイルをコピー
 # 使用方法: ./copy-markdown-from-input.sh <markdown_directory>
-# 例: ./copy-markdown-from-input.sh docs-src/doxybook
+# 例: ./copy-markdown-from-input.sh docs-src/doxybook2
 
 # set -x # デバッグ時のみ有効にする
 
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
-    echo "例: $0 docs-src/doxybook"
+    echo "例: $0 docs-src/doxybook2"
     exit 1
 fi
 
