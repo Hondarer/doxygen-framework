@@ -129,7 +129,7 @@ def parse_referencedby(memberdef_block):
     return refs
 
 
-def graph_to_plantuml(nodes, edges, title, first_node_id=None):
+def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=False):
     """graphType のノードとエッジから PlantUML テキストを生成する。
 
     Args:
@@ -137,6 +137,9 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None):
         edges: [(from_id, to_id, relation)] のエッジリスト
         title: 図のキャプション
         first_node_id: 強調表示するノードの ID (対象要素自身)
+        reverse_edges: True の場合、エッジを dst -u-> src と出力する。
+                       -u-> (上向き矢印) により矢印終点 (src = 対象) が上に配置され、
+                       「依存ヘッダ → 対象」の矢印方向と「対象が上」の配置を両立する。
 
     Returns:
         PlantUML テキスト (caption 行を含む、@startuml/@enduml は含まない)。
@@ -180,7 +183,12 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None):
         else:
             arrow = '-->'
 
-        lines.append(f'{safe_src} {arrow} {safe_dst}')
+        if reverse_edges:
+            # -u-> (上向き矢印) で終点 (src = 対象) を上に配置する
+            up_arrow = arrow.replace('-->', '-u->')
+            lines.append(f'{safe_dst} {up_arrow} {safe_src}')
+        else:
+            lines.append(f'{safe_src} {arrow} {safe_dst}')
 
     return '\n'.join(lines)
 
@@ -336,6 +344,9 @@ def inject_compound_graphs(xml_text):
                 display_name = os.path.basename(compound_fullname)
 
             # インクルード依存グラフ
+            # reverse_edges=True により以下を実現する。
+            # - bottom to top direction でエッジ終点 (対象) が上に配置される
+            # - エッジを dst --> src と出力し「依存ヘッダ → 対象」の矢印方向にする
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
@@ -350,7 +361,8 @@ def inject_compound_graphs(xml_text):
                 puml = graph_to_plantuml(
                     display_nodes, edges,
                     title,
-                    first_node_id=self_id
+                    first_node_id=self_id,
+                    reverse_edges=True
                 )
                 if puml:
                     injections.append((title, puml))
