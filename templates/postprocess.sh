@@ -202,7 +202,45 @@ process_markdown_file() {
         print $0
     }
     ' | \
-    
+
+    # Parameters セクション内の箇条書きネスト修正
+    # Doxybook2 は @param の説明テキスト中の箇条書き (@param a 説明\n- 子項目) を
+    # param.text に含めるが、インデントなしで展開するため、
+    # * [in] a のサブアイテムが最上位リストと同列になってしまう。
+    # * [in/out/inout/in,out] で始まらない * 行に 2 スペースインデントを追加して
+    # 直前のパラメータ行の子リストとして正しくネストする。
+    # また、パラメータ行とサブ箇条書きの間の空行は Markdown 上は問題ないが、
+    # レンダリングの一貫性のためにここで除去する。
+    awk '
+    BEGIN { in_params_section = 0; in_param_item = 0; pending_blank = 0 }
+    /^[[:space:]]*####[[:space:]]+Parameters[[:space:]]*$/ {
+        in_params_section = 1; in_param_item = 0; pending_blank = 0
+        print; next
+    }
+    in_params_section && /^[[:space:]]*####/ {
+        in_params_section = 0; in_param_item = 0
+        if (pending_blank) { print ""; pending_blank = 0 }
+        print; next
+    }
+    in_params_section && /^\* \[/ {
+        if (pending_blank) { print ""; pending_blank = 0 }
+        in_param_item = 1
+        print; next
+    }
+    in_params_section && in_param_item && /^[[:space:]]*$/ {
+        pending_blank = 1; next
+    }
+    in_params_section && in_param_item && /^\* [^\[]/ {
+        pending_blank = 0
+        sub(/^\* /, "  * ")
+        print; next
+    }
+    {
+        if (pending_blank) { print ""; pending_blank = 0 }
+        print
+    }
+    ' | \
+
     # Markdown 空白整理
     # - Markdown ファイルから不要な行頭空白を除去
     # - 箇条書き (*, -, +) やコード ブロック (```) のインデントは保持
