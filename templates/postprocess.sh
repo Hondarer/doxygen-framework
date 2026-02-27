@@ -231,6 +231,27 @@ process_markdown_file() {
     }
     ' | \
 
+    # ## Public 属性 セクションの段落構成補正
+    # Doxybook2 は構造体/クラスメンバーを "## Public 属性" セクションにまとめるが、
+    # Files ページにインクルード展開した際に見出しレベルが合わなくなるため補正する。
+    # - "## Public 属性" 行と直後の空行を削除
+    # - セクション内の "### " 見出しを "#### " に変換
+    awk '
+    BEGIN { in_public_attrs = 0; skip_blank = 0 }
+    /^[[:space:]]*## Public 属性[[:space:]]*$/ {
+        in_public_attrs = 1; skip_blank = 1; next
+    }
+    in_public_attrs && skip_blank && /^[[:space:]]*$/ { next }
+    in_public_attrs { skip_blank = 0 }
+    in_public_attrs && /^[[:space:]]*##[[:space:]]/ {
+        in_public_attrs = 0; print; next
+    }
+    in_public_attrs && /^[[:space:]]*###[[:space:]]/ {
+        sub(/^[[:space:]]*###[[:space:]]/, "#### "); print; next
+    }
+    { print }
+    ' | \
+
     # Parameters セクション内の箇条書きネスト修正
     # Doxybook2 は @param の説明テキスト中の箇条書き (@param a 説明\n- 子項目) を
     # param.text に含めるが、インデントなしで展開するため、
@@ -442,6 +463,13 @@ for file in "${md_files[@]}"; do
         }' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
     fi
 done
+
+# C 言語の構造体ページを削除
+# 構造体情報は Files の各ファイルページにインクルード展開済みのため、
+# Classes/ 内の struct*.md は不要
+# ※ md_files 配列を使うすべてのループ完了後に削除すること
+#   (ループ途中で削除すると "${file}.tmp" が残るため)
+rm -f "$MARKDOWN_DIR"/Classes/struct*.md
 
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。

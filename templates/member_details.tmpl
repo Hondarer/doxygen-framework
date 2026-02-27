@@ -28,7 +28,7 @@ template <{% for param in templateParams %}{{param.typePlain}} {{param.name}}{% 
 ```{% endif -%}
 
 {% if kind == "enum" -%}
-| Enumerator | Value | Description |
+| 列挙子 | 値 | 説明 |
 | ---------- | ----- | ----------- |
 {% for enumvalue in enumvalues %}| {{enumvalue.name}} | {% if existsIn(enumvalue, "initializer") -%}
 {{replace(replace(enumvalue.initializer, "= ", ""), "|", "\\|")}}{% endif -%}

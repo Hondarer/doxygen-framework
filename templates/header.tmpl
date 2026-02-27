@@ -10,7 +10,7 @@ author: doxygen and doxybook2
 <!-- IMPORTANT: This is an AUTOMATICALLY GENERATED file by doxygen and doxybook2. Manual edits are NOT allowed. -->
 
 {% if exists("title") -%}
-# {% if title == "Examples" %}使用例の一覧{% else if title == "Files" %}ファイルの一覧{% else  if title == "Modules" %}カテゴリーの一覧{% else if title == "Pages" %}ページの一覧{% else %}{{title}}{% endif %}
+# {% if title == "Examples" %}使用例の一覧{% else if title == "Files" %}ファイルの一覧{% else if title == "Modules" %}カテゴリーの一覧{% else if title == "Pages" %}ページの一覧{% else if title == "Namespaces" %}名前空間の一覧{% else if title == "Classes" %}クラスの一覧{% else %}{{title}}{% endif %}
 {% else if exists("kind") and kind != "page" -%}
 # {{name}} {{title(kind)}} Reference
 {% endif %}
