@@ -1,6 +1,13 @@
 {% if exists("brief") %}{{brief}}
 {% endif -%}
 
+{% if exists("details") %}
+ #### Details
+
+{{details}}
+
+{% endif -%}
+
 {% if exists("paramList") %}
  #### Parameters
 
@@ -206,13 +213,6 @@
 {% for item in par %}#### {{item}}
 
 {% endfor %}
-{% endif -%}
-
-{% if exists("details") %}
- #### Details
-
-{{details}}
-
 {% endif -%}
 
 {% if exists("inbody") %}
