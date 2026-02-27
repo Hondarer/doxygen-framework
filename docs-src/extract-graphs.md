@@ -132,8 +132,8 @@ REFERENCES_RELATION    = YES
 関数 `divide` が `validate_input` と `check_zero` を呼び出す場合、以下の PlantUML が生成されます。
 
 ```plantuml
-@startuml divide のコールグラフ
-    caption divide のコールグラフ
+@startuml divide の呼び出し先
+    caption divide の呼び出し先
     rectangle "**divide**" as current #LightBlue
     rectangle "validate_input" as r0
     rectangle "check_zero" as r1
@@ -162,8 +162,8 @@ REFERENCES_RELATION    = YES
 `calculator.c` が `calculator.h` と `stdio.h` をインクルードする場合、以下の PlantUML が生成されます。
 
 ```plantuml
-@startuml calculator.c のインクルード依存
-    caption calculator.c のインクルード依存
+@startuml calculator.c のインクルード元
+    caption calculator.c のインクルード元
     rectangle "**calculator.c**" as n1 #LightBlue
     rectangle "calculator.h" as n2
     rectangle "stdio.h" as n3
@@ -248,8 +248,8 @@ compound レベルのグラフ (インクルード依存図等) は、`content.r
 ```text
 <detaileddescription>
   <para>既存の説明テキスト</para>
-  <para><simplesect kind="par"><title>... のコールグラフ</title><para><plantuml>
-caption ... のコールグラフ
+  <para><simplesect kind="par"><title>... の呼び出し先</title><para><plantuml>
+caption ... の呼び出し先
 rectangle "**...**" as current #LightBlue
 ...
 </plantuml></para></simplesect></para>     ← ここに挿入

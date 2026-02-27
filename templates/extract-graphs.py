@@ -205,7 +205,8 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=Fal
             'protected-inheritance',
             'private-inheritance'
         ):
-            arrow = '--|>'
+            # -u--|> で矢印を上向きにし、自クラス (子) を下、継承元 (親) を上に配置する
+            arrow = '-u-|>'
         elif relation == 'usage':
             arrow = '..>'
         else:
@@ -322,6 +323,10 @@ def find_self_node(nodes, compound_name):
     ラベルが compound_name と完全一致、または basename が一致するノードを返す。
     一致するノードがない場合は None を返す。
 
+    .NET クラスは Doxygen XML では '::' 区切り (例: CalcLib::CalcException) だが、
+    グラフノードのラベルでは '.' 区切り (例: CalcLib.CalcException) になる場合があるため、
+    '::' を '.' に変換した形でも比較する。
+
     Args:
         nodes: {node_id: label} のノード辞書
         compound_name: compounddef の名前 (例: 'calc/src/calc/calc.c', 'UserInfo')
@@ -329,9 +334,10 @@ def find_self_node(nodes, compound_name):
     Returns:
         一致するノードの ID。見つからない場合は None。
     """
+    compound_name_dot = compound_name.replace('::', '.')
     basename = os.path.basename(compound_name)
     for node_id, label in nodes.items():
-        if label == compound_name or os.path.basename(label) == basename:
+        if label == compound_name or label == compound_name_dot or os.path.basename(label) == basename:
             return node_id
     return None
 
@@ -384,15 +390,16 @@ def inject_compound_graphs(xml_text):
                     display_nodes = {
                         k: os.path.basename(v) for k, v in nodes.items()
                     }
-                title = f'{display_name} のインクルード依存'
+                heading = 'インクルード元'
+                caption = f'{display_name} の{heading}'
                 puml = graph_to_plantuml(
                     display_nodes, edges,
-                    title,
+                    caption,
                     first_node_id=self_id,
                     reverse_edges=True
                 )
                 if puml:
-                    injections.append((title, puml))
+                    injections.append((heading, puml))
 
             # 逆インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'invincdepgraph')
@@ -405,14 +412,15 @@ def inject_compound_graphs(xml_text):
                     display_nodes = {
                         k: os.path.basename(v) for k, v in nodes.items()
                     }
-                title = f'{display_name} の被インクルード関係'
+                heading = 'インクルード先'
+                caption = f'{display_name} の{heading}'
                 puml = graph_to_plantuml(
                     display_nodes, edges,
-                    title,
+                    caption,
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((title, puml))
+                    injections.append((heading, puml))
 
         elif kind in ('class', 'struct'):
             # コンパウンド名を取得
@@ -427,34 +435,36 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'inheritancegraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_name)
-                title = f'{compound_name} の継承関係'
+                heading = '継承関係'
+                caption = f'{compound_name} の{heading}'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    title,
+                    caption,
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((title, puml))
+                    injections.append((heading, puml))
 
             # コラボレーション図
             graphs = parse_graph_nodes(content, 'collaborationgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_name)
-                title = f'{compound_name} のコラボレーション図'
+                heading = 'コラボレーション図'
+                caption = f'{compound_name} の{heading}'
                 puml = graph_to_plantuml(
                     nodes, edges,
-                    title,
+                    caption,
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((title, puml))
+                    injections.append((heading, puml))
 
         if not injections:
             return match.group(0)
 
         # detaileddescription の閉じタグの直前に挿入
         injection_text = ''.join(
-            build_plantuml_tag(puml, title) for title, puml in injections
+            build_plantuml_tag(puml, heading) for heading, puml in injections
         )
 
         # detaileddescription が存在する場合、その閉じタグの前に挿入
@@ -512,30 +522,32 @@ def inject_member_graphs(xml_text, define_ids=None):
         # 呼び出し元グラフ (referencedby)
         callers = parse_referencedby(content)
         if callers:
-            title = f'{func_name} の呼び出し元'
+            heading = '呼び出し元'
+            caption = f'{func_name} の{heading}'
             puml = callergraph_to_plantuml(
                 func_name, callers,
-                title
+                caption
             )
             if puml:
-                injections.append((title, puml))
+                injections.append((heading, puml))
 
-        # コールグラフ (references)
+        # 呼び出し先グラフ (references)
         called = parse_references(content, define_ids)
         if called:
-            title = f'{func_name} のコールグラフ'
+            heading = '呼び出し先'
+            caption = f'{func_name} の{heading}'
             puml = callgraph_to_plantuml(
                 func_name, called,
-                title
+                caption
             )
             if puml:
-                injections.append((title, puml))
+                injections.append((heading, puml))
 
         if not injections:
             return match.group(0)
 
         injection_text = ''.join(
-            build_plantuml_tag(puml, title) for title, puml in injections
+            build_plantuml_tag(puml, heading) for heading, puml in injections
         )
 
         # detaileddescription の閉じタグの直前に挿入
