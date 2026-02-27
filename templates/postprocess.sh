@@ -131,28 +131,12 @@ process_markdown_file() {
     sed 's/[[:space:]]*$//' | \
     sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/g' | \
     sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/g' | \
-    # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
-    # コードブロックの種別に応じて変換先を切り替える。
-    # - PlantUML コードブロック内: !dunder! と __ の両方を ~_~_ に変換
-    #   PlantUML では __ がアンダーライン記法として解釈されるため、
-    #   ~ (エスケープ文字) で1文字ずつエスケープする。
-    # - 通常コードブロック内 (cpp など): !dunder! を __ に復元
-    # - コードブロック外: !dunder! を \_\_ にエスケープ (Markdown 強調記法を防ぐ)
-    #   コードブロック外に直接 __ が残る場合も同様にエスケープする。
-    awk '
-    /^[[:space:]]*```/ {
-        if (in_code_block) { in_code_block = 0; is_plantuml = 0 }
-        else { in_code_block = 1; is_plantuml = ($0 ~ /```[[:space:]]*plantuml/) }
-    }
-    in_code_block && is_plantuml { gsub(/!dunder!/, "~_~_"); gsub(/__/, "~_~_") }
-    in_code_block && !is_plantuml { gsub(/!dunder!/, "__") }
-    !in_code_block { gsub(/!dunder!/, "\\_\\_"); gsub(/__/, "\\_\\_") }
-    { print }
-    ' | \
-
     # コードフェンス前の改行不足対策
     # テキストに続いてコードフェンス開始 (```lang) が同一行にある場合、
-    # テキストとコードフェンスの間に空行を挿入する
+    # テキストとコードフェンスの間に空行を挿入する。
+    # ※ !dunder! 変換より先に実行しないと、テキスト+コードフェンスが同一行のまま
+    #   !dunder! 変換の split 処理に渡されてコードフェンスが破壊されるため、
+    #   この awk を先に配置する。
     awk '
     BEGIN { in_code_block = 0 }
     /^[[:space:]]*```/ {
@@ -169,6 +153,50 @@ process_markdown_file() {
         print ""
         print fence
         in_code_block = 1
+        next
+    }
+    { print }
+    ' | \
+    # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
+    # コードブロックの種別に応じて変換先を切り替える。
+    # - PlantUML コードブロック内: !dunder! と __ の両方を ~_~_ に変換
+    #   PlantUML では __ がアンダーライン記法として解釈されるため、
+    #   ~ (エスケープ文字) で1文字ずつエスケープする。
+    # - 通常コードブロック内 (cpp など): !dunder! を __ に復元
+    # - コードブロック外:
+    #   - インラインコード (`...`) 内: !dunder! を __ に復元 (エスケープ不要)
+    #   - インラインコード外: !dunder! を &#95;&#95; にエスケープ (Markdown 強調記法を防ぐ)
+    #     テキストに直接 __ が残る場合も同様にエスケープする。
+    #   awk の gsub では & がマッチ全体を表すため &#95; は \&#95; と記述する。
+    awk '
+    /^[[:space:]]*```/ {
+        if (in_code_block) { in_code_block = 0; is_plantuml = 0 }
+        else { in_code_block = 1; is_plantuml = ($0 ~ /```[[:space:]]*plantuml/) }
+        print; next
+    }
+    in_code_block && is_plantuml { gsub(/!dunder!/, "~_~_"); gsub(/__/, "~_~_") }
+    in_code_block && !is_plantuml { gsub(/!dunder!/, "__") }
+    !in_code_block {
+        # バッククォートで分割し、インラインコード内外を区別して処理する
+        # split はバッククォートを区切りとして除去するため、偶数インデックスが
+        # インラインコード内 (バッククォアペアの間)、奇数が外側テキストとなる
+        n = split($0, parts, /`/)
+        result = ""
+        for (i = 1; i <= n; i++) {
+            if (i % 2 == 1) {
+                # インラインコード外: __ を &#95;&#95; にエスケープ
+                part = parts[i]
+                gsub(/!dunder!/, "\\&#95;\\&#95;", part)
+                gsub(/__/, "\\&#95;\\&#95;", part)
+                result = result part
+            } else {
+                # インラインコード内: !dunder! を __ に復元するだけ
+                part = parts[i]
+                gsub(/!dunder!/, "__", part)
+                result = result "`" part "`"
+            }
+        }
+        print result
         next
     }
     { print }

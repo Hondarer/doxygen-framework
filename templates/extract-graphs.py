@@ -93,19 +93,47 @@ def parse_graph_nodes(xml_text, graph_tag):
     return results
 
 
-def parse_references(memberdef_block):
+def collect_define_ids(xml_dir):
+    """全 XML ファイルから define の id セットを収集する。
+
+    コールグラフ生成時に定数 (define) を除外するために使用する。
+
+    Args:
+        xml_dir: XML ファイルが存在するディレクトリ
+
+    Returns:
+        set of str: define の id 文字列セット
+    """
+    define_ids = set()
+    pattern = re.compile(r'<memberdef\s+kind="define"\s+id="([^"]*)"')
+    for xml_path in glob.glob(os.path.join(xml_dir, '*.xml')):
+        try:
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (IOError, UnicodeDecodeError):
+            continue
+        for match in pattern.finditer(content):
+            define_ids.add(match.group(1))
+    return define_ids
+
+
+def parse_references(memberdef_block, define_ids=None):
     """memberdef ブロックから references 要素を抽出する。
 
     Args:
         memberdef_block: <memberdef>...</memberdef> の XML テキスト
+        define_ids: 除外する define の id セット。None の場合は除外しない。
 
     Returns:
-        list of str: 呼び出し先の関数名リスト
+        list of str: 呼び出し先の関数名リスト (define は除外)
     """
     refs = []
-    pattern = re.compile(r'<references[^>]*>([^<]*)</references>')
+    pattern = re.compile(r'<references\s+refid="([^"]*)"[^>]*>([^<]*)</references>')
     for match in pattern.finditer(memberdef_block):
-        name = match.group(1).strip()
+        refid = match.group(1)
+        name = match.group(2).strip()
+        if define_ids is not None and refid in define_ids:
+            continue
         if name:
             refs.append(name)
     return refs
@@ -137,9 +165,9 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=Fal
         edges: [(from_id, to_id, relation)] のエッジリスト
         title: 図のキャプション
         first_node_id: 強調表示するノードの ID (対象要素自身)
-        reverse_edges: True の場合、エッジを dst -u-> src と出力する。
-                       -u-> (上向き矢印) により矢印終点 (src = 対象) が上に配置され、
-                       「依存ヘッダ → 対象」の矢印方向と「対象が上」の配置を両立する。
+        reverse_edges: True の場合、エッジを dst --> src と出力する。
+                       エッジ方向を逆にすることで「依存ヘッダ → 対象」の矢印方向となり、
+                       対象が PlantUML レイアウトの末尾 (下) に配置される。
 
     Returns:
         PlantUML テキスト (caption 行を含む、@startuml/@enduml は含まない)。
@@ -184,9 +212,8 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=Fal
             arrow = '-->'
 
         if reverse_edges:
-            # -u-> (上向き矢印) で終点 (src = 対象) を上に配置する
-            up_arrow = arrow.replace('-->', '-u->')
-            lines.append(f'{safe_dst} {up_arrow} {safe_src}')
+            # エッジ方向を逆にする (dst --> src) ことで対象を末尾に配置する
+            lines.append(f'{safe_dst} {arrow} {safe_src}')
         else:
             lines.append(f'{safe_src} {arrow} {safe_dst}')
 
@@ -345,8 +372,8 @@ def inject_compound_graphs(xml_text):
 
             # インクルード依存グラフ
             # reverse_edges=True により以下を実現する。
-            # - bottom to top direction でエッジ終点 (対象) が上に配置される
             # - エッジを dst --> src と出力し「依存ヘッダ → 対象」の矢印方向にする
+            # - 対象が PlantUML レイアウトの末尾 (下) に配置される
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
@@ -454,11 +481,12 @@ def inject_compound_graphs(xml_text):
     return compounddef_pattern.sub(process_compound, xml_text)
 
 
-def inject_member_graphs(xml_text):
+def inject_member_graphs(xml_text, define_ids=None):
     """memberdef レベルのグラフ (コールグラフ、呼び出し元グラフ) を挿入する。
 
     Args:
         xml_text: XML ファイルの全文
+        define_ids: コールグラフから除外する define の id セット
 
     Returns:
         修正後の XML テキスト
@@ -481,23 +509,23 @@ def inject_member_graphs(xml_text):
 
         injections = []
 
-        # コールグラフ (references)
-        called = parse_references(content)
-        if called:
-            title = f'{func_name} のコールグラフ'
-            puml = callgraph_to_plantuml(
-                func_name, called,
-                title
-            )
-            if puml:
-                injections.append((title, puml))
-
         # 呼び出し元グラフ (referencedby)
         callers = parse_referencedby(content)
         if callers:
             title = f'{func_name} の呼び出し元'
             puml = callergraph_to_plantuml(
                 func_name, callers,
+                title
+            )
+            if puml:
+                injections.append((title, puml))
+
+        # コールグラフ (references)
+        called = parse_references(content, define_ids)
+        if called:
+            title = f'{func_name} のコールグラフ'
+            puml = callgraph_to_plantuml(
+                func_name, called,
                 title
             )
             if puml:
@@ -532,11 +560,12 @@ def inject_member_graphs(xml_text):
     return memberdef_pattern.sub(process_member, xml_text)
 
 
-def process_xml_file(xml_path):
+def process_xml_file(xml_path, define_ids=None):
     """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
 
     Args:
         xml_path: XML ファイルのパス
+        define_ids: コールグラフから除外する define の id セット
 
     Returns:
         True: ファイルが更新された場合
@@ -553,7 +582,7 @@ def process_xml_file(xml_path):
     modified = inject_compound_graphs(original)
 
     # member レベルのグラフを挿入
-    modified = inject_member_graphs(modified)
+    modified = inject_member_graphs(modified, define_ids)
 
     if modified == original:
         return False
@@ -585,6 +614,9 @@ def main():
         print(f"警告: XML ファイルが見つかりません: {xml_dir}")
         sys.exit(0)
 
+    # 全 XML から define の id を収集 (コールグラフから定数を除外するため)
+    define_ids = collect_define_ids(xml_dir)
+
     modified_count = 0
     skipped_count = 0
 
@@ -595,7 +627,7 @@ def main():
             skipped_count += 1
             continue
 
-        if process_xml_file(xml_file):
+        if process_xml_file(xml_file, define_ids):
             modified_count += 1
 
     total = len(xml_files) - skipped_count
