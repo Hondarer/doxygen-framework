@@ -401,6 +401,48 @@ for file in "${md_files[@]}"; do
     fi
 done
 
+# サブディレクトリ内 Markdown のファイル間リンクを削除
+# Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
+# サブフォルダ間の相対パスが正しくないため、テキストのみ残してリンクを除去する。
+# 画像リンク ![text](url) は除外する。
+# コードブロック内の [text](url) は変換しない。
+# awk は後方参照が使えないため、ループで [text](url) → text に変換する。
+for file in "${md_files[@]}"; do
+    rel_path="${file#$MARKDOWN_DIR/}"
+    if [[ "$rel_path" == */* ]]; then
+        awk '
+        /^[[:space:]]*```/ {
+            if (in_code_block) { in_code_block = 0 } else { in_code_block = 1 }
+            print; next
+        }
+        in_code_block { print; next }
+        {
+            line = $0
+            result = ""
+            while (length(line) > 0) {
+                if (match(line, /!?\[[^]]*\]\([^)]*\)/)) {
+                    before = substr(line, 1, RSTART - 1)
+                    matched = substr(line, RSTART, RLENGTH)
+                    line = substr(line, RSTART + RLENGTH)
+                    if (substr(matched, 1, 1) == "!") {
+                        # 画像リンク: そのまま保持
+                        result = result before matched
+                    } else {
+                        # テキストリンク: テキストのみ抽出
+                        paren_pos = index(matched, "](")
+                        text = substr(matched, 2, paren_pos - 2)
+                        result = result before text
+                    }
+                } else {
+                    result = result line
+                    line = ""
+                }
+            }
+            print result
+        }' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+    fi
+done
+
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
