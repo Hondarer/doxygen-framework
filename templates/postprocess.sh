@@ -241,7 +241,7 @@ process_markdown_file() {
     # レンダリングの一貫性のためにここで除去する。
     awk '
     BEGIN { in_params_section = 0; in_param_item = 0; pending_blank = 0 }
-    /^[[:space:]]*####[[:space:]]+Parameters[[:space:]]*$/ {
+    /^[[:space:]]*####[[:space:]]+引数[[:space:]]*$/ {
         in_params_section = 1; in_param_item = 0; pending_blank = 0
         print; next
     }

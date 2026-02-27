@@ -2,48 +2,48 @@
 {% endif -%}
 
 {% if exists("details") %}
- #### Details
+{# #### 詳細 #}{# details のタイトルは表示しない。brief に 続けて出力する。 #}
 
 {{details}}
 
 {% endif -%}
 
 {% if exists("paramList") %}
- #### Parameters
+ #### 引数
 
 {% for param in paramList %}* {{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("returnsList") %}
- #### Returns
+ #### 戻り値
 
 {% for param in returnsList %}##### {{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("exceptionsList") %}
- #### Exceptions
+ #### 例外
 
 {% for param in exceptionsList %}##### {{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("templateParamsList") %}
- #### Template Parameters
+ #### テンプレート引数
 
 {% for param in templateParamsList %}##### {{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("deprecated") %}
- #### Deprecated
+ #### 非推奨
 
 {{deprecated}}
 {% endif -%}
 
 {% if exists("see") %}
- #### See
+ #### 参照
 
 {% if length(see) == 1 %}{{first(see)}}{% else %}
 
@@ -52,7 +52,7 @@
 {% endif -%}
 
 {% if exists("returns") %}
- #### Return
+ #### 戻り値
 
 {% if length(returns) == 1 %}{{first(returns)}}{% else %}
 
@@ -61,7 +61,7 @@
 {% endif -%}
 
 {% if exists("authors") %}
- #### Author
+ #### 作者
 
 {% if length(authors) == 1 %}{{first(authors)}}{% else %}
 
@@ -70,7 +70,7 @@
 {% endif -%}
 
 {% if exists("version") %}
- #### Version
+ #### バージョン
 
 {% if length(version) == 1 %}{{first(version)}}{% else %}
 
@@ -79,7 +79,7 @@
 {% endif -%}
 
 {% if exists("since") %}
- #### Since
+ #### 導入バージョン
 
 {% if length(since) == 1 %}{{first(since)}}{% else %}
 
@@ -88,7 +88,7 @@
 {% endif -%}
 
 {% if exists("date") %}
- #### Date
+ #### 日付
 
 {% if length(date) == 1 %}{{first(date)}}{% else %}
 
@@ -97,7 +97,7 @@
 {% endif -%}
 
 {% if exists("note") %}
- #### Note
+ #### 注記
 
 {% if length(note) == 1 %}{{first(note)}}{% else %}
 
@@ -106,7 +106,7 @@
 {% endif -%}
 
 {% if exists("bugs") %}
- #### Bug
+ #### バグ
 
 {% if length(bugs) == 1 %}{{first(bugs)}}{% else %}
 
@@ -115,7 +115,7 @@
 {% endif -%}
 
 {% if exists("tests") %}
- #### Test
+ #### テスト
 
 {% if length(tests) == 1 %}{{first(tests)}}{% else %}
 
@@ -124,7 +124,7 @@
 {% endif -%}
 
 {% if exists("todos") %}
- #### Todo
+ #### TODO
 
 {% if length(todos) == 1 %}{{first(todos)}}{% else %}
 
@@ -133,7 +133,7 @@
 {% endif -%}
 
 {% if exists("warning") %}
- #### Warning
+ #### 警告
 
 {% if length(warning) == 1 %}{{first(warning)}}{% else %}
 
@@ -142,7 +142,7 @@
 {% endif -%}
 
 {% if exists("pre") %}
- #### Precondition
+ #### 事前条件
 
 {% if length(pre) == 1 %}{{first(pre)}}{% else %}
 
@@ -151,7 +151,7 @@
 {% endif -%}
 
 {% if exists("post") %}
- #### Postcondition
+ #### 事後条件
 
 {% if length(post) == 1 %}{{first(post)}}{% else %}
 
@@ -160,7 +160,7 @@
 {% endif -%}
 
 {% if exists("invariant") %}
- #### Invariant
+ #### 不変条件
 
 {% if length(invariant) == 1 %}{{first(invariant)}}{% else %}
 
@@ -169,7 +169,7 @@
 {% endif -%}
 
 {% if exists("remark") %}
- #### Remarks
+ #### 備考
 
 {% if length(remark) == 1 %}{{first(remark)}}{% else %}
 
@@ -178,7 +178,7 @@
 {% endif -%}
 
 {% if exists("attention") %}
- #### Attention
+ #### 注意
 
 {% if length(attention) == 1 %}{{first(attention)}}{% else %}
 
@@ -187,7 +187,7 @@
 {% endif -%}
 
 {% if exists("rcs") %}
- #### Rcs
+ #### RCS
 
 {% if length(rcs) == 1 %}{{first(rcs)}}{% else %}
 
@@ -196,14 +196,14 @@
 {% endif -%}
 
 {% if exists("reimplements") %}
- #### Reimplements
+ #### 再実装
 
 [{{reimplements.fullname}}]({{reimplements.url}})
 
 {% endif -%}
 
 {% if exists("reimplementedBy") %}
- #### Reimplemented by
+ #### 派生クラスの実装
 
 {% for impl in reimplementedBy %}[{{impl.fullname}}]({{impl.url}}){% if not loop.is_last %}, {% endif %}{% endfor %}
 
@@ -221,7 +221,7 @@
 {% endif -%}
 
 {% if exists("copyright") %}
- #### Copyright
+ #### 著作権
 
 {% if length(copyright) == 1 %}{{first(copyright)}}{% else %}
 
