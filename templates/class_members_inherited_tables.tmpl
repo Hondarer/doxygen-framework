@@ -1,6 +1,6 @@
 {% for base in baseClasses -%}
 {%- if existsIn(base, "publicClasses") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public クラス**
+**[{{base.name}}]({{base.url}}) から継承したクラス**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -18,7 +18,7 @@
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicTypes") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public 型**
+**[{{base.name}}]({{base.url}}) から継承した型**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -54,7 +54,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicSlots") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public スロット**
+**[{{base.name}}]({{base.url}}) から継承したスロット**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -102,7 +102,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicSignals") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public シグナル**
+**[{{base.name}}]({{base.url}}) から継承したシグナル**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -150,7 +150,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicEvents") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public イベント**
+**[{{base.name}}]({{base.url}}) から継承したイベント**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -198,7 +198,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicFunctions") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public 関数**
+**[{{base.name}}]({{base.url}}) から継承した関数**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -246,7 +246,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicProperties") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public プロパティ**
+**[{{base.name}}]({{base.url}}) から継承したプロパティ**
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -266,7 +266,7 @@ template <{% for param in child.templateParams -%}
 {% endfor %}
 {% endif -%}
 {%- if existsIn(base, "publicAttributes") -%}
-**[{{base.name}}]({{base.url}}) から継承した Public 属性**
+**[{{base.name}}]({{base.url}}) から継承した属性**
 
 |                | 名前           |
 | -------------- | -------------- |

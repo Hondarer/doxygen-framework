@@ -43,6 +43,7 @@ process_markdown_file() {
         if [[ "$line" =~ ^[[:space:]]*\!include[[:space:]]+([^[:space:]]+) ]]; then
             local include_file="${BASH_REMATCH[1]}"
             local include_path
+            local include_heading_offset=0
             
             # 相対パスとして解決 (markdownディレクトリを基準)
             if [[ "$include_file" == /* ]]; then
@@ -55,6 +56,12 @@ process_markdown_file() {
             
             # インクルードファイルの存在チェック
             if [ -f "$include_path" ]; then
+                # Files 配下へ Classes の構造体ページをインクルードする場合、
+                # 既存見出し階層に合わせて見出しレベルを 2 段下げる。
+                # ※ Classes 側ファイルそのものは変更しない。
+                if [[ "$file" == */Files/* ]] && [[ "$include_file" == Classes/struct*.md ]]; then
+                    include_heading_offset=2
+                fi
                 #echo "  -> インクルード: $include_file"
                 # YAML フロントマター、HTML コメント行、H1 見出しを除いてファイル内容を出力
                 # (インクルード先はファイルルート Markdown のため、埋め込み時にヘッダー部分を除去する)
@@ -66,7 +73,26 @@ process_markdown_file() {
                 frontmatter_done && !h1_removed && /^<!--/ { next }
                 frontmatter_done && !h1_removed && /^# / { h1_removed = 1; next }
                 { print }
-                ' "$include_path"
+                ' "$include_path" | \
+                awk -v heading_offset="$include_heading_offset" '
+                {
+                    if (heading_offset > 0 && match($0, /^(#{1,6})[[:space:]]+/, m)) {
+                        level = length(m[1])
+                        new_level = level + heading_offset
+                        if (new_level > 6) {
+                            new_level = 6
+                        }
+                        hash = ""
+                        for (i = 0; i < new_level; i++) {
+                            hash = hash "#"
+                        }
+                        rest = substr($0, RLENGTH + 1)
+                        print hash " " rest
+                        next
+                    }
+                    print
+                }
+                '
             else
                 echo "  -> 警告: インクルードファイルが見つかりません: $include_file"
                 # 元の行をそのまま出力
@@ -229,27 +255,6 @@ process_markdown_file() {
         # 現在の行を出力
         print $0
     }
-    ' | \
-
-    # ## Public 属性 セクションの段落構成補正
-    # Doxybook2 は構造体/クラスメンバーを "## Public 属性" セクションにまとめるが、
-    # Files ページにインクルード展開した際に見出しレベルが合わなくなるため補正する。
-    # - "## Public 属性" 行と直後の空行を削除
-    # - セクション内の "### " 見出しを "#### " に変換
-    awk '
-    BEGIN { in_public_attrs = 0; skip_blank = 0 }
-    /^[[:space:]]*## Public 属性[[:space:]]*$/ {
-        in_public_attrs = 1; skip_blank = 1; next
-    }
-    in_public_attrs && skip_blank && /^[[:space:]]*$/ { next }
-    in_public_attrs { skip_blank = 0 }
-    in_public_attrs && /^[[:space:]]*##[[:space:]]/ {
-        in_public_attrs = 0; print; next
-    }
-    in_public_attrs && /^[[:space:]]*###[[:space:]]/ {
-        sub(/^[[:space:]]*###[[:space:]]/, "#### "); print; next
-    }
-    { print }
     ' | \
 
     # Parameters セクション内の箇条書きネスト修正
@@ -463,13 +468,6 @@ for file in "${md_files[@]}"; do
         }' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
     fi
 done
-
-# C 言語の構造体ページを削除
-# 構造体情報は Files の各ファイルページにインクルード展開済みのため、
-# Classes/ 内の struct*.md は不要
-# ※ md_files 配列を使うすべてのループ完了後に削除すること
-#   (ループ途中で削除すると "${file}.tmp" が残るため)
-rm -f "$MARKDOWN_DIR"/Classes/struct*.md
 
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。

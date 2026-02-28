@@ -93,65 +93,71 @@ def parse_graph_nodes(xml_text, graph_tag):
     return results
 
 
-def collect_define_ids(xml_dir):
-    """全 XML ファイルから define の id セットを収集する。
+def collect_function_ids(xml_dir):
+    """全 XML ファイルから function の id セットを収集する。
 
-    コールグラフ生成時に定数 (define) を除外するために使用する。
+    コールグラフ/呼び出し元グラフで関数のみを対象にするために使用する。
 
     Args:
         xml_dir: XML ファイルが存在するディレクトリ
 
     Returns:
-        set of str: define の id 文字列セット
+        set of str: function の id 文字列セット
     """
-    define_ids = set()
-    pattern = re.compile(r'<memberdef\s+kind="define"\s+id="([^"]*)"')
+    function_ids = set()
+    memberdef_pattern = re.compile(
+        r'<memberdef\s+kind="function"\s+id="([^"]*)"'
+    )
     for xml_path in glob.glob(os.path.join(xml_dir, '*.xml')):
         try:
             with open(xml_path, 'r', encoding='utf-8') as f:
                 content = f.read()
         except (IOError, UnicodeDecodeError):
             continue
-        for match in pattern.finditer(content):
-            define_ids.add(match.group(1))
-    return define_ids
+        for match in memberdef_pattern.finditer(content):
+            function_ids.add(match.group(1))
+    return function_ids
 
 
-def parse_references(memberdef_block, define_ids=None):
+def parse_references(memberdef_block, function_ids=None):
     """memberdef ブロックから references 要素を抽出する。
 
     Args:
         memberdef_block: <memberdef>...</memberdef> の XML テキスト
-        define_ids: 除外する define の id セット。None の場合は除外しない。
+        function_ids: 関数として許可する id セット。None の場合は制限しない。
 
     Returns:
-        list of str: 呼び出し先の関数名リスト (define は除外)
+        list of str: 呼び出し先の関数名リスト
     """
     refs = []
     pattern = re.compile(r'<references\s+refid="([^"]*)"[^>]*>([^<]*)</references>')
     for match in pattern.finditer(memberdef_block):
         refid = match.group(1)
         name = match.group(2).strip()
-        if define_ids is not None and refid in define_ids:
+        if function_ids is not None and refid not in function_ids:
             continue
         if name:
             refs.append(name)
     return refs
 
 
-def parse_referencedby(memberdef_block):
+def parse_referencedby(memberdef_block, function_ids=None):
     """memberdef ブロックから referencedby 要素を抽出する。
 
     Args:
         memberdef_block: <memberdef>...</memberdef> の XML テキスト
+        function_ids: 関数として許可する id セット。None の場合は制限しない。
 
     Returns:
         list of str: 呼び出し元の関数名リスト
     """
     refs = []
-    pattern = re.compile(r'<referencedby[^>]*>([^<]*)</referencedby>')
+    pattern = re.compile(r'<referencedby\s+refid="([^"]*)"[^>]*>([^<]*)</referencedby>')
     for match in pattern.finditer(memberdef_block):
-        name = match.group(1).strip()
+        refid = match.group(1)
+        name = match.group(2).strip()
+        if function_ids is not None and refid not in function_ids:
+            continue
         if name:
             refs.append(name)
     return refs
@@ -491,12 +497,12 @@ def inject_compound_graphs(xml_text):
     return compounddef_pattern.sub(process_compound, xml_text)
 
 
-def inject_member_graphs(xml_text, define_ids=None):
+def inject_member_graphs(xml_text, function_ids=None):
     """memberdef レベルのグラフ (コールグラフ、呼び出し元グラフ) を挿入する。
 
     Args:
         xml_text: XML ファイルの全文
-        define_ids: コールグラフから除外する define の id セット
+        function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
 
     Returns:
         修正後の XML テキスト
@@ -520,7 +526,7 @@ def inject_member_graphs(xml_text, define_ids=None):
         injections = []
 
         # 呼び出し元グラフ (referencedby)
-        callers = parse_referencedby(content)
+        callers = parse_referencedby(content, function_ids)
         if callers:
             heading = '呼び出し元'
             caption = f'{func_name} の{heading}'
@@ -532,7 +538,7 @@ def inject_member_graphs(xml_text, define_ids=None):
                 injections.append((heading, puml))
 
         # 呼び出し先グラフ (references)
-        called = parse_references(content, define_ids)
+        called = parse_references(content, function_ids)
         if called:
             heading = '呼び出し先'
             caption = f'{func_name} の{heading}'
@@ -572,12 +578,12 @@ def inject_member_graphs(xml_text, define_ids=None):
     return memberdef_pattern.sub(process_member, xml_text)
 
 
-def process_xml_file(xml_path, define_ids=None):
+def process_xml_file(xml_path, function_ids=None):
     """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
 
     Args:
         xml_path: XML ファイルのパス
-        define_ids: コールグラフから除外する define の id セット
+        function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
 
     Returns:
         True: ファイルが更新された場合
@@ -587,14 +593,14 @@ def process_xml_file(xml_path, define_ids=None):
         with open(xml_path, 'r', encoding='utf-8') as f:
             original = f.read()
     except (IOError, UnicodeDecodeError) as e:
-        print(f"  警告: ファイル読み込みエラー: {xml_path}: {e}")
+        print(f"  Warning: file read error: {xml_path}: {e}")
         return False
 
     # compound レベルのグラフを挿入
     modified = inject_compound_graphs(original)
 
     # member レベルのグラフを挿入
-    modified = inject_member_graphs(modified, define_ids)
+    modified = inject_member_graphs(modified, function_ids)
 
     if modified == original:
         return False
@@ -603,7 +609,7 @@ def process_xml_file(xml_path, define_ids=None):
         with open(xml_path, 'w', encoding='utf-8') as f:
             f.write(modified)
     except IOError as e:
-        print(f"  エラー: ファイル書き込みエラー: {xml_path}: {e}")
+        print(f"  Error: file write error: {xml_path}: {e}")
         return False
 
     return True
@@ -611,23 +617,24 @@ def process_xml_file(xml_path, define_ids=None):
 
 def main():
     if len(sys.argv) != 2:
-        print("使用方法: python3 extract-graphs.py <xml_directory>")
+        print("Usage: python3 extract-graphs.py <xml_directory>")
         sys.exit(1)
 
     xml_dir = sys.argv[1]
 
     if not os.path.isdir(xml_dir):
-        print(f"エラー: ディレクトリが存在しません: {xml_dir}")
+        print(f"Error: directory does not exist: {xml_dir}")
         sys.exit(1)
 
     xml_files = sorted(glob.glob(os.path.join(xml_dir, '*.xml')))
 
     if not xml_files:
-        print(f"警告: XML ファイルが見つかりません: {xml_dir}")
+        print(f"Warning: no XML files found: {xml_dir}")
         sys.exit(0)
 
-    # 全 XML から define の id を収集 (コールグラフから定数を除外するため)
-    define_ids = collect_define_ids(xml_dir)
+    # 全 XML から function の id を収集
+    # (コールグラフ/呼び出し元グラフを関数のみにするため)
+    function_ids = collect_function_ids(xml_dir)
 
     modified_count = 0
     skipped_count = 0
@@ -639,11 +646,11 @@ def main():
             skipped_count += 1
             continue
 
-        if process_xml_file(xml_file, define_ids):
+        if process_xml_file(xml_file, function_ids):
             modified_count += 1
 
     total = len(xml_files) - skipped_count
-    print(f"グラフ抽出完了: {modified_count}/{total} ファイルを更新")
+    print(f"Graph extraction complete: updated {modified_count}/{total} files")
 
 
 if __name__ == '__main__':

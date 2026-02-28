@@ -1,6 +1,6 @@
 {# C の 構造体出力に特化したテンプレート #}
 
-{% if exists("publicTypes") %}## Public 型
+{% if exists("publicTypes") %}## 型
 
 {% for child in publicTypes %}### {{child.kind}} {{child.name}}
 
@@ -14,7 +14,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicSlots") %}## Public スロット
+{% if exists("publicSlots") %}## スロット
 
 {% for child in publicSlots %}### {{child.name}}
 
@@ -28,7 +28,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicSignals") %}## Public シグナル
+{% if exists("publicSignals") %}## シグナル
 
 {% for child in publicSignals %}### {{child.name}}
 
@@ -42,7 +42,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicEvents") %}## Public イベント
+{% if exists("publicEvents") %}## イベント
 
 {% for child in publicEvents %}### {{child.name}}
 
@@ -63,7 +63,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicFunctions") %}## Public 関数
+{% if exists("publicFunctions") %}## 関数
 
 {% for child in publicFunctions %}### {{child.name}}
 
@@ -77,7 +77,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicProperties") %}## Public プロパティ
+{% if exists("publicProperties") %}## プロパティ
 
 {% for child in publicProperties %}### {{child.name}}
 
@@ -91,7 +91,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicAttributes") %}## Public 属性
+{% if exists("publicAttributes") %}## 属性
 
 {% for child in publicAttributes %}### {{child.name}}
 

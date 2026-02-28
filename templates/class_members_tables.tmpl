@@ -1,4 +1,4 @@
-{%- if exists("publicClasses") %}## Public クラス
+{%- if exists("publicClasses") %}## クラス
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -14,7 +14,7 @@
 | {{child.kind}} | **[{{last(stripNamespace(child.name))}}]({{child.url}})** {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicTypes") %}## Public 型
+{%- if exists("publicTypes") %}## 型
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -48,7 +48,7 @@ template <{% for param in child.templateParams -%}
 {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicSlots") %}## Public スロット
+{%- if exists("publicSlots") %}## スロット
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -94,7 +94,7 @@ template <{% for param in child.templateParams -%}
  {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicSignals") %}## Public シグナル
+{%- if exists("publicSignals") %}## シグナル
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -140,7 +140,7 @@ template <{% for param in child.templateParams -%}
  {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicEvents") %}## Public イベント
+{%- if exists("publicEvents") %}## イベント
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -194,7 +194,7 @@ template <{% for param in child.templateParams -%}
 | **[{{child.name}}]({{child.url}})**| {% if existsIn(child, "brief") %}{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicFunctions") %}## Public 関数
+{%- if exists("publicFunctions") %}## 関数
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -240,7 +240,7 @@ template <{% for param in child.templateParams -%}
  {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicProperties") %}## Public プロパティ
+{%- if exists("publicProperties") %}## プロパティ
 
 |                | 名前           |
 | -------------- | -------------- |
@@ -258,7 +258,7 @@ template <{% for param in child.templateParams -%}
 | **[{{child.name}}]({{child.url}})** {% if existsIn(child, "brief") %}<br/>{{child.brief}}{% endif %} |
 {% endfor %}
 {% endif -%}
-{%- if exists("publicAttributes") %}## Public 属性
+{%- if exists("publicAttributes") %}## 属性
 
 |                | 名前           |
 | -------------- | -------------- |

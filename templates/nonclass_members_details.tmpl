@@ -27,7 +27,7 @@
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}
 
-{% if exists("publicClasses") %}## 構造体、クラス
+{% if exists("publicClasses") %}## クラス/構造体
 
 {% for child in publicClasses %}### {{child.name}}
 
