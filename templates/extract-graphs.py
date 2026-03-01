@@ -119,46 +119,168 @@ def collect_function_ids(xml_dir):
     return function_ids
 
 
-def parse_references(memberdef_block, function_ids=None):
+def collect_compound_file_map(xml_dir):
+    """全 XML ファイルから compound id → ファイルベース名マップを収集する。
+
+    呼び出し関係グラフで static 関数のファイル名を特定するために使用する。
+
+    Args:
+        xml_dir: XML ファイルが存在するディレクトリ
+
+    Returns:
+        dict: {compound_id: file_basename}
+    """
+    compound_file_map = {}
+    # compounddef の id 属性と compoundname を取得する
+    pattern = re.compile(
+        r'<compounddef\b([^>]*)>.*?<compoundname>([^<]*)</compoundname>',
+        re.DOTALL
+    )
+    id_re = re.compile(r'\bid="([^"]*)"')
+    kind_re = re.compile(r'\bkind="file"')
+    for xml_path in glob.glob(os.path.join(xml_dir, '*.xml')):
+        try:
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (IOError, UnicodeDecodeError):
+            continue
+        for match in pattern.finditer(content):
+            attrs = match.group(1)
+            compound_name = match.group(2)
+            if kind_re.search(attrs):
+                id_match = id_re.search(attrs)
+                if id_match:
+                    compound_file_map[id_match.group(1)] = os.path.basename(compound_name)
+    return compound_file_map
+
+
+def collect_static_function_ids(xml_dir):
+    """全 XML ファイルから static 関数の id セットを収集する。
+
+    呼び出し関係グラフで static 関数にファイル名を付加するために使用する。
+    属性順序に依存しないよう、opening タグの属性文字列を個別に検索する。
+
+    .. deprecated::
+        compoundref ベースのファイル名付加に移行したため不要。
+        後方互換のために残しているが、呼び出し元はない。
+
+    Args:
+        xml_dir: XML ファイルが存在するディレクトリ
+
+    Returns:
+        set of str: static="yes" な function の id 文字列セット
+    """
+    static_ids = set()
+    memberdef_open_re = re.compile(r'<memberdef\b([^>]*)>')
+    id_re = re.compile(r'\bid="([^"]*)"')
+    kind_re = re.compile(r'\bkind="function"')
+    static_re = re.compile(r'\bstatic="yes"')
+    for xml_path in glob.glob(os.path.join(xml_dir, '*.xml')):
+        try:
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (IOError, UnicodeDecodeError):
+            continue
+        for match in memberdef_open_re.finditer(content):
+            attrs = match.group(1)
+            if kind_re.search(attrs) and static_re.search(attrs):
+                id_match = id_re.search(attrs)
+                if id_match:
+                    static_ids.add(id_match.group(1))
+    return static_ids
+
+
+def _qualified_func_name(name, extra_attrs, compound_file_map, self_compound_id=None):
+    """compoundref が非ヘッダのソースファイルを指す場合にファイル名を付加した関数名を返す。
+
+    <references>/<referencedby> タグの compoundref 属性が
+    .h 以外のソースファイル (.c, .cc, .cpp など) にマップされる場合、
+    'funcname\n(filename.c)' 形式で返す。
+    compoundref が self_compound_id と一致する場合 (自ファイル内の関数) は
+    ファイル名を付加せず name をそのまま返す。
+    それ以外の場合も name をそのまま返す。
+
+    Args:
+        name: 関数名
+        extra_attrs: <references>/<referencedby> 開始タグの属性文字列
+        compound_file_map: compound id → ファイルベース名 マップ (None の場合は付加しない)
+        self_compound_id: 処理中ファイル自身の compound id。
+                          compoundref がこの値と一致する場合はファイル名を付加しない。
+
+    Returns:
+        表示用の関数名文字列
+    """
+    if compound_file_map:
+        compoundref_match = re.search(r'\bcompoundref="([^"]*)"', extra_attrs)
+        if compoundref_match:
+            compoundref = compoundref_match.group(1)
+            # 自ファイル内の関数はファイル名を付加しない
+            if self_compound_id and compoundref == self_compound_id:
+                return name
+            file_name = compound_file_map.get(compoundref, '')
+            if file_name and not file_name.lower().endswith('.h'):
+                return f'{name}\\n({file_name})'
+    return name
+
+
+def parse_references(memberdef_block, function_ids=None, compound_file_map=None,
+                     self_compound_id=None):
     """memberdef ブロックから references 要素を抽出する。
+
+    compoundref が非ヘッダのソースファイルを指す場合は
+    'funcname\n(filename.c)' 形式の名前を返す。
+    self_compound_id と一致する場合 (自ファイル内) はファイル名を付加しない。
 
     Args:
         memberdef_block: <memberdef>...</memberdef> の XML テキスト
         function_ids: 関数として許可する id セット。None の場合は制限しない。
+        compound_file_map: compound id → ファイルベース名 マップ。
+        self_compound_id: 処理中ファイル自身の compound id。
 
     Returns:
         list of str: 呼び出し先の関数名リスト
     """
     refs = []
-    pattern = re.compile(r'<references\s+refid="([^"]*)"[^>]*>([^<]*)</references>')
+    pattern = re.compile(r'<references\s+refid="([^"]*)"([^>]*)>([^<]*)</references>')
     for match in pattern.finditer(memberdef_block):
         refid = match.group(1)
-        name = match.group(2).strip()
+        extra_attrs = match.group(2)
+        name = match.group(3).strip()
         if function_ids is not None and refid not in function_ids:
             continue
         if name:
+            name = _qualified_func_name(name, extra_attrs, compound_file_map, self_compound_id)
             refs.append(name)
     return refs
 
 
-def parse_referencedby(memberdef_block, function_ids=None):
+def parse_referencedby(memberdef_block, function_ids=None, compound_file_map=None,
+                       self_compound_id=None):
     """memberdef ブロックから referencedby 要素を抽出する。
+
+    compoundref が非ヘッダのソースファイルを指す場合は
+    'funcname\n(filename.c)' 形式の名前を返す。
+    self_compound_id と一致する場合 (自ファイル内) はファイル名を付加しない。
 
     Args:
         memberdef_block: <memberdef>...</memberdef> の XML テキスト
         function_ids: 関数として許可する id セット。None の場合は制限しない。
+        compound_file_map: compound id → ファイルベース名 マップ。
+        self_compound_id: 処理中ファイル自身の compound id。
 
     Returns:
         list of str: 呼び出し元の関数名リスト
     """
     refs = []
-    pattern = re.compile(r'<referencedby\s+refid="([^"]*)"[^>]*>([^<]*)</referencedby>')
+    pattern = re.compile(r'<referencedby\s+refid="([^"]*)"([^>]*)>([^<]*)</referencedby>')
     for match in pattern.finditer(memberdef_block):
         refid = match.group(1)
-        name = match.group(2).strip()
+        extra_attrs = match.group(2)
+        name = match.group(3).strip()
         if function_ids is not None and refid not in function_ids:
             continue
         if name:
+            name = _qualified_func_name(name, extra_attrs, compound_file_map, self_compound_id)
             refs.append(name)
     return refs
 
@@ -533,16 +655,23 @@ def inject_compound_graphs(xml_text):
     return compounddef_pattern.sub(process_compound, xml_text)
 
 
-def inject_member_graphs(xml_text, function_ids=None):
+def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None):
     """memberdef レベルのグラフ (コールグラフ、呼び出し元グラフ) を挿入する。
 
     Args:
         xml_text: XML ファイルの全文
         function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
+        compound_file_map: compound id → ファイルベース名マップ。
 
     Returns:
         修正後の XML テキスト
     """
+    # 本 XML ファイル自身の compound id を取得 (自ファイル内関数のファイル名付加スキップに使用)
+    self_compound_id_match = re.search(
+        r'<compounddef\b[^>]*\bid="([^"]*)"', xml_text
+    )
+    self_compound_id = self_compound_id_match.group(1) if self_compound_id_match else None
+
     memberdef_pattern = re.compile(
         r'(<memberdef\s[^>]*kind="function"[^>]*>)(.*?)(</memberdef>)',
         re.DOTALL
@@ -562,7 +691,7 @@ def inject_member_graphs(xml_text, function_ids=None):
         injections = []
 
         # 呼び出し元グラフ (referencedby)
-        callers = parse_referencedby(content, function_ids)
+        callers = parse_referencedby(content, function_ids, compound_file_map, self_compound_id)
         if callers:
             heading = '呼び出し元'
             caption = f'{func_name} の{heading}'
@@ -574,7 +703,7 @@ def inject_member_graphs(xml_text, function_ids=None):
                 injections.append((heading, puml))
 
         # 呼び出し先グラフ (references)
-        called = parse_references(content, function_ids)
+        called = parse_references(content, function_ids, compound_file_map, self_compound_id)
         if called:
             heading = '呼び出し先'
             caption = f'{func_name} の{heading}'
@@ -638,12 +767,13 @@ def is_header_file_xml(xml_text):
     return False
 
 
-def process_xml_file(xml_path, function_ids=None):
+def process_xml_file(xml_path, function_ids=None, compound_file_map=None):
     """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
 
     Args:
         xml_path: XML ファイルのパス
         function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
+        compound_file_map: compound id → ファイルベース名マップ。
 
     Returns:
         True: ファイルが更新された場合
@@ -662,7 +792,7 @@ def process_xml_file(xml_path, function_ids=None):
     # member レベルのグラフを挿入
     # .h ファイルの場合は呼び出し関係マップ (コールグラフ/呼び出し元グラフ) を生成しない
     if not is_header_file_xml(modified):
-        modified = inject_member_graphs(modified, function_ids)
+        modified = inject_member_graphs(modified, function_ids, compound_file_map)
 
     if modified == original:
         return False
@@ -698,6 +828,10 @@ def main():
     # (コールグラフ/呼び出し元グラフを関数のみにするため)
     function_ids = collect_function_ids(xml_dir)
 
+    # compound id → ファイル名マップを収集
+    # (呼び出し関係グラフでソースファイル関数にファイル名を付加するため)
+    compound_file_map = collect_compound_file_map(xml_dir)
+
     modified_count = 0
     skipped_count = 0
 
@@ -708,7 +842,7 @@ def main():
             skipped_count += 1
             continue
 
-        if process_xml_file(xml_file, function_ids):
+        if process_xml_file(xml_file, function_ids, compound_file_map):
             modified_count += 1
 
     total = len(xml_files) - skipped_count
