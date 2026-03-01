@@ -608,6 +608,30 @@ def inject_member_graphs(xml_text, function_ids=None):
     return memberdef_pattern.sub(process_member, xml_text)
 
 
+def is_header_file_xml(xml_text):
+    """XML テキストが .h ファイルの compounddef を含むかどうかを判定する。
+
+    Doxygen XML の compounddef kind="file" の compoundname が
+    '.h' で終わる場合に True を返す。
+
+    Args:
+        xml_text: XML ファイルの全文
+
+    Returns:
+        True: .h ファイルに対応する XML の場合
+        False: それ以外の場合
+    """
+    pattern = re.compile(
+        r'<compounddef\s[^>]*kind="file"[^>]*>.*?<compoundname>([^<]*)</compoundname>',
+        re.DOTALL
+    )
+    match = pattern.search(xml_text)
+    if match:
+        compound_name = match.group(1)
+        return compound_name.lower().endswith('.h')
+    return False
+
+
 def process_xml_file(xml_path, function_ids=None):
     """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
 
@@ -630,7 +654,9 @@ def process_xml_file(xml_path, function_ids=None):
     modified = inject_compound_graphs(original)
 
     # member レベルのグラフを挿入
-    modified = inject_member_graphs(modified, function_ids)
+    # .h ファイルの場合は呼び出し関係マップ (コールグラフ/呼び出し元グラフ) を生成しない
+    if not is_header_file_xml(modified):
+        modified = inject_member_graphs(modified, function_ids)
 
     if modified == original:
         return False
