@@ -348,15 +348,18 @@ def find_self_node(nodes, compound_name):
     return None
 
 
-def filter_header_only_graph(nodes, edges):
-    """インクルード系グラフを .h ノードのみで構成する。
+def filter_header_only_graph(nodes, edges, self_id=None):
+    """インクルード系グラフを .h ノードを中心に構成する。
 
-    ノードラベルが .h で終わるノードのみを残し、
+    ノードラベルが .h で終わるノードを残す。
+    self_id が指定された場合は、そのノードもラベルに関わらず残す。
+    (親ファイルがヘッダ以外のソースファイルである場合に自身を含めるために使用する。)
     エッジも残存ノード間のものだけに絞り込む。
 
     Args:
         nodes: {node_id: label} のノード辞書
         edges: [(from_id, to_id, relation)] のエッジリスト
+        self_id: 常に含めるノードの ID。None の場合は .h ノードのみを残す。
 
     Returns:
         (filtered_nodes, filtered_edges)
@@ -364,7 +367,7 @@ def filter_header_only_graph(nodes, edges):
     header_nodes = {
         node_id: label
         for node_id, label in nodes.items()
-        if label.lower().endswith('.h')
+        if label.lower().endswith('.h') or node_id == self_id
     }
 
     filtered_edges = [
@@ -417,7 +420,10 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
-                nodes, edges = filter_header_only_graph(nodes, edges)
+                # 親ファイルがヘッダ以外 (.c, .cc, .cpp 等) の場合は自身ノードも含める
+                # (.h の場合は .h フィルタで自然に含まれるため self_id 指定不要)
+                inc_self_id = self_id if not display_name.lower().endswith('.h') else None
+                nodes, edges = filter_header_only_graph(nodes, edges, self_id=inc_self_id)
                 # INC_GRAPH_LABEL_BASENAME_ONLY が True の場合、
                 # find_self_node() 呼び出し後にラベルをファイル名のみに変換する
                 display_nodes = nodes
