@@ -22,7 +22,7 @@
 
 {% if exists("publicTypes") %}## 型
 
-{% for child in publicTypes %}### {{child.name}}
+{% for child in publicTypes %}### {{name}}::{{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}

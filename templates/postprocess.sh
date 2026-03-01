@@ -56,10 +56,12 @@ process_markdown_file() {
             
             # インクルードファイルの存在チェック
             if [ -f "$include_path" ]; then
-                # Files 配下へ Classes の構造体ページをインクルードする場合、
-                # 既存見出し階層に合わせて見出しレベルを 2 段下げる。
+                # Classes/ のページをインクルードする場合、
+                # Files/ でも Namespaces/ でも見出し階層は同じ構造のため、
+                # 常に 2 段下げて埋め込み先の ### クラス名 に揃える。
+                # (H2 → H4、H3 → H5 など)
                 # ※ Classes 側ファイルそのものは変更しない。
-                if [[ "$file" == */Files/* ]] && [[ "$include_file" == Classes/struct*.md ]]; then
+                if [[ "$include_file" == Classes/*.md ]]; then
                     include_heading_offset=2
                 fi
                 #echo "  -> インクルード: $include_file"
@@ -381,6 +383,7 @@ rm -rf "$MARKDOWN_DIR"/index_examples.md \
        "$MARKDOWN_DIR"/indexpage.md
 
 # .mdファイルを配列に収集
+# ※ Enums/ はこの時点でまだ削除しない (!include 処理で参照するため)
 mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
 
 # 処理対象ファイル数をカウント
@@ -468,6 +471,10 @@ for file in "${md_files[@]}"; do
         }' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
     fi
 done
+
+# Enums/ (inject-cs-enums.py が生成した !include 用中間ファイル) を削除
+# リンク除去ループの後に削除する (ループ内で Enums/*.md への .tmp 生成が必要なため)
+find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
