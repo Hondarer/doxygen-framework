@@ -138,7 +138,7 @@ int calcHandler(int kind, int a, int b)
 ### 構造体および class のメンバー
 
 ```c
-    int     intval;         /*!< 変数の説明 */
+    int     intval;         /**< 変数の説明。 */
 ```
 
 ```c
@@ -147,9 +147,9 @@ int calcHandler(int kind, int a, int b)
  */
 enum SampleEnum
 {
-    one,  /*!< 1 つめの要素 */
-    two,  /*!< 2 つめの要素 */
-    three /*!< 3 つめの要素 */
+    one,  /**< 1 つめの要素。 */
+    two,  /**< 2 つめの要素。 */
+    three /**< 3 つめの要素。 */
 };
 ```
 
@@ -159,9 +159,9 @@ enum SampleEnum
  */
 typedef struct
 {
-    int id;               /*!< ユーザーID */
-    const char *name;     /*!< ユーザー名 */
-    SampleEnum enumValue; /*!< 列挙値 */
+    int id;               /**< ユーザーID。 */
+    const char *name;     /**< ユーザー名。 */
+    SampleEnum enumValue; /**< 列挙値。 */
 } UserInfo;
 ```
 
