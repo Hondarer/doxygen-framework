@@ -348,6 +348,34 @@ def find_self_node(nodes, compound_name):
     return None
 
 
+def filter_header_only_graph(nodes, edges):
+    """インクルード系グラフを .h ノードのみで構成する。
+
+    ノードラベルが .h で終わるノードのみを残し、
+    エッジも残存ノード間のものだけに絞り込む。
+
+    Args:
+        nodes: {node_id: label} のノード辞書
+        edges: [(from_id, to_id, relation)] のエッジリスト
+
+    Returns:
+        (filtered_nodes, filtered_edges)
+    """
+    header_nodes = {
+        node_id: label
+        for node_id, label in nodes.items()
+        if label.lower().endswith('.h')
+    }
+
+    filtered_edges = [
+        (s, d, r)
+        for s, d, r in edges
+        if s in header_nodes and d in header_nodes
+    ]
+
+    return header_nodes, filtered_edges
+
+
 def inject_compound_graphs(xml_text):
     """compounddef レベルのグラフ (インクルード依存、継承、コラボレーション) を挿入する。
 
@@ -389,6 +417,7 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
+                nodes, edges = filter_header_only_graph(nodes, edges)
                 # INC_GRAPH_LABEL_BASENAME_ONLY が True の場合、
                 # find_self_node() 呼び出し後にラベルをファイル名のみに変換する
                 display_nodes = nodes
@@ -411,6 +440,7 @@ def inject_compound_graphs(xml_text):
             graphs = parse_graph_nodes(content, 'invincdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
+                nodes, edges = filter_header_only_graph(nodes, edges)
                 # INC_GRAPH_LABEL_BASENAME_ONLY が True の場合、
                 # find_self_node() 呼び出し後にラベルをファイル名のみに変換する
                 display_nodes = nodes
