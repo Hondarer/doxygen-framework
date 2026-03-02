@@ -80,11 +80,8 @@ friend {% if exists("typePlain") %}{{typePlain}} {% endif -%}
 {% if kind == "define" -%}
 ```cpp
 #define {{name}}{% if exists("params") -%}
-(
-{% for param in params %}    {{param.name}}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif -%}
-{% if not loop.is_last %},
-{% endif -%}
-{% endfor %}
+({% for param in params %}{% if param.name != "" %}
+    {{param.name}}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif %}{% if not loop.is_last %},{% endif %}{% endif %}{% endfor %}
 )
 {% else %} {% endif -%}
 {% if exists("initializer") %}{{initializer}}{% endif %}
