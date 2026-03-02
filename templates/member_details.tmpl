@@ -13,14 +13,9 @@ template <{% for param in templateParams %}{{param.typePlain}} {{param.name}}{% 
 {% if virtual %}virtual {% endif -%}
 
 {% if exists("typePlain") %}{{typePlain}} {% endif %}{{name}} {% if length(params) > 0 -%}
-(
-{% for param in params %}    {{param.typePlain}} {{param.name}}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif -%}
-{% if not loop.is_last %},{% endif %}
-{% endfor -%}
-){% else -%}
+( {% for param in params %}{{param.typePlain}}{% if param.name != "" %} {{param.name}}{% endif %}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif %}{% if not loop.is_last %}, {% endif %}{% endfor %} ){% else -%}
 (){% endif -%}
-
-{% if const %} const{% endif -%}
+{%- if const %} const{% endif -%}
 {% if override %} override{% endif -%}
 {% if default %} =default{% endif -%}
 {% if deleted %} =delete{% endif -%}
@@ -79,12 +74,8 @@ friend {% if exists("typePlain") %}{{typePlain}} {% endif -%}
 
 {% if kind == "define" -%}
 ```cpp
-#define {{name}}{% if exists("params") -%}
-({% for param in params %}{% if param.name != "" %}
-    {{param.name}}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif %}{% if not loop.is_last %},{% endif %}{% endif %}{% endfor %}
-)
-{% else %} {% endif -%}
-{% if exists("initializer") %}{{initializer}}{% endif %}
+#define {{name}}{% if exists("params") %} ({% for param in params %}{% if param.name != "" %}{% if not loop.is_first %},{% endif %} {{param.name}}{% if existsIn(param, "defvalPlain") %} ={{param.defvalPlain}}{% endif %}{% if loop.is_last %} ){% endif %}{% else %}{% if loop.is_last %}){% endif %}{% endif %}{% endfor %}
+    {% if exists("initializer") %}{{initializer}}{% endif %}{% else -%}{% if exists("initializer") %} {{initializer}}{% endif %}{% endif %}
 ```{% endif -%}
 
 {% if kind in ["struct", "class"] -%}
