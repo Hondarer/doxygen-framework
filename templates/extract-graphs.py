@@ -154,6 +154,89 @@ def collect_compound_file_map(xml_dir):
     return compound_file_map
 
 
+def collect_references_by_id(xml_dir, function_ids):
+    """全 XML ファイルから関数 ID → 呼び出し先/呼び出し元情報マップを構築する。
+
+    コールグラフ/呼び出し元グラフを再帰的に展開するために使用する。
+
+    Args:
+        xml_dir: XML ファイルが存在するディレクトリ
+        function_ids: 関数として許可する id セット
+
+    Returns:
+        tuple: (callees_map, callers_map, func_name_map, func_compound_map)
+            callees_map: {func_id: [(callee_id, extra_attrs)]} 呼び出し先
+            callers_map: {func_id: [(caller_id, extra_attrs)]} 呼び出し元
+            func_name_map: {func_id: func_name} 関数名マップ
+            func_compound_map: {func_id: compound_id} 関数が属する compound id マップ
+    """
+    callees_map = {}
+    callers_map = {}
+    func_name_map = {}
+    func_compound_map = {}
+    ref_pattern = re.compile(r'<references\s+refid="([^"]*)"([^>]*)>[^<]*</references>')
+    refby_pattern = re.compile(r'<referencedby\s+refid="([^"]*)"([^>]*)>[^<]*</referencedby>')
+    memberdef_full_re = re.compile(
+        r'(<memberdef\b[^>]*kind="function"[^>]*>)(.*?)(</memberdef>)',
+        re.DOTALL
+    )
+    compound_id_re = re.compile(r'<compounddef\b[^>]*\bid="([^"]*)"')
+    name_func_re = re.compile(r'<name>([^<]*)</name>')
+    id_re = re.compile(r'\bid="([^"]*)"')
+
+    for xml_path in glob.glob(os.path.join(xml_dir, '*.xml')):
+        basename = os.path.basename(xml_path)
+        if basename.startswith('index') or basename == 'combine.xslt':
+            continue
+        try:
+            with open(xml_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (IOError, UnicodeDecodeError):
+            continue
+
+        compound_id_match = compound_id_re.search(content)
+        self_compound_id = compound_id_match.group(1) if compound_id_match else None
+
+        for memberdef_match in memberdef_full_re.finditer(content):
+            opening_tag = memberdef_match.group(1)
+            inner_content = memberdef_match.group(2)
+
+            func_id_match = id_re.search(opening_tag)
+            if not func_id_match:
+                continue
+            func_id = func_id_match.group(1)
+
+            if func_id not in function_ids:
+                continue
+
+            name_match = name_func_re.search(inner_content)
+            if name_match:
+                func_name_map[func_id] = name_match.group(1)
+
+            if self_compound_id:
+                func_compound_map[func_id] = self_compound_id
+
+            callees = []
+            for ref_match in ref_pattern.finditer(inner_content):
+                refid = ref_match.group(1)
+                extra_attrs = ref_match.group(2)
+                if refid in function_ids:
+                    callees.append((refid, extra_attrs))
+            if callees:
+                callees_map[func_id] = callees
+
+            callers = []
+            for refby_match in refby_pattern.finditer(inner_content):
+                refid = refby_match.group(1)
+                extra_attrs = refby_match.group(2)
+                if refid in function_ids:
+                    callers.append((refid, extra_attrs))
+            if callers:
+                callers_map[func_id] = callers
+
+    return callees_map, callers_map, func_name_map, func_compound_map
+
+
 def collect_static_function_ids(xml_dir):
     """全 XML ファイルから static 関数の id セットを収集する。
 
@@ -425,6 +508,191 @@ def callergraph_to_plantuml(func_name, caller_funcs, title):
     return '\n'.join(lines)
 
 
+def build_recursive_callgraph(func_id, callees_map, func_name_map,
+                              compound_file_map, func_compound_map,
+                              max_nodes=DOT_GRAPH_MAX_NODES):
+    """BFS でコールグラフ (呼び出し先) を再帰的に展開する。
+
+    Args:
+        func_id: 起点となる関数 ID (強調表示される)
+        callees_map: {func_id: [(callee_id, extra_attrs)]}
+        func_name_map: {func_id: func_name}
+        compound_file_map: compound id → ファイルベース名マップ
+        func_compound_map: {func_id: compound_id}
+        max_nodes: 最大ノード数
+
+    Returns:
+        (nodes, edges):
+            nodes: {func_id: display_name}
+            edges: [(from_id, to_id)]
+    """
+    nodes = {}     # func_id -> display_name
+    edges = []     # [(from_id, to_id)]
+    edge_set = set()
+    visited = {func_id}
+
+    root_name = func_name_map.get(func_id, func_id)
+    nodes[func_id] = root_name
+
+    queue = [func_id]
+
+    while queue and len(nodes) < max_nodes:
+        current_id = queue.pop(0)
+        self_compound_id = func_compound_map.get(current_id)
+        for callee_id, extra_attrs in callees_map.get(current_id, []):
+            if len(nodes) >= max_nodes:
+                break
+            callee_name = func_name_map.get(callee_id, callee_id)
+            display_name = _qualified_func_name(
+                callee_name, extra_attrs, compound_file_map, self_compound_id)
+            if callee_id not in nodes:
+                nodes[callee_id] = display_name
+            edge_key = (current_id, callee_id)
+            if edge_key not in edge_set:
+                edge_set.add(edge_key)
+                edges.append((current_id, callee_id))
+            if callee_id not in visited:
+                visited.add(callee_id)
+                queue.append(callee_id)
+
+    return nodes, edges
+
+
+def build_recursive_callergraph(func_id, callers_map, func_name_map,
+                                compound_file_map, func_compound_map,
+                                max_nodes=DOT_GRAPH_MAX_NODES):
+    """BFS で呼び出し元グラフを再帰的に展開する。
+
+    Args:
+        func_id: 起点となる関数 ID (強調表示される)
+        callers_map: {func_id: [(caller_id, extra_attrs)]}
+        func_name_map: {func_id: func_name}
+        compound_file_map: compound id → ファイルベース名マップ
+        func_compound_map: {func_id: compound_id}
+        max_nodes: 最大ノード数
+
+    Returns:
+        (nodes, edges):
+            nodes: {func_id: display_name}
+            edges: [(from_id, to_id)] エッジは呼び出し方向 (caller -> callee)
+    """
+    nodes = {}     # func_id -> display_name
+    edges = []     # [(caller_id, callee_id)]
+    edge_set = set()
+    visited = {func_id}
+
+    root_name = func_name_map.get(func_id, func_id)
+    nodes[func_id] = root_name
+
+    queue = [func_id]
+
+    while queue and len(nodes) < max_nodes:
+        current_id = queue.pop(0)
+        for caller_id, extra_attrs in callers_map.get(current_id, []):
+            if len(nodes) >= max_nodes:
+                break
+            caller_name = func_name_map.get(caller_id, caller_id)
+            # compoundref は呼び出し元 (caller) が属するファイルを示す。
+            # self_compound_id を渡さないことで、ファイル名の付加を抑制しない。
+            display_name = _qualified_func_name(
+                caller_name, extra_attrs, compound_file_map, None)
+            if caller_id not in nodes:
+                nodes[caller_id] = display_name
+            edge_key = (caller_id, current_id)
+            if edge_key not in edge_set:
+                edge_set.add(edge_key)
+                edges.append((caller_id, current_id))
+            if caller_id not in visited:
+                visited.add(caller_id)
+                queue.append(caller_id)
+
+    return nodes, edges
+
+
+def callgraph_to_plantuml_graph(func_id, nodes, edges, title):
+    """コールグラフの PlantUML テキストを生成する (グラフ構造版)。
+
+    callgraph_to_plantuml の再帰対応版。nodes/edges を受け取り、
+    多段のコールチェーンを表現する。
+
+    Args:
+        func_id: 起点関数 ID (強調表示する)
+        nodes: {func_id: display_name}
+        edges: [(from_id, to_id)]
+        title: 図のキャプション
+
+    Returns:
+        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+    """
+    if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
+        return None
+    if not edges:
+        return None
+
+    lines = []
+    lines.append(f'caption {title}')
+
+    id_to_alias = {nid: re.sub(r'[^a-zA-Z0-9_]', '_', nid) for nid in nodes}
+
+    for node_id, display_name in nodes.items():
+        alias = id_to_alias[node_id]
+        escaped = display_name.replace('"', '\\"')
+        if node_id == func_id:
+            lines.append(f'rectangle "**{escaped}**" as {alias} #LightBlue')
+        else:
+            lines.append(f'rectangle "{escaped}" as {alias}')
+
+    for from_id, to_id in edges:
+        from_alias = id_to_alias.get(from_id)
+        to_alias = id_to_alias.get(to_id)
+        if from_alias and to_alias:
+            lines.append(f'{from_alias} --> {to_alias}')
+
+    return '\n'.join(lines)
+
+
+def callergraph_to_plantuml_graph(func_id, nodes, edges, title):
+    """呼び出し元グラフの PlantUML テキストを生成する (グラフ構造版)。
+
+    callergraph_to_plantuml の再帰対応版。nodes/edges を受け取り、
+    多段の呼び出し元チェーンを表現する。
+
+    Args:
+        func_id: 起点関数 ID (強調表示する)
+        nodes: {func_id: display_name}
+        edges: [(from_id, to_id)] エッジは呼び出し方向 (caller -> callee)
+        title: 図のキャプション
+
+    Returns:
+        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+    """
+    if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
+        return None
+    if not edges:
+        return None
+
+    lines = []
+    lines.append(f'caption {title}')
+
+    id_to_alias = {nid: re.sub(r'[^a-zA-Z0-9_]', '_', nid) for nid in nodes}
+
+    for node_id, display_name in nodes.items():
+        alias = id_to_alias[node_id]
+        escaped = display_name.replace('"', '\\"')
+        if node_id == func_id:
+            lines.append(f'rectangle "**{escaped}**" as {alias} #LightBlue')
+        else:
+            lines.append(f'rectangle "{escaped}" as {alias}')
+
+    for from_id, to_id in edges:
+        from_alias = id_to_alias.get(from_id)
+        to_alias = id_to_alias.get(to_id)
+        if from_alias and to_alias:
+            lines.append(f'{from_alias} --> {to_alias}')
+
+    return '\n'.join(lines)
+
+
 def build_plantuml_tag(plantuml_body, title):
     """PlantUML テキストを <simplesect kind="par"> タグで囲む。
 
@@ -655,13 +923,21 @@ def inject_compound_graphs(xml_text):
     return compounddef_pattern.sub(process_compound, xml_text)
 
 
-def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None):
+def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
+                         callees_map=None, callers_map=None, func_name_map=None,
+                         func_compound_map=None):
     """memberdef レベルのグラフ (コールグラフ、呼び出し元グラフ) を挿入する。
 
     Args:
         xml_text: XML ファイルの全文
         function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
         compound_file_map: compound id → ファイルベース名マップ。
+        callees_map: {func_id: [(callee_id, extra_attrs)]} 再帰展開用の呼び出し先マップ。
+                     None の場合は 1 階層のみ展開する。
+        callers_map: {func_id: [(caller_id, extra_attrs)]} 再帰展開用の呼び出し元マップ。
+                     None の場合は 1 階層のみ展開する。
+        func_name_map: {func_id: func_name} 関数名マップ。
+        func_compound_map: {func_id: compound_id} 関数の compound id マップ。
 
     Returns:
         修正後の XML テキスト
@@ -688,31 +964,53 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None):
             return match.group(0)
         func_name = name_match.group(1)
 
+        # 関数 ID を取得 (再帰的コールグラフに使用)
+        func_id_match = re.search(r'\bid="([^"]*)"', opening_tag)
+        func_id = func_id_match.group(1) if func_id_match else None
+
         injections = []
 
         # 呼び出し元グラフ (referencedby)
-        callers = parse_referencedby(content, function_ids, compound_file_map, self_compound_id)
-        if callers:
-            heading = '呼び出し元'
-            caption = f'{func_name} の{heading}'
-            puml = callergraph_to_plantuml(
-                func_name, callers,
-                caption
-            )
-            if puml:
-                injections.append((heading, puml))
+        if func_id and callers_map is not None and func_id in callers_map:
+            # 再帰的展開
+            nodes, edges = build_recursive_callergraph(
+                func_id, callers_map, func_name_map, compound_file_map, func_compound_map)
+            if nodes and edges:
+                heading = '呼び出し元'
+                caption = f'{func_name} の{heading}'
+                puml = callergraph_to_plantuml_graph(func_id, nodes, edges, caption)
+                if puml:
+                    injections.append((heading, puml))
+        else:
+            # フォールバック: 1 階層のみ
+            callers = parse_referencedby(content, function_ids, compound_file_map, self_compound_id)
+            if callers:
+                heading = '呼び出し元'
+                caption = f'{func_name} の{heading}'
+                puml = callergraph_to_plantuml(func_name, callers, caption)
+                if puml:
+                    injections.append((heading, puml))
 
         # 呼び出し先グラフ (references)
-        called = parse_references(content, function_ids, compound_file_map, self_compound_id)
-        if called:
-            heading = '呼び出し先'
-            caption = f'{func_name} の{heading}'
-            puml = callgraph_to_plantuml(
-                func_name, called,
-                caption
-            )
-            if puml:
-                injections.append((heading, puml))
+        if func_id and callees_map is not None and func_id in callees_map:
+            # 再帰的展開
+            nodes, edges = build_recursive_callgraph(
+                func_id, callees_map, func_name_map, compound_file_map, func_compound_map)
+            if nodes and edges:
+                heading = '呼び出し先'
+                caption = f'{func_name} の{heading}'
+                puml = callgraph_to_plantuml_graph(func_id, nodes, edges, caption)
+                if puml:
+                    injections.append((heading, puml))
+        else:
+            # フォールバック: 1 階層のみ
+            called = parse_references(content, function_ids, compound_file_map, self_compound_id)
+            if called:
+                heading = '呼び出し先'
+                caption = f'{func_name} の{heading}'
+                puml = callgraph_to_plantuml(func_name, called, caption)
+                if puml:
+                    injections.append((heading, puml))
 
         if not injections:
             return match.group(0)
@@ -767,13 +1065,19 @@ def is_header_file_xml(xml_text):
     return False
 
 
-def process_xml_file(xml_path, function_ids=None, compound_file_map=None):
+def process_xml_file(xml_path, function_ids=None, compound_file_map=None,
+                     callees_map=None, callers_map=None, func_name_map=None,
+                     func_compound_map=None):
     """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
 
     Args:
         xml_path: XML ファイルのパス
         function_ids: コールグラフ/呼び出し元グラフの対象とする function の id セット
         compound_file_map: compound id → ファイルベース名マップ。
+        callees_map: {func_id: [(callee_id, extra_attrs)]} 再帰展開用の呼び出し先マップ。
+        callers_map: {func_id: [(caller_id, extra_attrs)]} 再帰展開用の呼び出し元マップ。
+        func_name_map: {func_id: func_name} 関数名マップ。
+        func_compound_map: {func_id: compound_id} 関数の compound id マップ。
 
     Returns:
         True: ファイルが更新された場合
@@ -792,7 +1096,9 @@ def process_xml_file(xml_path, function_ids=None, compound_file_map=None):
     # member レベルのグラフを挿入
     # .h ファイルの場合は呼び出し関係マップ (コールグラフ/呼び出し元グラフ) を生成しない
     if not is_header_file_xml(modified):
-        modified = inject_member_graphs(modified, function_ids, compound_file_map)
+        modified = inject_member_graphs(
+            modified, function_ids, compound_file_map,
+            callees_map, callers_map, func_name_map, func_compound_map)
 
     if modified == original:
         return False
@@ -832,6 +1138,11 @@ def main():
     # (呼び出し関係グラフでソースファイル関数にファイル名を付加するため)
     compound_file_map = collect_compound_file_map(xml_dir)
 
+    # 全 XML から関数 ID ごとの呼び出し先/呼び出し元情報を収集
+    # (コールグラフ/呼び出し元グラフを再帰的に展開するため)
+    callees_map, callers_map, func_name_map, func_compound_map = collect_references_by_id(
+        xml_dir, function_ids)
+
     modified_count = 0
     skipped_count = 0
 
@@ -842,7 +1153,8 @@ def main():
             skipped_count += 1
             continue
 
-        if process_xml_file(xml_file, function_ids, compound_file_map):
+        if process_xml_file(xml_file, function_ids, compound_file_map,
+                            callees_map, callers_map, func_name_map, func_compound_map):
             modified_count += 1
 
     total = len(xml_files) - skipped_count
