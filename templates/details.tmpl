@@ -11,7 +11,7 @@
 {% if exists("paramList") %}
  #### 引数
 
-{% for param in paramList %}* {{param.name}} {{param.text}}
+{% for param in paramList %}* !paramitem!{{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 

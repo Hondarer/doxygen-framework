@@ -262,8 +262,9 @@ process_markdown_file() {
     # Parameters セクション内の箇条書きネスト修正
     # Doxybook2 は @param の説明テキスト中の箇条書き (@param a 説明\n- 子項目) を
     # param.text に含めるが、インデントなしで展開するため、
-    # * [in] a のサブアイテムが最上位リストと同列になってしまう。
-    # * [in/out/inout/in,out] で始まらない * 行に 2 スペースインデントを追加して
+    # パラメータのサブアイテムが最上位リストと同列になってしまう。
+    # details.tmpl で付与した !paramitem! マーカーでパラメータ行を識別し、
+    # マーカーのない * 行に 2 スペースインデントを追加して
     # 直前のパラメータ行の子リストとして正しくネストする。
     # また、パラメータ行とサブ箇条書きの間の空行は Markdown 上は問題ないが、
     # レンダリングの一貫性のためにここで除去する。
@@ -278,15 +279,16 @@ process_markdown_file() {
         if (pending_blank) { print ""; pending_blank = 0 }
         print; next
     }
-    in_params_section && /^\* \[/ {
+    in_params_section && /^\* !paramitem!/ {
         if (pending_blank) { print ""; pending_blank = 0 }
         in_param_item = 1
+        sub(/!paramitem!/, "")
         print; next
     }
     in_params_section && in_param_item && /^[[:space:]]*$/ {
         pending_blank = 1; next
     }
-    in_params_section && in_param_item && /^\* [^\[]/ {
+    in_params_section && in_param_item && /^\* / {
         pending_blank = 0
         sub(/^\* /, "  * ")
         print; next
@@ -294,6 +296,19 @@ process_markdown_file() {
     {
         if (pending_blank) { print ""; pending_blank = 0 }
         print
+    }
+    ' | \
+
+    # #### 見出し前の空行確保
+    # inja テンプレートの -%} による空白除去で #### 見出し直前の空行が
+    # 失われる場合があるため、直前が空行でなければ空行を挿入する。
+    awk '
+    {
+        if (/^[[:space:]]*####/ && NR > 1 && prev !~ /^[[:space:]]*$/) {
+            print ""
+        }
+        print
+        prev = $0
     }
     ' | \
 

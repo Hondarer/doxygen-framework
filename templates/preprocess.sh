@@ -42,11 +42,13 @@ while IFS= read -r xml_file; do
         -e 's|</plantuml>|\n@enduml\n```|g' \
         "$xml_file" | \
     # パラメータ direction 変換
-    sed -e 's|<parametername direction="in">\([^<]*\)</parametername>|<parametername>[in] \1</parametername>|g' \
-        -e 's|<parametername direction="out">\([^<]*\)</parametername>|<parametername>[out] \1</parametername>|g' \
-        -e 's|<parametername direction="in,out">\([^<]*\)</parametername>|<parametername>[in,out] \1</parametername>|g' \
-        -e 's|<parametername direction="in, out">\([^<]*\)</parametername>|<parametername>[in,out] \1</parametername>|g' \
-        -e 's|<parametername direction="inout">\([^<]*\)</parametername>|<parametername>[inout] \1</parametername>|g' | \
+    # doxybook2 は direction 属性を独自に処理しないため、テキストとして埋め込む。
+    # direction 属性を [in]/[out]/[in,out] テキストに変換し「名前 [方向]」形式で埋め込む。
+    sed -e 's|<parametername direction="in">\([^<]*\)</parametername>|<parametername>\1 [in]</parametername>|g' \
+        -e 's|<parametername direction="out">\([^<]*\)</parametername>|<parametername>\1 [out]</parametername>|g' \
+        -e 's|<parametername direction="in,out">\([^<]*\)</parametername>|<parametername>\1 [in,out]</parametername>|g' \
+        -e 's|<parametername direction="in, out">\([^<]*\)</parametername>|<parametername>\1 [in,out]</parametername>|g' \
+        -e 's|<parametername direction="inout">\([^<]*\)</parametername>|<parametername>\1 [in,out]</parametername>|g' | \
     # linebreak 変換 (<linebreak/> を !linebreak! に変換、postprocess で最終的に改行に置換)
     sed ':a;N;$!ba;s|<linebreak/>\n|!linebreak!|g' | \
     # ダブルアンダースコア保護
