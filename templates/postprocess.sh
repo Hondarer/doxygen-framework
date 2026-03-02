@@ -230,6 +230,30 @@ process_markdown_file() {
     { print }
     ' | \
 
+    # コードフェンス内のポインタ型スペース除去
+    # Doxygen は型 ("int *") と変数名 ("b") を別々に XML 出力するため、
+    # Doxybook2 テンプレートで "int * b" のように不要なスペースが入る。
+    # コードフェンス内のみに適用して "* 変数名" → "*変数名" に変換する。
+    # ※ inja の文字列末尾チェック手段がないためテンプレート側では対処不可。
+    #   (at() は文字列に使用不可、split() は末尾空トークンを除去する)
+    awk '
+    /^[[:space:]]*```/ {
+        if (in_code_block) { in_code_block = 0 } else { in_code_block = 1 }
+        print; next
+    }
+    in_code_block {
+        line = $0
+        result = ""
+        while (match(line, /\* [a-zA-Z_]/)) {
+            result = result substr(line, 1, RSTART) substr(line, RSTART + 2, 1)
+            line = substr(line, RSTART + RLENGTH)
+        }
+        print result line
+        next
+    }
+    { print }
+    ' | \
+
     # 連続空行統合
     # - 空白文字のみの行 (空行含む) を空行として扱う
     # - 連続する空行を1つの空行に置換
