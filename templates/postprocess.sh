@@ -169,10 +169,6 @@ process_markdown_file() {
     #
     # (2) LaTeX ブロック数式 \[: テキストに続いて \[ が同一行にある場合、
     #     テキスト → 空行 → \[ → (同行に数式内容が続く場合は次行に分離) と出力する。
-    #
-    # (3) LaTeX インライン数式 \(: \( の前にテキストがあり、かつ \) が行末にある
-    #     (文中インライン数式ではなくラベル後の数式) の場合、テキストと数式の間に空行を挿入。
-    #     \) の後に非空白テキストが続く文中インライン数式 (例: "式は \( E=mc^2 \) です") は変換しない。
     awk '
     BEGIN { in_code_block = 0 }
     /^[[:space:]]*```/ {
@@ -207,20 +203,6 @@ process_markdown_file() {
             print "\\["
         }
         next
-    }
-    !in_code_block && match($0, /\\\(/) && RSTART > 1 && ($0 ~ /\\\)[[:space:]]*$/) {
-        # \( が行頭以外にあり、かつ \) が行末 (ラベル後の行末数式)
-        # \) の後に非空白テキストが続く文中インライン数式は対象外
-        text = substr($0, 1, RSTART - 1)
-        rest = substr($0, RSTART)
-        sub(/[[:space:]]*$/, "", text)
-        sub(/^[[:space:]]*/, "", rest)
-        if (text ~ /[^[:space:]]/) {
-            print text
-            print ""
-            print rest
-            next
-        }
     }
     { print }
     ' | \
