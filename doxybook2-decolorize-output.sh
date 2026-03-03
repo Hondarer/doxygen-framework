@@ -2,6 +2,9 @@
 # Doxybook2 出力から過剰な着色を除去するフィルタースクリプト
 # [info] を完全脱色、[warning] / [error] / [critical] の太字を除去
 
+# 色をリセット
+printf '\033[0m'
+
 # 標準入力から1行ずつ読み取り、脱色・調整して出力
 while IFS= read -r line; do
     if [[ "$line" == *"[info]"* ]]; then
@@ -20,3 +23,6 @@ while IFS= read -r line; do
         echo "$line"
     fi
 done
+
+# 色をリセット
+printf '\033[0m'
