@@ -259,9 +259,17 @@ process_markdown_file() {
     ' | \
 
     # コードフェンス内のポインタ型スペース除去
-    # Doxygen は型 ("int *") と変数名 ("b") を別々に XML 出力するため、
-    # Doxybook2 テンプレートで "int * b" のように不要なスペースが入る。
-    # コードフェンス内のみに適用して "* 変数名" → "*変数名" に変換する。
+    # Doxygen の XML には型とポインタのスペースが複数の形で出現するため、それぞれ正規化する。
+    #   パス0: "型(* 変数名)" → "型 (*変数名)"
+    #          Doxygen が <definition> に "typedef int(* func_t)" のように出力するケース。
+    #   パス1: "型*+ 変数名" → "型 *+変数名"
+    #          Doxygen が <definition> に "typedef void* TYPEDEF_VOID" や
+    #          "typedef void** TYPEDEF_VOID_PP" のように出力するケース。
+    #          ※ [a-zA-Z_0-9] に限定することで "(* name)" のような関数ポインタ構文を除外する。
+    #   パス2: "型 * 変数名" → "型 *変数名"
+    #          Doxygen が型 ("int *") と変数名 ("b") を別々に XML 出力し
+    #          Doxybook2 テンプレートで "int * b" のように結合されるケース。
+    # コードフェンス内のみに適用する。
     # ※ inja の文字列末尾チェック手段がないためテンプレート側では対処不可。
     #   (at() は文字列に使用不可、split() は末尾空トークンを除去する)
     awk '
@@ -272,6 +280,26 @@ process_markdown_file() {
     in_code_block {
         line = $0
         result = ""
+        # パス0: "型(* 変数名)" → "型 (*変数名)" (関数ポインタ typedef の括弧前スペース正規化)
+        # Doxygen が <definition> に "typedef int(* func_t)" のように出力するケース。
+        # [^ ] で括弧前が既にスペースの場合はスキップし、二重スペースを防ぐ。
+        while (match(line, /[^ ]\(\* [a-zA-Z_]/)) {
+            result = result substr(line, 1, RSTART) " (*" substr(line, RSTART + 4, 1)
+            line = substr(line, RSTART + RLENGTH)
+        }
+        line = result line
+        result = ""
+        # パス1: "型*+ 変数名" → "型 *+変数名" (アスタリスクが型に密着し後ろにスペースのケース)
+        # \*+ でシングル/ダブルポインタ両方に対応する。
+        # ※ [a-zA-Z_0-9] に限定することで "(* name)" のような関数ポインタ構文を除外する。
+        while (match(line, /[a-zA-Z_0-9]\*+ [a-zA-Z_]/)) {
+            n_stars = RLENGTH - 3
+            result = result substr(line, 1, RSTART) " " substr(line, RSTART + 1, n_stars) substr(line, RSTART + n_stars + 2, 1)
+            line = substr(line, RSTART + RLENGTH)
+        }
+        line = result line
+        result = ""
+        # パス2: "型 * 変数名" → "型 *変数名" (型とアスタリスクの間にスペースのケース)
         while (match(line, /\* [a-zA-Z_]/)) {
             result = result substr(line, 1, RSTART) substr(line, RSTART + 2, 1)
             line = substr(line, RSTART + RLENGTH)
