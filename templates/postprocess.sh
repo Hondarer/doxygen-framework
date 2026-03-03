@@ -269,42 +269,51 @@ process_markdown_file() {
     #   パス2: "型 * 変数名" → "型 *変数名"
     #          Doxygen が型 ("int *") と変数名 ("b") を別々に XML 出力し
     #          Doxybook2 テンプレートで "int * b" のように結合されるケース。
-    # コードフェンス内のみに適用する。
+    # コードフェンス内のみに適用し、文字列リテラル ("...") 内はスキップする。
     # ※ inja の文字列末尾チェック手段がないためテンプレート側では対処不可。
     #   (at() は文字列に使用不可、split() は末尾空トークンを除去する)
     awk '
+    # 変換対象の文字列 s にポインタスペース正規化を適用して返す。
+    # 文字列リテラル内 ("...") は変換しない前提で、s はリテラル外の断片を受け取る。
+    function fix_ptr(s,    result, n_stars) {
+        result = ""
+        # パス0: "型(* 変数名)" → "型 (*変数名)" (関数ポインタ typedef の括弧前スペース正規化)
+        # [^ ] で括弧前が既にスペースの場合はスキップし、二重スペースを防ぐ。
+        while (match(s, /[^ ]\(\* [a-zA-Z_]/)) {
+            result = result substr(s, 1, RSTART) " (*" substr(s, RSTART + 4, 1)
+            s = substr(s, RSTART + RLENGTH)
+        }
+        s = result s
+        result = ""
+        # パス1: "型*+ 変数名" → "型 *+変数名" (アスタリスクが型に密着し後ろにスペースのケース)
+        # \*+ でシングル/ダブルポインタ両方に対応する。
+        while (match(s, /[a-zA-Z_0-9]\*+ [a-zA-Z_]/)) {
+            n_stars = RLENGTH - 3
+            result = result substr(s, 1, RSTART) " " substr(s, RSTART + 1, n_stars) substr(s, RSTART + n_stars + 2, 1)
+            s = substr(s, RSTART + RLENGTH)
+        }
+        s = result s
+        result = ""
+        # パス2: "型 * 変数名" → "型 *変数名" (型とアスタリスクの間にスペースのケース)
+        while (match(s, /\* [a-zA-Z_]/)) {
+            result = result substr(s, 1, RSTART) substr(s, RSTART + 2, 1)
+            s = substr(s, RSTART + RLENGTH)
+        }
+        return result s
+    }
     /^[[:space:]]*```/ {
         if (in_code_block) { in_code_block = 0 } else { in_code_block = 1 }
         print; next
     }
     in_code_block {
-        line = $0
-        result = ""
-        # パス0: "型(* 変数名)" → "型 (*変数名)" (関数ポインタ typedef の括弧前スペース正規化)
-        # Doxygen が <definition> に "typedef int(* func_t)" のように出力するケース。
-        # [^ ] で括弧前が既にスペースの場合はスキップし、二重スペースを防ぐ。
-        while (match(line, /[^ ]\(\* [a-zA-Z_]/)) {
-            result = result substr(line, 1, RSTART) " (*" substr(line, RSTART + 4, 1)
-            line = substr(line, RSTART + RLENGTH)
+        # ダブルクォートで分割し、リテラル外 (奇数インデックス) のみ fix_ptr を適用する。
+        n = split($0, parts, "\"")
+        line = ""
+        for (i = 1; i <= n; i++) {
+            if (i > 1) line = line "\""
+            line = line (i % 2 == 1 ? fix_ptr(parts[i]) : parts[i])
         }
-        line = result line
-        result = ""
-        # パス1: "型*+ 変数名" → "型 *+変数名" (アスタリスクが型に密着し後ろにスペースのケース)
-        # \*+ でシングル/ダブルポインタ両方に対応する。
-        # ※ [a-zA-Z_0-9] に限定することで "(* name)" のような関数ポインタ構文を除外する。
-        while (match(line, /[a-zA-Z_0-9]\*+ [a-zA-Z_]/)) {
-            n_stars = RLENGTH - 3
-            result = result substr(line, 1, RSTART) " " substr(line, RSTART + 1, n_stars) substr(line, RSTART + n_stars + 2, 1)
-            line = substr(line, RSTART + RLENGTH)
-        }
-        line = result line
-        result = ""
-        # パス2: "型 * 変数名" → "型 *変数名" (型とアスタリスクの間にスペースのケース)
-        while (match(line, /\* [a-zA-Z_]/)) {
-            result = result substr(line, 1, RSTART) substr(line, RSTART + 2, 1)
-            line = substr(line, RSTART + RLENGTH)
-        }
-        print result line
+        print line
         next
     }
     { print }
