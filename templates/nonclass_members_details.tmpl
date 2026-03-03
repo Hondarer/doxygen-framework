@@ -22,7 +22,7 @@
 
 {% if exists("publicTypes") %}## 型
 
-{% for child in publicTypes %}### {{name}}::{{child.name}}
+{% for child in publicTypes %}### {% if kind != "file" %}{{name}}::{% endif %}{{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}
