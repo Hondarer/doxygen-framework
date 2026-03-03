@@ -632,7 +632,7 @@ def callgraph_to_plantuml_graph(func_id, nodes, edges, title):
     lines = []
     lines.append(f'caption {title}')
 
-    id_to_alias = {nid: re.sub(r'[^a-zA-Z0-9_]', '_', nid) for nid in nodes}
+    id_to_alias = {nid: f'n{i}' for i, nid in enumerate(nodes)}
 
     for node_id, display_name in nodes.items():
         alias = id_to_alias[node_id]
@@ -674,7 +674,7 @@ def callergraph_to_plantuml_graph(func_id, nodes, edges, title):
     lines = []
     lines.append(f'caption {title}')
 
-    id_to_alias = {nid: re.sub(r'[^a-zA-Z0-9_]', '_', nid) for nid in nodes}
+    id_to_alias = {nid: f'n{i}' for i, nid in enumerate(nodes)}
 
     for node_id, display_name in nodes.items():
         alias = id_to_alias[node_id]
