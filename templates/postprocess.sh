@@ -159,12 +159,20 @@ process_markdown_file() {
     sed 's/[[:space:]]*$//' | \
     sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/g' | \
     sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/g' | \
-    # コードフェンス前の改行不足対策
-    # テキストに続いてコードフェンス開始 (```lang) が同一行にある場合、
-    # テキストとコードフェンスの間に空行を挿入する。
-    # ※ !dunder! 変換より先に実行しないと、テキスト+コードフェンスが同一行のまま
-    #   !dunder! 変換の split 処理に渡されてコードフェンスが破壊されるため、
-    #   この awk を先に配置する。
+    # コードフェンス・LaTeX ブロック数式前の改行不足対策
+    # Doxybook2 が以下のケースでテキストと数式/コードを同一行に連結する問題を修正する。
+    #
+    # (1) コードフェンス: テキストに続いて ```lang が同一行にある場合、間に空行を挿入。
+    #     ※ !dunder! 変換より先に実行しないと、テキスト+コードフェンスが同一行のまま
+    #       !dunder! 変換の split 処理に渡されてコードフェンスが破壊されるため、
+    #       この awk を先に配置する。
+    #
+    # (2) LaTeX ブロック数式 \[: テキストに続いて \[ が同一行にある場合、
+    #     テキスト → 空行 → \[ → (同行に数式内容が続く場合は次行に分離) と出力する。
+    #
+    # (3) LaTeX インライン数式 \(: \( の前にテキストがあり、かつ \) が行末にある
+    #     (文中インライン数式ではなくラベル後の数式) の場合、テキストと数式の間に空行を挿入。
+    #     \) の後に非空白テキストが続く文中インライン数式 (例: "式は \( E=mc^2 \) です") は変換しない。
     awk '
     BEGIN { in_code_block = 0 }
     /^[[:space:]]*```/ {
@@ -182,6 +190,37 @@ process_markdown_file() {
         print fence
         in_code_block = 1
         next
+    }
+    !in_code_block && !($0 ~ /^[[:space:]]*\\\[/) && match($0, /\\\[/) {
+        # \[ が行頭以外にある: 前のテキストと \[ を分離し空行を挿入
+        text = substr($0, 1, RSTART - 1)
+        rest = substr($0, RSTART + RLENGTH)
+        sub(/[[:space:]]*$/, "", text)
+        # rest のインデントは LaTeX 数式の可読性のため保持する (先頭空白を除去しない)
+        print text
+        print ""
+        if (rest ~ /[^[:space:]]/) {
+            # \[ の後に数式内容が続く場合は \[ と内容を別行に分離
+            print "\\["
+            print rest
+        } else {
+            print "\\["
+        }
+        next
+    }
+    !in_code_block && match($0, /\\\(/) && RSTART > 1 && ($0 ~ /\\\)[[:space:]]*$/) {
+        # \( が行頭以外にあり、かつ \) が行末 (ラベル後の行末数式)
+        # \) の後に非空白テキストが続く文中インライン数式は対象外
+        text = substr($0, 1, RSTART - 1)
+        rest = substr($0, RSTART)
+        sub(/[[:space:]]*$/, "", text)
+        sub(/^[[:space:]]*/, "", rest)
+        if (text ~ /[^[:space:]]/) {
+            print text
+            print ""
+            print rest
+            next
+        }
     }
     { print }
     ' | \
@@ -216,6 +255,13 @@ process_markdown_file() {
                 part = parts[i]
                 gsub(/!dunder!/, "\\&#95;\\&#95;", part)
                 gsub(/__/, "\\&#95;\\&#95;", part)
+                # $\ 以外の $ を \$ にエスケープ (Pandoc の tex_math_dollars 誤認識防止)
+                # awk に先読み否定がないため、$\ を一時マーカーで保護してから残りをエスケープし、
+                # 最後にマーカーを $\ に戻す。
+                # LaTeX コマンドは $\ で始まる形式 ($\sum 等) のため除外される。
+                gsub(/\$\\/, "!latexdollar!", part)
+                gsub(/\$/, "\\$", part)
+                gsub(/!latexdollar!/, "$\\", part)
                 result = result part
             } else {
                 # インラインコード内: !dunder! を __ に復元するだけ
