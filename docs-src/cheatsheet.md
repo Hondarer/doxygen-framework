@@ -390,3 +390,7 @@ ssize_t readFile(const char *filename, char *buffer, size_t bufferSize);
  */
 int main(int argc, char *argv[]);
 ```
+
+## 他の参考サイト
+
+- [実践で使える！Doxygenコメント完全ガイド2024 – 明日から使えるベストプラクティス10選](https://dexall.co.jp/articles/?p=1917)
