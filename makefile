@@ -111,6 +111,8 @@ markdown-generation:
 	if [ $$DOXYBOOK2_EXIT -ne 0 ]; then exit $$DOXYBOOK2_EXIT; fi
     # C# enum を Files ドキュメントに挿入
 	python3 templates/inject-cs-enums.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
+    # グループ (@defgroup) を Files ドキュメントに挿入
+	python3 templates/inject-groups.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # 正常に変換できたら xml は不要なため削除
 	rm -rf $(XML_DIR)
 #	rm -rf $(XML_ORG_DIR)
