@@ -18,7 +18,7 @@ Modules/group__*.md はスタンドアロンのグループページとして保
 使用方法:
     python3 inject-groups.py <xml_dir> <docs_dir>
 例:
-    python3 inject-groups.py ../xml/simplecomm ../docs-src/doxybook2/simplecomm
+    python3 inject-groups.py ../xml/porter ../docs-src/doxybook2/porter
 """
 
 import sys
@@ -36,7 +36,7 @@ def source_basename_to_md_name(basename):
       アンダースコアを二重アンダースコアに変換し、ピリオドを _8 に変換する。
 
     例:
-      libsimplecomm_const.h -> libsimplecomm__const_8h.md
+      libporter_const.h -> libporter__const_8h.md
       commRecvThread.h      -> commRecvThread_8h.md
     """
     return basename.replace("_", "__").replace(".", "_8") + ".md"
@@ -55,7 +55,7 @@ def collect_groups(xml_dir):
         dict: {group_id: (title, {source_basename: (member_names_set, min_line)})}
             group_id: グループ ID (例: "group__COMM__RESULT")
             title: グループタイトル (例: "戻り値")
-            source_basename: ソースファイルのベースネーム (例: "libsimplecomm_const.h")
+            source_basename: ソースファイルのベースネーム (例: "libporter_const.h")
             member_names_set: そのファイルで定義されたメンバー名の集合
             min_line: そのファイル内のメンバーの最小行番号 (ファイル内でのソートに使用)
     """
@@ -244,7 +244,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
         print("  [skip] {}: ## カテゴリー section already exists".format(files_md_path.name))
         return
 
-    files_stem = files_md_path.stem  # 例: libsimplecomm__const_8h
+    files_stem = files_md_path.stem  # 例: libporter__const_8h
     source_basename = files_md_path.name  # 後でキーとして不要、groups から取得済み
 
     append_lines = ["\n## カテゴリー\n"]
