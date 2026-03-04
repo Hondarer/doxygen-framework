@@ -42,15 +42,6 @@
 {{deprecated}}
 {% endif -%}
 
-{% if exists("see") %}
- #### 参照
-
-{% if length(see) == 1 %}{{first(see)}}{% else %}
-
-{% for item in see %}##### {{item}}
-{% endfor %}{% endif %}
-{% endif -%}
-
 {% if exists("returns") %}
  #### 戻り値
 
@@ -218,6 +209,15 @@
 {% if exists("inbody") %}
 {{inbody}}
 
+{% endif -%}
+
+{% if exists("see") %}
+ #### 参照
+
+{% if length(see) == 1 %}{{first(see)}}{% else %}
+
+{% for item in see %}##### {{item}}
+{% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("copyright") %}
