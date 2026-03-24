@@ -213,6 +213,34 @@ process_markdown_file() {
     }
     { print }
     ' | \
+    # __DETAILS_ONLY__ マーカー付き見出しブロックを詳細タグで囲む
+    # extract-graphs.py が details_only=True のグラフタイトルに付与した
+    # "__DETAILS_ONLY__" プレフィックスを検出し、その見出しと plantuml
+    # コードフェンスを <!--details:--> / <!--:details--> で囲む。
+    awk '
+    BEGIN { details_open = 0; in_fence = 0 }
+    /^#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
+        sub(/DOXYFW_DETAILS_ONLY /, "")
+        print "<!--details:-->"
+        print
+        details_open = 1
+        next
+    }
+    /^```/ && details_open {
+        if (in_fence) {
+            print
+            in_fence = 0
+            print ""
+            print "<!--:details-->"
+            details_open = 0
+        } else {
+            in_fence = 1
+            print
+        }
+        next
+    }
+    { print }
+    ' | \
     # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
     # コードブロックの種別に応じて変換先を切り替える。
     # - PlantUML コードブロック内: !dunder! と __ の両方を ~_~_ に変換

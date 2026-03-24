@@ -34,6 +34,22 @@ DOT_GRAPH_MAX_NODES = 50
 # False: フルパスをそのまま表示
 INC_GRAPH_LABEL_BASENAME_ONLY = True
 
+# グラフ種別ごとの詳細版のみ表示設定
+# True : 詳細版のみ表示 (postprocess.sh が <!--details:--> タグで囲む)
+# False: 通常版にも表示 (タグなし)
+GRAPH_DETAILS_ONLY = {
+    "incdepgraph":        True,
+    "invincdepgraph":     True,
+    "inheritancegraph":   True,
+    "collaborationgraph": True,
+    "references":         True,
+    "referencedby":       True,
+}
+
+# 詳細版のみマーカー文字列 (postprocess.sh が検出して詳細タグに変換する)
+# NOTE: preprocess.sh が __ を !dunder! に変換するため、__ を含む文字列は使用できない。
+DETAILS_ONLY_MARKER = "DOXYFW_DETAILS_ONLY"
+
 
 def parse_graph_nodes(xml_text, graph_tag):
     """XML テキストから graphType 要素のノードとエッジを抽出する。
@@ -693,21 +709,26 @@ def callergraph_to_plantuml_graph(func_id, nodes, edges, title):
     return '\n'.join(lines)
 
 
-def build_plantuml_tag(plantuml_body, title):
+def build_plantuml_tag(plantuml_body, title, details_only=False):
     """PlantUML テキストを <simplesect kind="par"> タグで囲む。
 
     Doxybook2 の details.tmpl で par セクションとして処理され、
     #### 見出し付きの独立セクションとして出力される。
 
+    details_only=True の場合、タイトルに DETAILS_ONLY_MARKER プレフィックスを付与する。
+    postprocess.sh がこのマーカーを検出して詳細タグ (<!--details:--> / <!--:details-->) で囲む。
+
     Args:
         plantuml_body: PlantUML テキスト (@startuml/@enduml は含まない)
         title: セクションの見出しタイトル
+        details_only: True の場合、詳細版のみ表示マーカーを付与する
 
     Returns:
         挿入用の XML 文字列
     """
+    effective_title = f"{DETAILS_ONLY_MARKER} {title}" if details_only else title
     return (
-        f'<para><simplesect kind="par"><title>{title}</title>'
+        f'<para><simplesect kind="par"><title>{effective_title}</title>'
         f'<para><plantuml>\n{plantuml_body}\n</plantuml></para>'
         f'</simplesect></para>\n'
     )
@@ -830,7 +851,7 @@ def inject_compound_graphs(xml_text):
                     reverse_edges=True
                 )
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["incdepgraph"]))
 
             # 逆インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'invincdepgraph')
@@ -852,7 +873,7 @@ def inject_compound_graphs(xml_text):
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["invincdepgraph"]))
 
         elif kind in ('class', 'struct'):
             # コンパウンド名を取得
@@ -875,7 +896,7 @@ def inject_compound_graphs(xml_text):
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["inheritancegraph"]))
 
             # コラボレーション図
             graphs = parse_graph_nodes(content, 'collaborationgraph')
@@ -889,14 +910,14 @@ def inject_compound_graphs(xml_text):
                     first_node_id=self_id
                 )
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["collaborationgraph"]))
 
         if not injections:
             return match.group(0)
 
         # detaileddescription の閉じタグの直前に挿入
         injection_text = ''.join(
-            build_plantuml_tag(puml, heading) for heading, puml in injections
+            build_plantuml_tag(puml, heading, details_only) for heading, puml, details_only in injections
         )
 
         # detaileddescription が存在する場合、その閉じタグの前に挿入
@@ -980,7 +1001,7 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
                 caption = f'{func_name} の{heading}'
                 puml = callergraph_to_plantuml_graph(func_id, nodes, edges, caption)
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["referencedby"]))
         else:
             # フォールバック: 1 階層のみ
             callers = parse_referencedby(content, function_ids, compound_file_map, self_compound_id)
@@ -989,7 +1010,7 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
                 caption = f'{func_name} の{heading}'
                 puml = callergraph_to_plantuml(func_name, callers, caption)
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["referencedby"]))
 
         # 呼び出し先グラフ (references)
         if func_id and callees_map is not None and func_id in callees_map:
@@ -1001,7 +1022,7 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
                 caption = f'{func_name} の{heading}'
                 puml = callgraph_to_plantuml_graph(func_id, nodes, edges, caption)
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["references"]))
         else:
             # フォールバック: 1 階層のみ
             called = parse_references(content, function_ids, compound_file_map, self_compound_id)
@@ -1010,13 +1031,13 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
                 caption = f'{func_name} の{heading}'
                 puml = callgraph_to_plantuml(func_name, called, caption)
                 if puml:
-                    injections.append((heading, puml))
+                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["references"]))
 
         if not injections:
             return match.group(0)
 
         injection_text = ''.join(
-            build_plantuml_tag(puml, heading) for heading, puml in injections
+            build_plantuml_tag(puml, heading, details_only) for heading, puml, details_only in injections
         )
 
         # detaileddescription の閉じタグの直前に挿入
