@@ -1,6 +1,6 @@
 # テンプレート 日本語ローカライズ TODO
 
-`doxyfw/templates/` 内の `.tmpl` ファイルに残存する英語文字列の一覧です。
+`framework/doxyfw/templates/` 内の `.tmpl` ファイルに残存する英語文字列の一覧です。
 
 ## 未対応
 

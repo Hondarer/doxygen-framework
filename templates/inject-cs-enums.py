@@ -13,7 +13,7 @@ Files/*.md へ統合した後、Enums/ ディレクトリを削除する。
 使用方法:
     python3 inject-cs-enums.py <xml_dir> <docs_dir>
 例:
-    python3 inject-cs-enums.py ../xml/calc.net ../docs-src/doxybook2/calc.net
+    python3 inject-cs-enums.py ../../xml/calc.net ../../docs-src/doxybook2/calc.net
 """
 
 import sys

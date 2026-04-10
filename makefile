@@ -15,16 +15,16 @@ export SKIP_MARKER
 # CATEGORY に応じたパスの設定
 ifdef CATEGORY
     CATEGORY_SUFFIX := /$(CATEGORY)
-    DOXYFILE_PART := ../Doxyfile.part.$(CATEGORY)
+    DOXYFILE_PART := ../../Doxyfile.part.$(CATEGORY)
 else
     CATEGORY_SUFFIX :=
-    DOXYFILE_PART := ../Doxyfile.part
+    DOXYFILE_PART := ../../Doxyfile.part
 endif
 
-DOCS_DOXYGEN_DIR := ../docs/doxygen$(CATEGORY_SUFFIX)
-DOCS_DOXYBOOK2_DIR := ../docs-src/doxybook2$(CATEGORY_SUFFIX)
-XML_DIR := ../xml$(CATEGORY_SUFFIX)
-XML_ORG_DIR := ../xml_org$(CATEGORY_SUFFIX)
+DOCS_DOXYGEN_DIR := ../../docs/doxygen$(CATEGORY_SUFFIX)
+DOCS_DOXYBOOK2_DIR := ../../docs-src/doxybook2$(CATEGORY_SUFFIX)
+XML_DIR := ../../xml$(CATEGORY_SUFFIX)
+XML_ORG_DIR := ../../xml_org$(CATEGORY_SUFFIX)
 
 .DEFAULT_GOAL := default
 
@@ -50,7 +50,7 @@ default: clean
 			rm -f $$TEMP_DOXYFILE; \
 			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
 		fi; \
-		cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+		cd ../../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 		PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 		rm -f $$TEMP_DOXYFILE; \
 		if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
@@ -61,13 +61,13 @@ default: clean
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
-			cd ../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			cd ../../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 			rm -f $$TEMP_DOXYFILE; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
 			exit $$COLORIZE_EXIT; \
 		else \
-			cd ../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			cd ../../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
 			exit $$COLORIZE_EXIT; \
@@ -117,8 +117,8 @@ markdown-generation:
 	rm -rf $(XML_DIR)
 #	rm -rf $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
-	@rmdir ../xml 2>/dev/null || true
-	@rmdir ../xml_org 2>/dev/null || true
+	@rmdir ../../xml 2>/dev/null || true
+	@rmdir ../../xml_org 2>/dev/null || true
     # ポストプロセッシング
 	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
 
@@ -126,7 +126,7 @@ markdown-generation:
 clean:
 	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR) $(XML_DIR) $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
-	@rmdir ../docs/doxygen 2>/dev/null || true
-	@rmdir ../docs-src/doxybook2 2>/dev/null || true
-	@rmdir ../xml 2>/dev/null || true
-	@rmdir ../xml_org 2>/dev/null || true
+	@rmdir ../../docs/doxygen 2>/dev/null || true
+	@rmdir ../../docs-src/doxybook2 2>/dev/null || true
+	@rmdir ../../xml 2>/dev/null || true
+	@rmdir ../../xml_org 2>/dev/null || true

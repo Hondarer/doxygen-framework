@@ -6,6 +6,10 @@
 
 # set -x # デバッグ時のみ有効にする
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRAMEWORK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_ROOT="$(cd "$FRAMEWORK_DIR/../.." && pwd)"
+
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
@@ -158,7 +162,7 @@ copy_referenced_images() {
 
 # Markdown ファイルとディレクトリ構造をコピー
 copy_markdown_files() {
-    local base_dir="$1"       # Doxygen 実行ディレクトリ (../prod)
+    local base_dir="$1"       # Doxygen 実行ディレクトリ
     local input_dirs="$2"     # INPUT ディレクトリリスト (空白区切り)
     local dest_dir="$3"       # コピー先ディレクトリ
 
@@ -168,7 +172,7 @@ copy_markdown_files() {
 
     # .gitignore パターンを抽出
     local gitignore_patterns=""
-    local gitignore_file="../.gitignore"
+    local gitignore_file="$WORKSPACE_ROOT/.gitignore"
     if [ -f "$gitignore_file" ]; then
         gitignore_patterns=$(extract_gitignore_patterns "$gitignore_file")
         if [ -n "$gitignore_patterns" ]; then
@@ -280,24 +284,24 @@ DOXYFILE_PATH=""
 TEMP_DOXYFILE=""
 
 if [ -n "$CATEGORY" ]; then
-    if [ -f "../Doxyfile.part.$CATEGORY" ]; then
+    if [ -f "$WORKSPACE_ROOT/Doxyfile.part.$CATEGORY" ]; then
         # マージされた内容を再現
         TEMP_DOXYFILE=$(mktemp)
-        cat "../doxyfw/Doxyfile" "../Doxyfile.part.$CATEGORY" > "$TEMP_DOXYFILE"
+        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/Doxyfile.part.$CATEGORY" > "$TEMP_DOXYFILE"
         DOXYFILE_PATH="$TEMP_DOXYFILE"
         echo "  Using merged Doxyfile: Doxyfile + Doxyfile.part.$CATEGORY"
     else
-        DOXYFILE_PATH="../doxyfw/Doxyfile"
+        DOXYFILE_PATH="$FRAMEWORK_DIR/Doxyfile"
         echo "  Using base Doxyfile (Doxyfile.part.$CATEGORY not found)"
     fi
-elif [ -f "../Doxyfile.part" ]; then
+elif [ -f "$WORKSPACE_ROOT/Doxyfile.part" ]; then
     # マージされた内容を再現
     TEMP_DOXYFILE=$(mktemp)
-    cat "../doxyfw/Doxyfile" "../Doxyfile.part" > "$TEMP_DOXYFILE"
+    cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/Doxyfile.part" > "$TEMP_DOXYFILE"
     DOXYFILE_PATH="$TEMP_DOXYFILE"
     echo "  Using merged Doxyfile: Doxyfile + Doxyfile.part"
 else
-    DOXYFILE_PATH="../doxyfw/Doxyfile"
+    DOXYFILE_PATH="$FRAMEWORK_DIR/Doxyfile"
     echo "  Using base Doxyfile"
 fi
 
@@ -314,7 +318,7 @@ if [ -n "$INPUT_DIRS" ]; then
 
     # Markdown ファイルをコピー
     PAGES_DIR="$MARKDOWN_DIR/Pages"
-    copy_markdown_files "../prod" "$INPUT_DIRS" "$PAGES_DIR"
+    copy_markdown_files "$WORKSPACE_ROOT/prod" "$INPUT_DIRS" "$PAGES_DIR"
     echo "Markdown files copied to $PAGES_DIR"
 
     # USE_MDFILE_AS_MAINPAGE を抽出してリネーム

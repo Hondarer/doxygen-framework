@@ -75,7 +75,7 @@ sequenceDiagram
 
 ## プロジェクト概要
 
-これは、Doxygen ドキュメント生成のための設定・テンプレート・スクリプト群を提供するフレームワークです。本リポジトリはメインプロジェクトからサブモジュール doxyfw として参照され、以下の機能を提供します。
+これは、Doxygen ドキュメント生成のための設定・テンプレート・スクリプト群を提供するフレームワークです。本リポジトリはメインプロジェクトからサブモジュール `doxyfw` として参照され、物理配置は `framework/doxyfw` を前提とします。以下の機能を提供します。
 
 - Doxygen 基本設定ファイル
 - Markdown 変換用の Doxybook2 設定・テンプレート
@@ -87,7 +87,8 @@ sequenceDiagram
 ### ドキュメント生成
 
 ```bash
-make docs
+cd framework/doxyfw
+make
 ```
 
 このコマンドは以下の処理を順次実行します。
@@ -112,15 +113,16 @@ make clean
 
 ```text
 main-project/                     # メインプロジェクト
-+-- doxyfw/                    # 本リポジトリ (git submodule)
-|   +-- Doxyfile              # Doxygen 基本設定
-|   +-- doxybook2-config.json # Doxybook2 設定
-|   +-- templates/            # カスタム日本語テンプレート群
-|   |   +-- *.tmpl           # Jinja2 テンプレートファイル
-|   |   +-- preprocess.sh    # XML 前処理スクリプト
-|   |   +-- postprocess.sh   # Markdown 後処理スクリプト
-|   +-- docs-src/             # 技術ドキュメント
-|   +-- makefile              # ドキュメント生成用 makefile
++-- framework/
+|   +-- doxyfw/               # 本リポジトリ (git submodule)
+|       +-- Doxyfile          # Doxygen 基本設定
+|       +-- doxybook2-config.json # Doxybook2 設定
+|       +-- templates/        # カスタム日本語テンプレート群
+|       |   +-- *.tmpl        # Jinja2 テンプレートファイル
+|       |   +-- preprocess.sh # XML 前処理スクリプト
+|       |   +-- postprocess.sh # Markdown 後処理スクリプト
+|       +-- docs-src/         # 技術ドキュメント
+|       +-- makefile          # ドキュメント生成用 makefile
 +-- Doxyfile.part              # プロジェクト固有設定 (オプション)
 +-- prod/src/                  # 実際の C ソースコード
 +-- docs/doxygen/              # Doxygen 生成 HTML 出力

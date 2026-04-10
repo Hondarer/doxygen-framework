@@ -89,7 +89,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 ### makefile からの呼び出し
 
 ```bash
-doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh
+doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -98,7 +98,7 @@ doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh
 ### 終了コードの保持
 
 ```bash
-doxygen Doxyfile 2>&1 | ../doxyfw/doxygen-colorize-output.sh;
+doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh;
 DOXYGEN_EXIT=${PIPESTATUS[0]};
 exit $DOXYGEN_EXIT;
 ```

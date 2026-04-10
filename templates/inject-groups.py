@@ -18,7 +18,7 @@ Modules/group__*.md はスタンドアロンのグループページとして保
 使用方法:
     python3 inject-groups.py <xml_dir> <docs_dir>
 例:
-    python3 inject-groups.py ../xml/porter ../docs-src/doxybook2/porter
+    python3 inject-groups.py ../../xml/porter ../../docs-src/doxybook2/porter
 """
 
 import sys

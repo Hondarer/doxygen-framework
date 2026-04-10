@@ -2,7 +2,7 @@
 
 # preprocess.sh - Doxybook2 前処理スクリプト
 # 使用方法: ./preprocess.sh <xml_directory>
-# 例: ./preprocess.sh ../xml
+# 例: ./preprocess.sh ../../xml
 
 set -e  # エラーで停止
 

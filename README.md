@@ -17,9 +17,11 @@ Doxygen ドキュメント生成のための設定・テンプレート・スク
 
 ```bash
 # ドキュメント生成
-make docs
+cd framework/doxyfw
+make
 
 # 生成ファイル削除
+cd framework/doxyfw
 make clean
 ```
 
@@ -29,8 +31,8 @@ make clean
 
 ## 出力形式
 
-- HTML: `../docs/doxygen/` に生成
-- Markdown: `../docs-src/doxybook2/` に生成
+- HTML: 親プロジェクトの `docs/doxygen/` に生成
+- Markdown: 親プロジェクトの `docs-src/doxybook2/` に生成
 
 ## 必要なツール
 
