@@ -276,9 +276,9 @@ Doxygen にスレッドセーフを表す専用コマンドはないため、`@p
  *
  *  使用例:
  *
-    @code{.c}
+ *  @code{.c}
     FORCE_INLINE int fast_add(int a, int b) { return a + b; }
-    @endcode
+ *  @endcode
  *
  *******************************************************************************
  */
@@ -397,6 +397,9 @@ int main(int argc, char *argv[]);
 
 オプションの `{<language>}` パラメータには、言語名 (c, cpp, python, java など) を指定できます。省略した場合は、コンテキストから言語が推測されます。
 
+`@code` と `@endcode` の行は、Doxygen コメントのコマンド行として行頭の `*` を付けてください。
+コード本体の各行は編集しやすさを優先し、行頭の `*` を付けません。
+
 以下に例を示します。
 
 ```c
@@ -404,11 +407,11 @@ int main(int argc, char *argv[]);
  *  @brief          文字列を反転します。
  *  @param[in,out]  str 反転する文字列。
  *  @details        以下は使用例です。
-    @code{.c}
+ *  @code{.c}
     char text[] = "Hello";
     reverseString(text);
     printf("%s\n", text);  // 出力: olleH
-    @endcode
+ *  @endcode
  */
 void reverseString(char *str);
 ```
@@ -422,11 +425,11 @@ void reverseString(char *str);
  *  @details
  *  この関数は配列内の最大値を線形探索で見つけます。
  *
-    @code
+ *  @code
     int numbers[] = {3, 7, 2, 9, 1};
     int max = findMax(numbers, 5);
     printf("最大値: %d\n", max);  // 出力: 最大値: 9
-    @endcode
+ *  @endcode
  */
 int findMax(const int *arr, size_t size);
 ```
