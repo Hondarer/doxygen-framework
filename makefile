@@ -1,5 +1,6 @@
 # この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+INPUT_FILTER_ABS := $(MAKEFILE_DIR)/input-filter.py
 
 # ドキュメント大分類オプション (デフォルトは空)
 CATEGORY ?=
@@ -13,13 +14,23 @@ SKIP_MARKER := /tmp/.skip_markdown_generation.$(SKIP_MARKER_PID)
 export SKIP_MARKER
 
 # CATEGORY に応じたパスの設定
-ifdef CATEGORY
+ifneq ($(strip $(CATEGORY)),)
     CATEGORY_SUFFIX := /$(CATEGORY)
-    DOXYFILE_PART := ../../app/$(CATEGORY)/Doxyfile.part.$(CATEGORY)
+    DOXYGEN_WORKDIR := $(abspath ../../app/$(CATEGORY))
+    DOXYFILE_PART := $(DOXYGEN_WORKDIR)/Doxyfile.part.$(CATEGORY)
 else
     CATEGORY_SUFFIX :=
-    DOXYFILE_PART := ../../Doxyfile.part
+    DOXYGEN_WORKDIR := $(abspath ../../prod)
+    DOXYFILE_PART := $(abspath ../../Doxyfile.part)
 endif
+export DOXYGEN_WORKDIR
+
+ifneq ($(wildcard $(DOXYFILE_PART)),)
+    DOXYFILE_PART_PATH := $(DOXYFILE_PART)
+else
+    DOXYFILE_PART_PATH :=
+endif
+export DOXYFILE_PART_PATH
 
 DOCS_DOXYGEN_DIR := ../../pages/doxygen$(CATEGORY_SUFFIX)
 DOCS_DOXYBOOK2_DIR := ../../docs/doxybook2$(CATEGORY_SUFFIX)
@@ -41,16 +52,20 @@ default: clean
 	@if [ -f "$(DOXYFILE_PART)" ]; then \
 		echo "Merging $(DOXYFILE_PART)..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
-		cat Doxyfile $(DOXYFILE_PART) > $$TEMP_DOXYFILE || exit 1; \
+		cat "$(MAKEFILE_DIR)/Doxyfile" "$(DOXYFILE_PART)" > $$TEMP_DOXYFILE || exit 1; \
+		TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
 		if [ -n "$(CATEGORY)" ]; then \
-			TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
+			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
-			rm -f $$TEMP_DOXYFILE; \
-			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
+		else \
+			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		fi; \
-		cd ../../app/$(CATEGORY) && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+		rm -f $$TEMP_DOXYFILE; \
+		TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
+		cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 		PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 		rm -f $$TEMP_DOXYFILE; \
 		if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
@@ -60,15 +75,19 @@ default: clean
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
-			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
-			cd ../../app/$(CATEGORY) && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
+			cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 			rm -f $$TEMP_DOXYFILE; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
 			exit $$COLORIZE_EXIT; \
 		else \
-			cd ../../prod && doxygen $(MAKEFILE_DIR)/Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
+			cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
+			rm -f $$TEMP_DOXYFILE; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
 			exit $$COLORIZE_EXIT; \
 		fi; \

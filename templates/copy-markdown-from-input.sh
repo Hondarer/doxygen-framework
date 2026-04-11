@@ -277,22 +277,37 @@ copy_markdown_files() {
 # メイン処理
 echo "Copying Markdown files from INPUT directories..."
 
+# Doxygen 実行時の基準ディレクトリを決定
+# makefile から渡された値を優先し、未指定時は既定構成を使う
+DOXYGEN_BASE_DIR=""
+if [ -n "$DOXYGEN_WORKDIR" ] && [ -d "$DOXYGEN_WORKDIR" ]; then
+    DOXYGEN_BASE_DIR="$DOXYGEN_WORKDIR"
+elif [ -n "$CATEGORY" ] && [ -d "$WORKSPACE_ROOT/app/$CATEGORY" ]; then
+    DOXYGEN_BASE_DIR="$WORKSPACE_ROOT/app/$CATEGORY"
+else
+    DOXYGEN_BASE_DIR="$WORKSPACE_ROOT/prod"
+fi
+
 # 使用された Doxyfile を特定
-# - CATEGORY が指定されている場合は Doxyfile.part.{CATEGORY}
+# - CATEGORY が指定されている場合は app/{CATEGORY}/Doxyfile.part.{CATEGORY}
 # - それ以外は Doxyfile.part または Doxyfile
 DOXYFILE_PATH=""
 TEMP_DOXYFILE=""
 
-if [ -n "$CATEGORY" ]; then
-    if [ -f "$WORKSPACE_ROOT/Doxyfile.part.$CATEGORY" ]; then
-        # マージされた内容を再現
+if [ -n "$DOXYFILE_PART_PATH" ] && [ -f "$DOXYFILE_PART_PATH" ]; then
+    TEMP_DOXYFILE=$(mktemp)
+    cat "$FRAMEWORK_DIR/Doxyfile" "$DOXYFILE_PART_PATH" > "$TEMP_DOXYFILE"
+    DOXYFILE_PATH="$TEMP_DOXYFILE"
+    echo "  Using merged Doxyfile: Doxyfile + $(basename "$DOXYFILE_PART_PATH")"
+elif [ -n "$CATEGORY" ]; then
+    if [ -f "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part.$CATEGORY" ]; then
         TEMP_DOXYFILE=$(mktemp)
-        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/Doxyfile.part.$CATEGORY" > "$TEMP_DOXYFILE"
+        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part.$CATEGORY" > "$TEMP_DOXYFILE"
         DOXYFILE_PATH="$TEMP_DOXYFILE"
-        echo "  Using merged Doxyfile: Doxyfile + Doxyfile.part.$CATEGORY"
+        echo "  Using merged Doxyfile: Doxyfile + app/$CATEGORY/Doxyfile.part.$CATEGORY"
     else
         DOXYFILE_PATH="$FRAMEWORK_DIR/Doxyfile"
-        echo "  Using base Doxyfile (Doxyfile.part.$CATEGORY not found)"
+        echo "  Using base Doxyfile (app/$CATEGORY/Doxyfile.part.$CATEGORY not found)"
     fi
 elif [ -f "$WORKSPACE_ROOT/Doxyfile.part" ]; then
     # マージされた内容を再現
@@ -310,6 +325,7 @@ INPUT_DIRS=$(extract_input_from_doxyfile "$DOXYFILE_PATH")
 
 if [ -n "$INPUT_DIRS" ]; then
     echo "  INPUT directories: $INPUT_DIRS"
+    echo "  Base directory: $DOXYGEN_BASE_DIR"
 
     # 引用符が含まれている場合は警告
     if echo "$INPUT_DIRS" | grep -q '"'; then
@@ -318,7 +334,7 @@ if [ -n "$INPUT_DIRS" ]; then
 
     # Markdown ファイルをコピー
     PAGES_DIR="$MARKDOWN_DIR/Pages"
-    copy_markdown_files "$WORKSPACE_ROOT/prod" "$INPUT_DIRS" "$PAGES_DIR"
+    copy_markdown_files "$DOXYGEN_BASE_DIR" "$INPUT_DIRS" "$PAGES_DIR"
     echo "Markdown files copied to $PAGES_DIR"
 
     # USE_MDFILE_AS_MAINPAGE を抽出してリネーム
