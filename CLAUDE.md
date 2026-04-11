@@ -127,10 +127,10 @@ main-project/                     # メインプロジェクト
 +-- prod/src/                  # CATEGORY 未指定時の既定ソースコード
 +-- app/
 |   +-- calc/
-|   |   +-- Doxyfile.part.calc
+|   |   +-- Doxyfile.part
 |   |   +-- prod/
 |   +-- calc.net/
-|       +-- Doxyfile.part.calc.net
+|       +-- Doxyfile.part
 |       +-- prod/
 +-- pages/doxygen/             # Doxygen 生成 HTML 出力
 +-- docs/doxybook2/            # Doxybook2 生成 Markdown 出力
@@ -154,7 +154,7 @@ main-project/                     # メインプロジェクト
 
 - `Doxyfile` - Doxygen 基本設定 (UTF-8 エンコーディング、全要素抽出、PlantUML 対応)
 - メインプロジェクトの `Doxyfile.part` - CATEGORY 未指定時の設定オーバーライド (存在時は基本設定に追加結合)
-- `app/<category>/Doxyfile.part.<category>` - CATEGORY 指定時の設定オーバーライド
+- `app/<category>/Doxyfile.part` - CATEGORY 指定時の設定オーバーライド
 - `doxybook2-config.json` - Doxybook2 設定 (ソートあり、フォルダ使用なし、.md 拡張子)
 - `config/templates/` - 日本語フォーマット用のカスタムテンプレート群
 
@@ -191,7 +191,7 @@ Doxybook2 変換後の Markdown ファイル後処理を実行します。
 - PlantUML サポート (前提: 環境変数 `PLANTUML_HOME` に `plantuml.jar` の属するパスが設定されていること)
 - UTF-8 エンコーディングで日本語コメント対応
 - 関数宣言はヘッダーで簡潔に、詳細実装コメントは .c ファイルに記述
-- プロジェクト固有設定は、CATEGORY 未指定時は `Doxyfile.part`、CATEGORY 指定時は `app/<category>/Doxyfile.part.<category>` で上書きする (PROJECT_NAME 等)
+- プロジェクト固有設定は、CATEGORY 未指定時は `Doxyfile.part`、CATEGORY 指定時は `app/<category>/Doxyfile.part` で上書きする (PROJECT_NAME 等)
 
 ### テンプレート開発時の注意点
 

@@ -289,7 +289,7 @@ else
 fi
 
 # 使用された Doxyfile を特定
-# - CATEGORY が指定されている場合は app/{CATEGORY}/Doxyfile.part.{CATEGORY}
+# - CATEGORY が指定されている場合は app/{CATEGORY}/Doxyfile.part
 # - それ以外は Doxyfile.part または Doxyfile
 DOXYFILE_PATH=""
 TEMP_DOXYFILE=""
@@ -300,14 +300,14 @@ if [ -n "$DOXYFILE_PART_PATH" ] && [ -f "$DOXYFILE_PART_PATH" ]; then
     DOXYFILE_PATH="$TEMP_DOXYFILE"
     echo "  Using merged Doxyfile: Doxyfile + $(basename "$DOXYFILE_PART_PATH")"
 elif [ -n "$CATEGORY" ]; then
-    if [ -f "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part.$CATEGORY" ]; then
+    if [ -f "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part" ]; then
         TEMP_DOXYFILE=$(mktemp)
-        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part.$CATEGORY" > "$TEMP_DOXYFILE"
+        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part" > "$TEMP_DOXYFILE"
         DOXYFILE_PATH="$TEMP_DOXYFILE"
-        echo "  Using merged Doxyfile: Doxyfile + app/$CATEGORY/Doxyfile.part.$CATEGORY"
+        echo "  Using merged Doxyfile: Doxyfile + app/$CATEGORY/Doxyfile.part"
     else
         DOXYFILE_PATH="$FRAMEWORK_DIR/Doxyfile"
-        echo "  Using base Doxyfile (app/$CATEGORY/Doxyfile.part.$CATEGORY not found)"
+        echo "  Using base Doxyfile (app/$CATEGORY/Doxyfile.part not found)"
     fi
 elif [ -f "$WORKSPACE_ROOT/Doxyfile.part" ]; then
     # マージされた内容を再現

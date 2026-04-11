@@ -17,7 +17,7 @@ export SKIP_MARKER
 ifneq ($(strip $(CATEGORY)),)
     CATEGORY_SUFFIX := /$(CATEGORY)
     DOXYGEN_WORKDIR := $(abspath ../../app/$(CATEGORY))
-    DOXYFILE_PART := $(DOXYGEN_WORKDIR)/Doxyfile.part.$(CATEGORY)
+    DOXYFILE_PART := $(DOXYGEN_WORKDIR)/Doxyfile.part
 else
     CATEGORY_SUFFIX :=
     DOXYGEN_WORKDIR := $(abspath ../../prod)
