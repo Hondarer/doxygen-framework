@@ -15,7 +15,7 @@ export SKIP_MARKER
 # CATEGORY に応じたパスの設定
 ifdef CATEGORY
     CATEGORY_SUFFIX := /$(CATEGORY)
-    DOXYFILE_PART := ../../Doxyfile.part.$(CATEGORY)
+    DOXYFILE_PART := ../../app/$(CATEGORY)/Doxyfile.part.$(CATEGORY)
 else
     CATEGORY_SUFFIX :=
     DOXYFILE_PART := ../../Doxyfile.part
@@ -44,13 +44,13 @@ default: clean
 		cat Doxyfile $(DOXYFILE_PART) > $$TEMP_DOXYFILE || exit 1; \
 		if [ -n "$(CATEGORY)" ]; then \
 			TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../pages/doxygen/$(CATEGORY)/|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 			rm -f $$TEMP_DOXYFILE; \
 			TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
 		fi; \
-		cd ../../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+		cd ../../app/$(CATEGORY) && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 		PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 		rm -f $$TEMP_DOXYFILE; \
 		if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
@@ -58,10 +58,10 @@ default: clean
 	else \
 		TEMP_DOXYFILE=$$(mktemp); \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../pages/doxygen/$(CATEGORY)/|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
-			cd ../../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
+			cd ../../app/$(CATEGORY) && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
 			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
 			rm -f $$TEMP_DOXYFILE; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
