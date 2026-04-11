@@ -158,4 +158,4 @@ EOF
 
 - `makefile`: 本スクリプトを doxygen 実行時に適用
 - `Doxyfile`: Doxygen の警告フォーマット設定 (`WARN_FORMAT`)
-- `docs-src/doxygen-colored-output-research.md`: 調査結果と背景情報
+- `docs/doxygen-colored-output-research.md`: 調査結果と背景情報

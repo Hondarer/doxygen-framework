@@ -21,8 +21,8 @@ else
     DOXYFILE_PART := ../../Doxyfile.part
 endif
 
-DOCS_DOXYGEN_DIR := ../../docs/doxygen$(CATEGORY_SUFFIX)
-DOCS_DOXYBOOK2_DIR := ../../docs-src/doxybook2$(CATEGORY_SUFFIX)
+DOCS_DOXYGEN_DIR := ../../pages/doxygen$(CATEGORY_SUFFIX)
+DOCS_DOXYBOOK2_DIR := ../../docs/doxybook2$(CATEGORY_SUFFIX)
 XML_DIR := ../../xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := ../../xml_org$(CATEGORY_SUFFIX)
 
@@ -44,7 +44,7 @@ default: clean
 		cat Doxyfile $(DOXYFILE_PART) > $$TEMP_DOXYFILE || exit 1; \
 		if [ -n "$(CATEGORY)" ]; then \
 			TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)/|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 			rm -f $$TEMP_DOXYFILE; \
@@ -58,7 +58,7 @@ default: clean
 	else \
 		TEMP_DOXYFILE=$$(mktemp); \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../docs/doxygen/$(CATEGORY)/|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    Doxyfile > $$TEMP_DOXYFILE || exit 1; \
 			cd ../../prod && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
@@ -126,7 +126,7 @@ markdown-generation:
 clean:
 	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR) $(XML_DIR) $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
-	@rmdir ../../docs/doxygen 2>/dev/null || true
-	@rmdir ../../docs-src/doxybook2 2>/dev/null || true
+	@rmdir ../../pages/doxygen 2>/dev/null || true
+	@rmdir ../../docs/doxybook2 2>/dev/null || true
 	@rmdir ../../xml 2>/dev/null || true
 	@rmdir ../../xml_org 2>/dev/null || true

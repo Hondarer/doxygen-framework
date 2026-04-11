@@ -94,9 +94,9 @@ make
 このコマンドは以下の処理を順次実行します。
 
 1. メインプロジェクトに `Doxyfile.part` が存在する場合、基本設定ファイルと結合して一時ファイルを作成し使用 (設定のオーバーライド対応)
-2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `docs/doxygen/` に HTML ファイルを生成
+2. メインプロジェクトの `prod/` ディレクトリから C ソースファイルを解析し、`xml/` に Doxygen XML ファイルと `pages/doxygen/` に HTML ファイルを生成
 3. `templates/preprocess.sh` で XML ファイルを前処理 (PlantUML タグ、パラメータ direction 属性、linebreak タグを変換)
-4. Doxybook2 で XML を `docs-src/doxybook2/` の Markdown に変換 (カスタム日本語テンプレート使用)
+4. Doxybook2 で XML を `docs/doxybook2/` の Markdown に変換 (カスタム日本語テンプレート使用)
 5. `templates/postprocess.sh` で `!include` ディレクティブを処理して関連コンテンツを統合
 
 ### クリーンアップ
@@ -105,7 +105,7 @@ make
 make clean
 ```
 
-生成されたドキュメント (`docs/doxygen`、`docs-src/doxybook2`、`xml`) を削除します。
+生成されたドキュメント (`pages/doxygen`、`docs/doxybook2`、`xml`) を削除します。
 
 ## アーキテクチャ
 
@@ -121,12 +121,12 @@ main-project/                     # メインプロジェクト
 |       |   +-- *.tmpl        # Jinja2 テンプレートファイル
 |       |   +-- preprocess.sh # XML 前処理スクリプト
 |       |   +-- postprocess.sh # Markdown 後処理スクリプト
-|       +-- docs-src/         # 技術ドキュメント
+|       +-- docs/             # 技術ドキュメント
 |       +-- makefile          # ドキュメント生成用 makefile
 +-- Doxyfile.part              # プロジェクト固有設定 (オプション)
 +-- prod/src/                  # 実際の C ソースコード
-+-- docs/doxygen/              # Doxygen 生成 HTML 出力
-+-- docs-src/doxybook2/        # Doxybook2 生成 Markdown 出力
++-- pages/doxygen/             # Doxygen 生成 HTML 出力
++-- docs/doxybook2/            # Doxybook2 生成 Markdown 出力
 +-- xml/                       # Doxygen XML 中間ファイル
 ```
 

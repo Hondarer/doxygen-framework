@@ -98,7 +98,7 @@ VS Code のプレビューでは、Markdown ファイルから画像を相対パ
 Markdown の記述:   images/diagram.png
 ↓
 HTML の出力:       <img src="diagram.png">
-コピー先:          docs/doxygen/diagram.png (フラット)
+コピー先:          pages/doxygen/diagram.png (フラット)
 ```
 
 この置き換えにより、VS Code プレビューと Doxygen HTML の両方で画像が表示されます。

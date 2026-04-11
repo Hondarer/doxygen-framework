@@ -31,8 +31,8 @@ make clean
 
 ## 出力形式
 
-- HTML: 親プロジェクトの `docs/doxygen/` に生成
-- Markdown: 親プロジェクトの `docs-src/doxybook2/` に生成
+- HTML: 親プロジェクトの `pages/doxygen/` に生成
+- Markdown: 親プロジェクトの `docs/doxybook2/` に生成
 
 ## 必要なツール
 
