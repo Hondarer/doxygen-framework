@@ -1,30 +1,18 @@
 #!/bin/bash
-# Doxygen 出力を着色するフィルタースクリプト
-# エラーを赤、ワーニングを黄色で表示
+# Doxygen の通常出力を整形するフィルタースクリプト
+# warning は WARN_LOGFILE 側で別表示するため、ここでは通常出力と error のみを扱う
 
 # ANSI カラーコード
 RED='\033[0;31m'
-YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-FOUND_FATAL_WARNING=0
-
-# 標準入力から1行ずつ読み取り、着色して出力
+# 標準入力の CR を LF に正規化してから 1 行ずつ読み取り、整形して出力
 while IFS= read -r line; do
     if [[ "$line" == *" error: "* ]]; then
         # エラー行を赤で出力
-        echo -e "${RED}${line}${RESET}"
-    elif [[ "$line" == *" warning: "* && "$line" == *"is ambiguous"* ]]; then
-        # 致命的な警告 (ambiguous 画像) を赤で出力
-        echo -e "${RED}${line}${RESET}"
-        FOUND_FATAL_WARNING=1
-    elif [[ "$line" == *" warning: "* ]]; then
-        # ワーニング行を黄色で出力
-        echo -e "${YELLOW}${line}${RESET}"
+        printf '%b%s%b\n' "${RED}" "${line}" "${RESET}"
     else
         # その他の行はそのまま出力
-        echo "$line"
+        printf '%s\n' "$line"
     fi
-done
-
-exit $FOUND_FATAL_WARNING
+done < <(tr '\r' '\n')

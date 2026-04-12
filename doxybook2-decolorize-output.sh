@@ -5,7 +5,7 @@
 # 色をリセット
 printf '\033[0m'
 
-# 標準入力から1行ずつ読み取り、脱色・調整して出力
+# 標準入力の CR を LF に正規化してから 1 行ずつ読み取り、脱色・調整して出力
 while IFS= read -r line; do
     if [[ "$line" == *"[info]"* ]]; then
         # [info] 行から全ての ANSI エスケープコードを削除
@@ -22,7 +22,7 @@ while IFS= read -r line; do
         # その他の行はそのまま出力
         echo "$line"
     fi
-done
+done < <(tr '\r' '\n')
 
 # 色をリセット
 printf '\033[0m'

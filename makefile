@@ -1,6 +1,10 @@
+SHELL := /bin/bash
+
 # この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 INPUT_FILTER_ABS := $(MAKEFILE_DIR)/input-filter.py
+DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
+EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
 
 # ドキュメント大分類オプション (デフォルトは空)
 CATEGORY ?=
@@ -36,6 +40,7 @@ DOCS_DOXYGEN_DIR := ../../pages/doxygen$(CATEGORY_SUFFIX)
 DOCS_DOXYBOOK2_DIR := ../../docs/doxybook2$(CATEGORY_SUFFIX)
 XML_DIR := ../../xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := ../../xml_org$(CATEGORY_SUFFIX)
+DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/doxy.warn
 
 .DEFAULT_GOAL := default
 
@@ -52,44 +57,84 @@ default: clean
 	@if [ -f "$(DOXYFILE_PART)" ]; then \
 		echo "Merging $(DOXYFILE_PART)..."; \
 		TEMP_DOXYFILE=$$(mktemp); \
+		WARN_LOGFILE=$$(mktemp); \
 		cat "$(MAKEFILE_DIR)/Doxyfile" "$(DOXYFILE_PART)" > $$TEMP_DOXYFILE || exit 1; \
 		TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
+		: > "$$WARN_LOGFILE"; \
+		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		fi; \
 		rm -f $$TEMP_DOXYFILE; \
 		TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
-		cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-		PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
-		rm -f $$TEMP_DOXYFILE; \
+		( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+		DOXYGEN_PID=$$!; \
+		tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
+		wait $$DOXYGEN_PID; \
+		DOXYGEN_EXIT=$$?; \
+		if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
+			"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
+		fi; \
+		FATAL_WARNING=0; \
+		if [ -s "$(DOXY_WARN_OUTPUT)" ] && grep -Fq "is ambiguous" "$(DOXY_WARN_OUTPUT)"; then \
+			FATAL_WARNING=1; \
+		fi; \
+		rm -f "$$WARN_LOGFILE" "$$TEMP_DOXYFILE"; \
 		if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
-		exit $$COLORIZE_EXIT; \
+		exit $$FATAL_WARNING; \
 	else \
 		TEMP_DOXYFILE=$$(mktemp); \
+		WARN_LOGFILE=$$(mktemp); \
+		: > "$$WARN_LOGFILE"; \
+		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
-			rm -f $$TEMP_DOXYFILE; \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+			DOXYGEN_PID=$$!; \
+			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
+			wait $$DOXYGEN_PID; \
+			DOXYGEN_EXIT=$$?; \
+			if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
+				"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
+			fi; \
+			FATAL_WARNING=0; \
+			if [ -s "$(DOXY_WARN_OUTPUT)" ] && grep -Fq "is ambiguous" "$(DOXY_WARN_OUTPUT)"; then \
+				FATAL_WARNING=1; \
+			fi; \
+			rm -f "$$WARN_LOGFILE" "$$TEMP_DOXYFILE"; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
-			exit $$COLORIZE_EXIT; \
+			exit $$FATAL_WARNING; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh; \
-			PIPE_STATUS=($${PIPESTATUS[@]}); DOXYGEN_EXIT=$${PIPE_STATUS[0]}; COLORIZE_EXIT=$${PIPE_STATUS[1]}; \
-			rm -f $$TEMP_DOXYFILE; \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+			DOXYGEN_PID=$$!; \
+			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
+			wait $$DOXYGEN_PID; \
+			DOXYGEN_EXIT=$$?; \
+			if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
+				"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
+			fi; \
+			FATAL_WARNING=0; \
+			if [ -s "$(DOXY_WARN_OUTPUT)" ] && grep -Fq "is ambiguous" "$(DOXY_WARN_OUTPUT)"; then \
+				FATAL_WARNING=1; \
+			fi; \
+			rm -f "$$WARN_LOGFILE" "$$TEMP_DOXYFILE"; \
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
-			exit $$COLORIZE_EXIT; \
+			exit $$FATAL_WARNING; \
 		fi; \
 	fi
 
@@ -121,12 +166,22 @@ markdown-generation:
     # プリプロセッシング
 	templates/preprocess.sh $(XML_DIR) || exit 1
     # xml -> md 変換
+	@DOXYBOOK2_LOG=$$(mktemp); \
 	doxybook2 \
 		-i $(XML_DIR) \
 		-o $(DOCS_DOXYBOOK2_DIR) \
 		--config doxybook2-config.json \
-		--templates templates 2>&1 | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
+		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
 	DOXYBOOK2_EXIT=$${PIPESTATUS[0]}; \
+	if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
+		TEMP_WARN=$$(mktemp); \
+		"$(EXTRACT_DOXY_WARNINGS)" "$$DOXYBOOK2_LOG" "$$TEMP_WARN"; \
+		if [ -s "$$TEMP_WARN" ]; then \
+			cat "$$TEMP_WARN" >> "$(DOXY_WARN_OUTPUT)"; \
+		fi; \
+		rm -f "$$TEMP_WARN"; \
+	fi; \
+	rm -f "$$DOXYBOOK2_LOG"; \
 	if [ $$DOXYBOOK2_EXIT -ne 0 ]; then exit $$DOXYBOOK2_EXIT; fi
     # C# enum を Files ドキュメントに挿入
 	python3 templates/inject-cs-enums.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
