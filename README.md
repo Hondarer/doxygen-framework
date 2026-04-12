@@ -1,45 +1,47 @@
 # doxygen-framework
 
-Doxygen ドキュメント生成のための設定・テンプレート・スクリプト群を提供するフレームワークです。
+Doxygen と Doxybook2 を使って HTML と Markdown を生成するための設定、テンプレート、スクリプトを提供する repo です。
 
 ## 概要
 
-本リポジトリは C プロジェクトから高品質な日本語ドキュメントを生成するために必要な設定とツールを提供します。メインプロジェクトから git submodule として参照することを前提としています。
+この repo には以下が含まれます。
 
-## 機能
-
-- Doxygen 基本設定ファイル
-- Doxybook2 設定・日本語カスタムテンプレート
-- XML 前処理・後処理スクリプト
-- HTML および Markdown 出力対応
-- 実行補助スクリプトを `bin/` 配下に集約
+- Doxygen のベース設定
+- Doxybook2 の設定とテンプレート
+- XML の前処理と Markdown の後処理
+- 警告抽出や出力整形の補助スクリプト
 
 ## クイックスタート
 
 ```bash
-# ドキュメント生成
-cd framework/doxyfw
 make
-
-# 生成ファイル削除
-cd framework/doxyfw
 make clean
 ```
 
-## 詳細ドキュメント
+カテゴリ単位で実行する場合は、`CATEGORY` を指定します。
 
-プロジェクト構造、設定方法、開発ガイドについては [CLAUDE.md](./CLAUDE.md) をご覧ください。
+```bash
+CATEGORY=calc make
+```
 
-## 出力形式
+## 主なファイル
 
-- HTML: 親プロジェクトの `pages/doxygen/` に生成
-- Markdown: 親プロジェクトの `docs/doxybook2/` に生成
+- `makefile` - 生成処理の入口
+- `Doxyfile` - Doxygen のベース設定
+- `doxybook2-config.json` - Doxybook2 設定
+- `templates/` - テンプレートと前後処理スクリプト
+- `bin/` - 警告抽出や出力整形の補助スクリプト
+
+## 詳細情報
+
+作業ルールと補足は [AGENTS.md](./AGENTS.md)、補助ドキュメントは `docs/` を参照してください。
 
 ## 必要なツール
 
 - Doxygen
 - Doxybook2
-- PlantUML (図表生成時)
+- Python 3
+- PlantUML
 
 ## ライセンス
 
