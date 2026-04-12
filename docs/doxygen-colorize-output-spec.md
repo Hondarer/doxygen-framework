@@ -7,7 +7,7 @@
 ## ファイルパス
 
 ```text
-doxygen-colorize-output.sh
+bin/doxygen-colorize-output.sh
 ```
 
 ## 実行権限
@@ -89,7 +89,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 ### makefile からの呼び出し
 
 ```bash
-doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh
+doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -98,7 +98,7 @@ doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh
 ### 終了コードの保持
 
 ```bash
-doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/doxygen-colorize-output.sh;
+doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh;
 DOXYGEN_EXIT=${PIPESTATUS[0]};
 exit $DOXYGEN_EXIT;
 ```
@@ -143,7 +143,7 @@ ANSI カラーコードを含む出力をファイルにリダイレクトする
 以下のコマンドでスクリプト単体のテストが可能です。
 
 ```bash
-cat <<'EOF' | doxygen-colorize-output.sh
+cat <<'EOF' | bin/doxygen-colorize-output.sh
 Normal output line
 /path/to/file.c:42: warning: undocumented parameter 'foo'
 Another normal line

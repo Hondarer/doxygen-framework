@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 # この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-INPUT_FILTER_ABS := $(MAKEFILE_DIR)/input-filter.py
+INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin/input-filter.py
 DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
 EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
 
@@ -75,7 +75,7 @@ default: clean
 		fi; \
 		rm -f $$TEMP_DOXYFILE; \
 		TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
-		( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+		( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 		DOXYGEN_PID=$$!; \
 		tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
 		wait $$DOXYGEN_PID; \
@@ -101,7 +101,7 @@ default: clean
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 			DOXYGEN_PID=$$!; \
 			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
 			wait $$DOXYGEN_PID; \
@@ -120,7 +120,7 @@ default: clean
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/doxygen-colorize-output.sh") ) & \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 			DOXYGEN_PID=$$!; \
 			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
 			wait $$DOXYGEN_PID; \
@@ -171,7 +171,7 @@ markdown-generation:
 		-i $(XML_DIR) \
 		-o $(DOCS_DOXYBOOK2_DIR) \
 		--config doxybook2-config.json \
-		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/doxybook2-decolorize-output.sh; \
+		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh; \
 	DOXYBOOK2_EXIT=$${PIPESTATUS[0]}; \
 	if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 		TEMP_WARN=$$(mktemp); \
