@@ -185,7 +185,7 @@ def inject_into_files_md(files_md_path, enums, enums_rel):
     """
     Files/*.md の末尾に ## 型 セクションと !include ディレクティブを追記する。
 
-    既に ## 型 セクションがある場合はスキップする。
+    すでに ## 型 セクションがある場合はスキップする。
     !include のパスは docs_dir からの相対パスで記述する
     (postprocess.sh が MARKDOWN_DIR 基準で解決するため)。
     """

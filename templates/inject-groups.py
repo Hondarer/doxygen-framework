@@ -233,7 +233,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     フィルタ済み中間 MD (perfile__<group_id>__<files_stem>.md) を
     Modules/ に生成してから !include で参照する。
 
-    既に ## カテゴリー セクションがある場合はスキップする。
+    すでに ## カテゴリー セクションがある場合はスキップする。
     !include のパスは docs_dir からの相対パスで記述する
     (postprocess.sh が MARKDOWN_DIR 基準で解決するため)。
     """

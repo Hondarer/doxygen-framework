@@ -313,7 +313,7 @@ process_markdown_file() {
     function fix_ptr(s,    result, n_stars) {
         result = ""
         # パス0: "型(* 変数名)" → "型 (*変数名)" (関数ポインタ typedef の括弧前スペース正規化)
-        # [^ ] で括弧前が既にスペースの場合はスキップし、二重スペースを防ぐ。
+        # [^ ] で括弧前がすでにスペースの場合はスキップし、二重スペースを防ぐ。
         while (match(s, /[^ ]\(\* [a-zA-Z_]/)) {
             result = result substr(s, 1, RSTART) " (*" substr(s, RSTART + 4, 1)
             s = substr(s, RSTART + RLENGTH)
