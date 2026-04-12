@@ -276,7 +276,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
         # フィルタ済み中間 MD を Modules/ に書き出す
         filtered_name = "perfile__{}__{}.md".format(group_id, files_stem)
         filtered_path = modules_dir / filtered_name
-        with open(str(filtered_path), "w", encoding="utf-8") as f:
+        with open(str(filtered_path), "w", encoding="utf-8", newline="\n") as f:
             f.write(filtered_content)
 
         include_path = "{}/{}".format(modules_rel, filtered_name)
@@ -287,7 +287,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     if not generated:
         return
 
-    with open(str(files_md_path), "a", encoding="utf-8") as f:
+    with open(str(files_md_path), "a", encoding="utf-8", newline="\n") as f:
         f.write("".join(append_lines))
 
     print("  [ok] {}: {} inserted (filtered)".format(files_md_path.name, ", ".join(generated)))

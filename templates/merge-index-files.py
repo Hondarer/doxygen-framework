@@ -203,7 +203,7 @@ def merge_index_files(files_path: str, pages_path: str, output_path: str):
     merged_lines = tree_to_markdown(merged_tree)
 
     # 出力ファイルを作成
-    with open(output_path, 'w', encoding='utf-8') as f:
+    with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
         # ヘッダーを書き込む
         for line in header_lines:
             f.write(line + '\n')

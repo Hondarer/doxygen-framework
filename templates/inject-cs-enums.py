@@ -206,7 +206,7 @@ def inject_into_files_md(files_md_path, enums, enums_rel):
         lines.append("\n### {}\n".format(fqname))
         lines.append("\n!include {}\n".format(include_path))
 
-    with open(str(files_md_path), "a", encoding="utf-8") as f:
+    with open(str(files_md_path), "a", encoding="utf-8", newline="\n") as f:
         f.write("".join(lines))
 
     names = [e["name"] for e in enums]
@@ -258,7 +258,7 @@ def main():
             enums_dir.mkdir(parents=True, exist_ok=True)
             for enum_info in enums:
                 enum_md_path = enums_dir / "{}.md".format(enum_info["name"])
-                with open(str(enum_md_path), "w", encoding="utf-8") as f:
+                with open(str(enum_md_path), "w", encoding="utf-8", newline="\n") as f:
                     f.write(generate_enum_md(enum_info))
                 print("  [generated] {}".format(enum_md_path.relative_to(docs_dir)))
 

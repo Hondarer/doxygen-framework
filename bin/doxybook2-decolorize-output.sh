@@ -5,8 +5,9 @@
 # 色をリセット
 printf '\033[0m'
 
-# 標準入力の CR を LF に正規化してから 1 行ずつ読み取り、脱色・調整して出力
-while IFS= read -r line; do
+# 標準入力を 1 行ずつ読み取り、CRLF 入力時は行末の CR のみ除去して処理する
+while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
     if [[ "$line" == *"[info]"* ]]; then
         # [info] 行から全ての ANSI エスケープコードを削除
         echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
@@ -22,7 +23,7 @@ while IFS= read -r line; do
         # その他の行はそのまま出力
         echo "$line"
     fi
-done < <(tr '\r' '\n')
+done
 
 # 色をリセット
 printf '\033[0m'

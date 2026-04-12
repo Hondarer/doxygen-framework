@@ -6,8 +6,9 @@
 RED='\033[0;31m'
 RESET='\033[0m'
 
-# 標準入力の CR を LF に正規化してから 1 行ずつ読み取り、整形して出力
-while IFS= read -r line; do
+# 標準入力を 1 行ずつ読み取り、CRLF 入力時は行末の CR のみ除去して処理する
+while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
     if [[ "$line" == *" error: "* ]]; then
         # エラー行を赤で出力
         printf '%b%s%b\n' "${RED}" "${line}" "${RESET}"
@@ -15,4 +16,4 @@ while IFS= read -r line; do
         # その他の行はそのまま出力
         printf '%s\n' "$line"
     fi
-done < <(tr '\r' '\n')
+done
