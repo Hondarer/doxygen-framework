@@ -141,14 +141,14 @@ main-project/
 
 ```text
 PROJECT_NAME           = "API Documentation"
-INPUT                  = prod/calc/include
+INPUT                  = app/calc/prod/include
 ```
 
 #### app/internal/Doxyfile.part
 
 ```text
 PROJECT_NAME           = "Internal Specification"
-INPUT                  = prod/calc/libsrc prod/calc/include
+INPUT                  = app/calc/prod/libsrc app/calc/prod/include
 EXTRACT_PRIVATE        = YES
 EXTRACT_STATIC         = YES
 ```
@@ -157,7 +157,7 @@ EXTRACT_STATIC         = YES
 
 ```text
 PROJECT_NAME           = "Test Documentation"
-INPUT                  = test/src
+INPUT                  = app/calc/test/src
 ```
 
 ### 内部動作
