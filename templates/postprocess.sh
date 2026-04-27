@@ -21,6 +21,10 @@ if [ ! -d "$MARKDOWN_DIR" ]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FRAMEWORK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_ROOT="$(cd "$FRAMEWORK_DIR/../.." && pwd)"
+
 # 一時ディレクトリを作成
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
@@ -565,6 +569,27 @@ for file in "${md_files[@]}"; do
     fi
 done
 
+# Doxygen が HTML 出力ルートへ配置した画像を Markdown 側 images/ に補完コピー
+# @image html は Doxybook2 生成 Markdown から参照されるが、
+# 元画像は Doxygen HTML 出力側にしか存在しないため、ここで同期する
+IMAGES_DIR="$MARKDOWN_DIR/images"
+mkdir -p "$IMAGES_DIR"
+
+DOXYGEN_HTML_DIR="$WORKSPACE_ROOT/pages/doxygen"
+if [ -n "$CATEGORY" ]; then
+    DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/$CATEGORY"
+fi
+
+if [ -d "$DOXYGEN_HTML_DIR" ]; then
+    sort -u "$SUBDIR_IMAGES" | while IFS= read -r img_name; do
+        [ -z "$img_name" ] && continue
+        if [ ! -f "$IMAGES_DIR/$img_name" ] && [ -f "$DOXYGEN_HTML_DIR/$img_name" ]; then
+            cp "$DOXYGEN_HTML_DIR/$img_name" "$IMAGES_DIR/$img_name"
+            echo "  Copied Doxygen image: $img_name"
+        fi
+    done
+fi
+
 # サブディレクトリ内 Markdown のファイル間リンクを削除
 # Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
 # サブフォルダ間の相対パスが正しくないため、テキストのみ残してリンクを除去する。
@@ -649,9 +674,6 @@ if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
            "$MARKDOWN_DIR/index_examples.md"
 fi
 
-# スクリプトのディレクトリを取得
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
 # Markdown ファイルのコピー処理
 # copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
@@ -659,7 +681,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Pages のみで参照される画像を images/ から削除
 # サブディレクトリ (Files/ 等) から参照されていない画像は
 # Pages/ 以下に正しい相対パスでコピー済みのため、images/ の該当ファイルは不要
-IMAGES_DIR="$MARKDOWN_DIR/images"
 if [ -d "$IMAGES_DIR" ]; then
     # awk 連想配列で SUBDIR_IMAGES を一括ロードし、O(M+N) で削除対象を抽出
     # SUBDIR_IMAGES が空ファイルでも第 2 入力を正しく処理できるよう、
