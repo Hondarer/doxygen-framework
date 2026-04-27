@@ -662,14 +662,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGES_DIR="$MARKDOWN_DIR/images"
 if [ -d "$IMAGES_DIR" ]; then
     # awk 連想配列で SUBDIR_IMAGES を一括ロードし、O(M+N) で削除対象を抽出
-    # NR==FNR フェーズ: SUBDIR_IMAGES の全エントリを subdir[] に格納 (O(M))
-    # 第2フェーズ: 各画像 basename を O(1) ルックアップし、未登録のみ出力 (O(N))
+    # SUBDIR_IMAGES が空ファイルでも第 2 入力を正しく処理できるよう、
+    # レコード数ベースの NR==FNR ではなく入力ファイル名で第 1 フェーズを判定する
     while IFS= read -r img_name; do
         rm "$IMAGES_DIR/$img_name"
         echo "  Removed Pages-only image: $img_name from images/"
     done < <(
         awk '
-            NR==FNR { subdir[$0]=1; next }
+            FILENAME == ARGV[1] { subdir[$0]=1; next }
             !subdir[$0]
         ' "$SUBDIR_IMAGES" \
           <(find "$IMAGES_DIR" -maxdepth 1 -type f -exec basename {} \;)
