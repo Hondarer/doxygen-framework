@@ -2,6 +2,7 @@ SHELL := /bin/bash
 
 # この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+WORKSPACE_DIR ?= $(abspath $(MAKEFILE_DIR)/../..)
 INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin/input-filter.py
 DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
 EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
@@ -11,6 +12,7 @@ CATEGORY ?=
 
 # CATEGORY を環境変数としてエクスポート (postprocess.sh で使用)
 export CATEGORY
+export WORKSPACE_DIR
 
 # ガードファイル用の変数 (PID を含む一意なファイル名)
 SKIP_MARKER_PID := $(shell echo $$$$)
@@ -20,12 +22,12 @@ export SKIP_MARKER
 # CATEGORY に応じたパスの設定
 ifneq ($(strip $(CATEGORY)),)
     CATEGORY_SUFFIX := /$(CATEGORY)
-    DOXYGEN_WORKDIR := $(abspath ../../app/$(CATEGORY))
+    DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/app/$(CATEGORY)
     DOXYFILE_PART := $(DOXYGEN_WORKDIR)/Doxyfile.part
 else
     CATEGORY_SUFFIX :=
-    DOXYGEN_WORKDIR := $(abspath ../../prod)
-    DOXYFILE_PART := $(abspath ../../Doxyfile.part)
+    DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/prod
+    DOXYFILE_PART := $(WORKSPACE_DIR)/Doxyfile.part
 endif
 export DOXYGEN_WORKDIR
 
@@ -36,10 +38,10 @@ else
 endif
 export DOXYFILE_PART_PATH
 
-DOCS_DOXYGEN_DIR := ../../pages/doxygen$(CATEGORY_SUFFIX)
-DOCS_DOXYBOOK2_DIR := ../../docs/doxybook2$(CATEGORY_SUFFIX)
-XML_DIR := ../../xml$(CATEGORY_SUFFIX)
-XML_ORG_DIR := ../../xml_org$(CATEGORY_SUFFIX)
+DOCS_DOXYGEN_DIR := $(WORKSPACE_DIR)/pages/doxygen$(CATEGORY_SUFFIX)
+DOCS_DOXYBOOK2_DIR := $(WORKSPACE_DIR)/docs/doxybook2$(CATEGORY_SUFFIX)
+XML_DIR := $(WORKSPACE_DIR)/xml$(CATEGORY_SUFFIX)
+XML_ORG_DIR := $(WORKSPACE_DIR)/xml_org$(CATEGORY_SUFFIX)
 DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/doxy.warn
 
 .DEFAULT_GOAL := default
@@ -63,8 +65,8 @@ default: clean
 		: > "$$WARN_LOGFILE"; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
@@ -96,8 +98,8 @@ default: clean
 		: > "$$WARN_LOGFILE"; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 ../../pages/doxygen/$(CATEGORY)/|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 ../../../xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
@@ -191,8 +193,8 @@ markdown-generation:
 	rm -rf $(XML_DIR)
 #	rm -rf $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
-	@rmdir ../../xml 2>/dev/null || true
-	@rmdir ../../xml_org 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/xml" 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/xml_org" 2>/dev/null || true
     # ポストプロセッシング
 	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
 
@@ -200,7 +202,7 @@ markdown-generation:
 clean:
 	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR) $(XML_DIR) $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
-	@rmdir ../../pages/doxygen 2>/dev/null || true
-	@rmdir ../../docs/doxybook2 2>/dev/null || true
-	@rmdir ../../xml 2>/dev/null || true
-	@rmdir ../../xml_org 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/pages/doxygen" 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/docs/doxybook2" 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/xml" 2>/dev/null || true
+	@rmdir "$(WORKSPACE_DIR)/xml_org" 2>/dev/null || true

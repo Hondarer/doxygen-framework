@@ -11,6 +11,9 @@ cd framework/doxyfw
 make
 ```
 
+別のワークスペースから呼び出す場合は、呼び出し元で `DOXYFW_HOME` に doxyfw の配置先を指定します。
+doxyfw の makefile は `WORKSPACE_DIR` を workspace 側の基準ディレクトリとして使います。通常は呼び出し元 makefile が設定するため、手動指定は不要です。
+
 このコマンドは以下の処理を順次実行します。
 
 1. 既存のドキュメントをクリーンアップ

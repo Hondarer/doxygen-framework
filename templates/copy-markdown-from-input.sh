@@ -8,7 +8,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FRAMEWORK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKSPACE_ROOT="$(cd "$FRAMEWORK_DIR/../.." && pwd)"
+WORKSPACE_ROOT="${WORKSPACE_DIR:-$(cd "$FRAMEWORK_DIR/../.." && pwd)}"
 
 # 引数チェック
 if [ $# -ne 1 ]; then
