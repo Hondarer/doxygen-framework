@@ -63,16 +63,21 @@ default: clean
 		cat "$(MAKEFILE_DIR)/Doxyfile" "$(DOXYFILE_PART)" > $$TEMP_DOXYFILE || exit 1; \
 		TEMP_DOXYFILE_MODIFIED=$$(mktemp); \
 		: > "$$WARN_LOGFILE"; \
+		if command -v cygpath >/dev/null 2>&1; then \
+			WARN_LOGFILE_DOXY=$$(cygpath -m "$$WARN_LOGFILE"); \
+		else \
+			WARN_LOGFILE_DOXY=$$WARN_LOGFILE; \
+		fi; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
-			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
-			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		fi; \
 		rm -f $$TEMP_DOXYFILE; \
@@ -96,12 +101,17 @@ default: clean
 		TEMP_DOXYFILE=$$(mktemp); \
 		WARN_LOGFILE=$$(mktemp); \
 		: > "$$WARN_LOGFILE"; \
+		if command -v cygpath >/dev/null 2>&1; then \
+			WARN_LOGFILE_DOXY=$$(cygpath -m "$$WARN_LOGFILE"); \
+		else \
+			WARN_LOGFILE_DOXY=$$WARN_LOGFILE; \
+		fi; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
-			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
 			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 			DOXYGEN_PID=$$!; \
@@ -120,7 +130,7 @@ default: clean
 			exit $$FATAL_WARNING; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
-			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE|" \
+			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
 			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 			DOXYGEN_PID=$$!; \
