@@ -492,6 +492,24 @@ process_markdown_file() {
         gsub(/^[[:space:]]*/, "")
         print $0
     }
+    ' | \
+
+    # !itembreak! を Markdown の改行 + 継続行インデントに変換
+    # details.tmpl は項目名と説明文の間に !itembreak! を出力できるため、
+    # ここで "  " を行末に付けた 1 行目と、2 文字インデント付きの 2 行目へ分割する。
+    # Markdown 空白整理の前段で展開すると継続行インデントが削られるため、最終段で処理する。
+    awk '
+    {
+        line = $0
+        while (index(line, "!itembreak!") > 0) {
+            marker_pos = index(line, "!itembreak!")
+            head = substr(line, 1, marker_pos - 1)
+            tail = substr(line, marker_pos + length("!itembreak!"))
+            print head "  "
+            line = "  " tail
+        }
+        print line
+    }
     ' > "$temp_file"
     
     rm -f "$include_temp"

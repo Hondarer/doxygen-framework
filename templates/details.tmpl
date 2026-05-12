@@ -18,7 +18,7 @@
 {% if exists("returnsList") %}
  #### 戻り値
 
-{% for param in returnsList %}##### {{param.name}} {{param.text}}
+{% for param in returnsList %}* **{{param.name}}**!itembreak!{{param.text}}
 {% endfor %}
 {% endif -%}
 
@@ -47,7 +47,7 @@
 
 {% if length(returns) == 1 %}{{first(returns)}}{% else %}
 
-{% for item in returns %}##### {{item}}
+{% for item in returns %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
