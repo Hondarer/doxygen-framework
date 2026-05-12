@@ -22,6 +22,9 @@ import glob
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 
 def get_text(elem):
     """XML 要素からプレーンテキストを取得する。タグを無視してテキストのみ結合。"""

@@ -27,6 +27,9 @@ import glob
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 
 def source_basename_to_md_name(basename):
     """

@@ -46,3 +46,10 @@ make clean
 - `makefile` は `CATEGORY` と `Doxyfile.part` の有無で入力や出力先を切り替える。パス変更時は先頭の変数定義を確認すること。
 - `templates/preprocess.sh`、`templates/postprocess.sh`、`templates/*.py` は出力構造に直結するため、単独ではなく連鎖する処理全体で確認すること。
 - 警告抽出は `bin/extract_doxy_warnings.sh` に依存するため、標準出力の見た目だけで完了扱いにしないこと。
+- `templates/*.py` で日本語を出力するときは、モジュールレベルに以下を追加すること。
+  Windows のデフォルト `sys.stdout.encoding` は `cp932` であり、出力が文字化けする。
+
+  ```python
+  sys.stdout.reconfigure(encoding="utf-8")
+  sys.stderr.reconfigure(encoding="utf-8")
+  ```
