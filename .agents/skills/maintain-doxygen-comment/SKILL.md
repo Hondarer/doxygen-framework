@@ -30,7 +30,7 @@ when_to_use: |
 
 - 宣言がある API は、Doxygen コメントをヘッダー側に書きます
 - 実装側に同じ関数コメントを重複記載しません
-- 実装 `.c` には必要に応じてファイルコメントだけを置き、関数本体の直前には `/* doxygen コメントは、ヘッダに記載 */` を使います
+- 実装 `.c` には必要に応じてファイルコメントだけを置き、関数本体の直前には `/* doxygen コメントは、ヘッダーに記載 */` を使います
 - タグ一覧を埋めるのではなく、利用者が必要とする制約、戻り値、使用例、注意点を優先して書きます
 - `docs/` にない表現を使う場合は、Doxygen 出力結果まで確認します
 
@@ -66,7 +66,7 @@ extern int calcHandler(const int kind, const int a, const int b, int *result);
 実装側は次の形を基本にします。
 
 ```c
-/* doxygen コメントは、ヘッダに記載 */
+/* doxygen コメントは、ヘッダーに記載 */
 int calcHandler(const int kind, const int a, const int b, int *result)
 ```
 
