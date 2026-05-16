@@ -23,13 +23,20 @@ export SKIP_MARKER
 ifneq ($(strip $(CATEGORY)),)
     CATEGORY_SUFFIX := /$(CATEGORY)
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/app/$(CATEGORY)
-    DOXYFILE_PART := $(DOXYGEN_WORKDIR)/Doxyfile.part
+    DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)/prod
+    DOXYFILE_PART   := $(DOXYGEN_RUNDIR)/Doxyfile.part
+    DOCS_DOXYBOOK2_DIR := $(DOXYGEN_WORKDIR)/docs/doxybook2
+    APP_DOCS_DIR := $(DOXYGEN_WORKDIR)/docs
 else
     CATEGORY_SUFFIX :=
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/prod
-    DOXYFILE_PART := $(WORKSPACE_DIR)/Doxyfile.part
+    DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)
+    DOXYFILE_PART   := $(WORKSPACE_DIR)/Doxyfile.part
+    DOCS_DOXYBOOK2_DIR := $(WORKSPACE_DIR)/docs/doxybook2
+    APP_DOCS_DIR :=
 endif
 export DOXYGEN_WORKDIR
+export DOXYGEN_RUNDIR
 
 ifneq ($(wildcard $(DOXYFILE_PART)),)
     DOXYFILE_PART_PATH := $(DOXYFILE_PART)
@@ -39,7 +46,6 @@ endif
 export DOXYFILE_PART_PATH
 
 DOCS_DOXYGEN_DIR := $(WORKSPACE_DIR)/pages/doxygen$(CATEGORY_SUFFIX)
-DOCS_DOXYBOOK2_DIR := $(WORKSPACE_DIR)/docs/doxybook2$(CATEGORY_SUFFIX)
 XML_DIR := $(WORKSPACE_DIR)/xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := $(WORKSPACE_DIR)/xml_org$(CATEGORY_SUFFIX)
 DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/doxy.warn
@@ -82,7 +88,7 @@ default: clean
 		fi; \
 		rm -f $$TEMP_DOXYFILE; \
 		TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
-		( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
+		( cd "$(DOXYGEN_RUNDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
 		DOXYGEN_PID=$$!; \
 		tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
 		wait $$DOXYGEN_PID; \
@@ -212,6 +218,7 @@ markdown-generation:
 clean:
 	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR) $(XML_DIR) $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
+	@if [ -n "$(APP_DOCS_DIR)" ]; then rmdir "$(APP_DOCS_DIR)" 2>/dev/null || true; fi
 	@rmdir "$(WORKSPACE_DIR)/pages/doxygen" 2>/dev/null || true
 	@rmdir "$(WORKSPACE_DIR)/docs/doxybook2" 2>/dev/null || true
 	@rmdir "$(WORKSPACE_DIR)/xml" 2>/dev/null || true

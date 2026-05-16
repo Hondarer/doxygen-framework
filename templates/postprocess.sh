@@ -2,14 +2,14 @@
 
 # postprocess.sh - Doxybook2 後処理スクリプト
 # 使用方法: ./postprocess.sh <markdown_directory>
-# 例: ./postprocess.sh docs/doxybook2
+# 例: ./postprocess.sh output/doxybook2
 
 # set -x # デバッグ時のみ有効にする
 
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
-    echo "例: $0 docs/doxybook2"
+    echo "例: $0 output/doxybook2"
     exit 1
 fi
 

@@ -2,7 +2,7 @@
 
 # copy-markdown-from-input.sh - Doxyfile の INPUT から Markdown ファイルをコピー
 # 使用方法: ./copy-markdown-from-input.sh <markdown_directory>
-# 例: ./copy-markdown-from-input.sh docs/doxybook2
+# 例: ./copy-markdown-from-input.sh output/doxybook2
 
 # set -x # デバッグ時のみ有効にする
 
@@ -13,7 +13,7 @@ WORKSPACE_ROOT="${WORKSPACE_DIR:-$(cd "$FRAMEWORK_DIR/../.." && pwd)}"
 # 引数チェック
 if [ $# -ne 1 ]; then
     echo "使用方法: $0 <markdown_directory>"
-    echo "例: $0 docs/doxybook2"
+    echo "例: $0 output/doxybook2"
     exit 1
 fi
 
@@ -280,8 +280,12 @@ echo "Copying Markdown files from INPUT directories..."
 # Doxygen 実行時の基準ディレクトリを決定
 # makefile から渡された値を優先し、未指定時は既定構成を使う
 DOXYGEN_BASE_DIR=""
-if [ -n "$DOXYGEN_WORKDIR" ] && [ -d "$DOXYGEN_WORKDIR" ]; then
+if [ -n "$DOXYGEN_RUNDIR" ] && [ -d "$DOXYGEN_RUNDIR" ]; then
+    DOXYGEN_BASE_DIR="$DOXYGEN_RUNDIR"
+elif [ -n "$DOXYGEN_WORKDIR" ] && [ -d "$DOXYGEN_WORKDIR" ]; then
     DOXYGEN_BASE_DIR="$DOXYGEN_WORKDIR"
+elif [ -n "$CATEGORY" ] && [ -d "$WORKSPACE_ROOT/app/$CATEGORY/prod" ]; then
+    DOXYGEN_BASE_DIR="$WORKSPACE_ROOT/app/$CATEGORY/prod"
 elif [ -n "$CATEGORY" ] && [ -d "$WORKSPACE_ROOT/app/$CATEGORY" ]; then
     DOXYGEN_BASE_DIR="$WORKSPACE_ROOT/app/$CATEGORY"
 else
@@ -300,7 +304,12 @@ if [ -n "$DOXYFILE_PART_PATH" ] && [ -f "$DOXYFILE_PART_PATH" ]; then
     DOXYFILE_PATH="$TEMP_DOXYFILE"
     echo "  Using merged Doxyfile: Doxyfile + $(basename "$DOXYFILE_PART_PATH")"
 elif [ -n "$CATEGORY" ]; then
-    if [ -f "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part" ]; then
+    if [ -f "$WORKSPACE_ROOT/app/$CATEGORY/prod/Doxyfile.part" ]; then
+        TEMP_DOXYFILE=$(mktemp)
+        cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/app/$CATEGORY/prod/Doxyfile.part" > "$TEMP_DOXYFILE"
+        DOXYFILE_PATH="$TEMP_DOXYFILE"
+        echo "  Using merged Doxyfile: Doxyfile + app/$CATEGORY/prod/Doxyfile.part"
+    elif [ -f "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part" ]; then
         TEMP_DOXYFILE=$(mktemp)
         cat "$FRAMEWORK_DIR/Doxyfile" "$WORKSPACE_ROOT/app/$CATEGORY/Doxyfile.part" > "$TEMP_DOXYFILE"
         DOXYFILE_PATH="$TEMP_DOXYFILE"

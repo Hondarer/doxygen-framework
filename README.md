@@ -24,6 +24,9 @@ make clean
 CATEGORY=calc make
 ```
 
+`CATEGORY` 指定時の Doxybook2 出力先は `app/<CATEGORY>/docs/doxybook2/` です。
+`CATEGORY` 未指定時は従来どおり `docs/doxybook2/` を使用します。
+
 ## 主なファイル
 
 - `makefile` - 生成処理の入口
