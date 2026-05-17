@@ -6,6 +6,17 @@
 
 簡単な説明を表します。ファイルの場合、簡単な説明はページの先頭で使用されます。ファイル・メンバーの場合、簡単な説明はメンバーの宣言に配置され、詳細な説明の先頭に追加されます。
 
+この repo では Doxybook2 が `@brief` を Markdown の YAML front matter にある `summary` としても出力します。
+そのため、`Linux: fd` のように半角コロンの直後へ空白を続ける表現を `@brief` に含めると、生成後の YAML で別のマッピングとして解釈され、Pandoc の変換時に警告が出る場合があります。
+
+```c
+/**
+ *  @brief  ファイルハンドルの抽象化構造体 (Linux の fd、Windows の HANDLE を保持)。
+ */
+```
+
+`@brief` では YAML の構文と衝突しにくい文にし、補足説明が必要な場合は `@details` や本文へ分けてください。
+
 ## `@param[<dir>] <parameter-name> { parameter description }`
 
 名前が `<parameter-name>` の関数パラメータの説明を表します。

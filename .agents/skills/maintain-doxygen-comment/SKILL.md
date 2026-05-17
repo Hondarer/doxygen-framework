@@ -31,6 +31,7 @@ when_to_use: |
 - 宣言がある API は、Doxygen コメントをヘッダー側に書きます
 - 実装側に同じ関数コメントを重複記載しません
 - 実装 `.c` には必要に応じてファイルコメントだけを置き、関数本体の直前には `/* doxygen コメントは、ヘッダーに記載 */` を使います
+- `@brief` は Doxybook2 により Markdown の YAML front matter にある `summary` としても出力されるため、`Linux: fd` のような半角コロン + 空白を含む表現は避けます
 - タグ一覧を埋めるのではなく、利用者が必要とする制約、戻り値、使用例、注意点を優先して書きます
 - `docs/` にない表現を使う場合は、Doxygen 出力結果まで確認します
 
@@ -132,6 +133,19 @@ int calcHandler(const int kind, const int a, const int b, int *result)
 
 `@param` は宣言と一致している必要があります。
 名前漏れや方向指定の誤りは警告原因になるため、関数シグネチャと一緒に確認します。
+
+### `@brief` と YAML front matter
+
+`@brief` は生成後の Markdown で `summary` にも使われます。
+次のように半角コロンの直後へ空白を置く文は、YAML の構文と衝突する場合があります。
+
+```c
+/**
+ *  @brief  ファイルハンドルの抽象化構造体 (Linux の fd、Windows の HANDLE を保持)。
+ */
+```
+
+短い説明は YAML と衝突しにくい文にし、詳しい説明は `@details` や本文へ分けます。
 
 ### ファイルコメント
 
@@ -294,6 +308,7 @@ typedef struct
 ## 避ける書き方
 
 - ヘッダーとソースの両方に同じ関数コメントを持たせる
+- `@brief` に `Linux: fd` のような半角コロン + 空白を含む表現を置く
 - `@param` の名前や方向が宣言と一致していない
 - `@section` を関数単位の補足見出しに使う
 - `@par` でファイル全体の大きな構造化をしようとする
@@ -305,6 +320,7 @@ typedef struct
 ## 確認項目
 
 - コメントの記載場所が適切か
+- `@brief` が YAML front matter の `summary` として出力されても解釈を壊さないか
 - `@brief` だけで足りない内容は `@details` や `@note` に分離できているか
 - `@param`、`@return`、`@warning` が実装と矛盾していないか
 - `@section` と `@par` の使い分けが適切か
