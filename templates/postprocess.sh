@@ -252,11 +252,20 @@ process_markdown_file() {
     #   ~ (エスケープ文字) で1文字ずつエスケープする。
     # - 通常コードブロック内 (cpp など): !dunder! を __ に復元
     # - コードブロック外:
+    #   - Markdown リンク URL ](url) 内: !dunder! を __ に復元 (URL 中の __ はエスケープしない)
     #   - インラインコード (`...`) 内: !dunder! を __ に復元 (エスケープ不要)
-    #   - インラインコード外: !dunder! を &#95;&#95; にエスケープ (Markdown 強調記法を防ぐ)
+    #   - 上記以外のインラインコード外: !dunder! を &#95;&#95; にエスケープ (Markdown 強調記法を防ぐ)
     #     テキストに直接 __ が残る場合も同様にエスケープする。
     #   awk の gsub では & がマッチ全体を表すため &#95; は \&#95; と記述する。
     awk '
+    function escape_text(s) {
+        gsub(/!dunder!/, "\\&#95;\\&#95;", s)
+        gsub(/__/, "\\&#95;\\&#95;", s)
+        gsub(/\$\\/, "!latexdollar!", s)
+        gsub(/\$/, "\\$", s)
+        gsub(/!latexdollar!/, "$\\", s)
+        return s
+    }
     /^[[:space:]]*```/ {
         if (in_code_block) { in_code_block = 0; is_plantuml = 0 }
         else { in_code_block = 1; is_plantuml = ($0 ~ /```[[:space:]]*plantuml/) }
@@ -273,17 +282,22 @@ process_markdown_file() {
         for (i = 1; i <= n; i++) {
             if (i % 2 == 1) {
                 # インラインコード外: __ を &#95;&#95; にエスケープ
-                part = parts[i]
-                gsub(/!dunder!/, "\\&#95;\\&#95;", part)
-                gsub(/__/, "\\&#95;\\&#95;", part)
-                # $\ 以外の $ を \$ にエスケープ (Pandoc の tex_math_dollars 誤認識防止)
-                # awk に先読み否定がないため、$\ を一時マーカーで保護してから残りをエスケープし、
-                # 最後にマーカーを $\ に戻す。
-                # LaTeX コマンドは $\ で始まる形式 ($\sum 等) のため除外される。
-                gsub(/\$\\/, "!latexdollar!", part)
-                gsub(/\$/, "\\$", part)
-                gsub(/!latexdollar!/, "$\\", part)
-                result = result part
+                # ただし Markdown リンクの URL 部分 ](url) 内では __ を保持する
+                text = parts[i]
+                seg = ""
+                while (length(text) > 0) {
+                    if (match(text, /\]\([^)]*\)/)) {
+                        seg = seg escape_text(substr(text, 1, RSTART - 1))
+                        url_span = substr(text, RSTART, RLENGTH)
+                        gsub(/!dunder!/, "__", url_span)
+                        seg = seg url_span
+                        text = substr(text, RSTART + RLENGTH)
+                    } else {
+                        seg = seg escape_text(text)
+                        text = ""
+                    }
+                }
+                result = result seg
             } else {
                 # インラインコード内: !dunder! を __ に復元するだけ
                 part = parts[i]

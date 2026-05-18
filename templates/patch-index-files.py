@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""patch-index-files.py - index_files.md の表示名からパスプレフィックスを除去
+"""patch-index-files.py - index_files.md の表示名からパスプレフィックスを除去し
+ファイルリンクの無効フラグメントを削除する
 
 Doxybook2 が生成する index_files.md では、ディレクトリ名やファイル名に
 Doxygen INPUT ルートからの相対パス (例: calc/include, calc/src/add/add.c) が付与される。
 merge-index-files.py でのマージ時に index_pages.md のローカル名と対応付けるため、
 各表示名を末尾コンポーネントのみに変換する。
 
+また、Doxybook2 が生成するファイルリンクは Files/xxx.md#file-xxx.h 形式だが、
+対象の Files/*.md にはそのアンカーが存在しないため、#fragment 部分も合わせて除去する。
+
 変換例:
-    📁 calc/include         → 📁 include
-    📁 calc/src/add         → 📁 add
-    [calc/src/add/add.c]    → [add.c]
+    📁 calc/include                             → 📁 include
+    📁 calc/src/add                             → 📁 add
+    [calc/src/add/add.c](Files/add_8c.md#file-add.c)  → [add.c](Files/add_8c.md)
 """
 
 import sys
@@ -32,8 +36,9 @@ def patch_index_files(path: str) -> None:
         return '📁 ' + m.group(1).rsplit('/', 1)[-1]
 
     def strip_file(m: Match[str]) -> str:
-        """[path/to/file](Files/...) → [file](Files/...)"""
-        return '[' + m.group(1).rsplit('/', 1)[-1] + '](' + m.group(2) + ')'
+        """[path/to/file](Files/xxx.md#fragment) → [file](Files/xxx.md)"""
+        href = m.group(2).split('#', 1)[0]
+        return '[' + m.group(1).rsplit('/', 1)[-1] + '](' + href + ')'
 
     # ディレクトリ表示名: 📁 path/to/dir → 📁 dir
     # スラッシュを含まない名前はそのまま (ルートエントリ等)
