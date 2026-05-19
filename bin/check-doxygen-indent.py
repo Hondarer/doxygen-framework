@@ -21,10 +21,29 @@ import argparse
 from pathlib import Path
 
 
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
+
 def get_indent_level(line):
     """行の字下げレベルを取得（スペース数）"""
     match = re.match(r'^( *)', line)
     return len(match.group(1)) if match else 0
+
+
+def is_inline_doxygen_comment_start(line):
+    """メンバーやマクロの横に書くインライン Doxygen コメントかどうかを返す"""
+    return re.search(r'/\*\*<', line) is not None
+
+
+def skip_to_comment_end(lines, index):
+    """コメント終了行の次の行インデックスを返す"""
+    while index < len(lines):
+        if re.search(r'\*/', lines[index]):
+            return index + 1
+        index += 1
+
+    return index
 
 
 def scan_file(filepath, skip_single_line_comments=True):
@@ -53,6 +72,11 @@ def scan_file(filepath, skip_single_line_comments=True):
         
         # Doxygen コメント開始行を見つけた場合
         if re.search(r'/\*\*', line):
+            # メンバーやマクロの横に書く /**< ... */ は字下げ基準が異なるため対象外
+            if is_inline_doxygen_comment_start(line):
+                i = skip_to_comment_end(lines, i)
+                continue
+
             # 末尾コメント（/** ... */ が同一行）の場合はスキップ（オプション）
             if skip_single_line_comments and re.search(r'/\*\*.*\*/', line):
                 i += 1
@@ -147,6 +171,11 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
         
         # Doxygen コメント開始行を見つけた場合
         if re.search(r'/\*\*', line):
+            # メンバーやマクロの横に書く /**< ... */ は字下げ基準が異なるため対象外
+            if is_inline_doxygen_comment_start(line):
+                i = skip_to_comment_end(lines, i)
+                continue
+
             # 末尾コメント（/** ... */ が同一行）の場合はスキップ（オプション）
             if skip_single_line_comments and re.search(r'/\*\*.*\*/', line):
                 i += 1
