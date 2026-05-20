@@ -119,6 +119,7 @@ process_markdown_file() {
     
     # YAML フロントマター処理
     # - YAML フロントマター内の空行を除去
+    # - summary が複数行に分割された場合は 1 行へ正規化
     awk '
     BEGIN { 
         in_frontmatter = 0
@@ -162,7 +163,86 @@ process_markdown_file() {
         line_count++
     }
     ' "$include_temp" | \
-    
+    awk '
+    function trim_spaces(s) {
+        gsub(/^[[:space:]]+/, "", s)
+        gsub(/[[:space:]]+$/, "", s)
+        return s
+    }
+    function append_summary(part) {
+        part = trim_spaces(part)
+        if (part == "") {
+            return
+        }
+        if (summary_text == "") {
+            summary_text = part
+        } else {
+            summary_text = summary_text " " part
+        }
+    }
+    function flush_summary() {
+        if (!summary_active) {
+            return
+        }
+        safe = summary_text
+        gsub(/\\/, "\\\\", safe)
+        gsub(/"/, "\\\"", safe)
+        print "summary: \"" safe "\""
+        summary_active = 0
+        summary_text = ""
+    }
+    BEGIN {
+        in_frontmatter = 0
+        summary_active = 0
+        summary_text = ""
+        line_count = 0
+    }
+    line_count == 0 && /^---[[:space:]]*$/ {
+        in_frontmatter = 1
+        print $0
+        line_count++
+        next
+    }
+    in_frontmatter && /^---[[:space:]]*$/ {
+        flush_summary()
+        in_frontmatter = 0
+        print $0
+        line_count++
+        next
+    }
+    in_frontmatter {
+        if (summary_active) {
+            if ($0 ~ /^[[:space:]]*[A-Za-z0-9_-]+:[[:space:]]*/) {
+                flush_summary()
+                print $0
+            } else {
+                append_summary($0)
+            }
+            line_count++
+            next
+        }
+        if ($0 ~ /^summary:[[:space:]]*/) {
+            summary_active = 1
+            summary_text = ""
+            summary_line = $0
+            sub(/^summary:[[:space:]]*/, "", summary_line)
+            append_summary(summary_line)
+            line_count++
+            next
+        }
+        print $0
+        line_count++
+        next
+    }
+    {
+        print $0
+        line_count++
+    }
+    END {
+        flush_summary()
+    }
+    ' | \
+     
     # 行末空白除去と !linebreak! 処理
     # - sedを使用して行末の空白文字を削除し、
     # - !linebreak! を空白 2 つ + 改行に変換
