@@ -15,7 +15,9 @@
  */
 ```
 
-`@brief` では YAML の構文と衝突しにくい文にし、補足説明が必要な場合は `@details` や本文へ分けてください。
+`@brief` では YAML の構文と衝突しにくい文にし、補足説明が必要な場合は空行を 1 行あけてタグなし本文へ分けてください。
+タグなし本文は Doxygen により details として扱われます。
+`@details` は、`@par` など別タグの本文に続けて details を再開したい場合のように、明示しないと所属が曖昧になる箇所で使います。
 
 ## `@param[<dir>] <parameter-name> { parameter description }`
 
@@ -74,7 +76,9 @@ void setPosition(double x, double y, double z);
 ```c
 /**
  *  @brief          Pretty nice method.
- *  @details        This method is used to demonstrate a number of section commands.
+ *
+ *  This method is used to demonstrate a number of section commands.
+ *
  *  @author         John Doe
  *  @author         Jan Doe
  *  @version        4.1a
@@ -326,7 +330,10 @@ Doxygen にスレッドセーフを表す専用コマンドはないため、`@p
 
 詳細な説明を表します。
 
-`\brief` には概要のみを記載し、`\details` に詳細を記載します。
+`@brief` には概要のみを記載し、通常の詳細説明は `@brief` の後に空行を 1 行あけてタグなし本文として記載します。
+タグなし本文は details として扱われるため、`@details` は省略できます。
+
+`@details` を明示するのは、`@par` など別タグの本文に続けて details を再開したい場合のように、タグなし本文では所属が曖昧になる箇所です。
 
 ## `@copyright { copyright description }`
 
@@ -356,7 +363,9 @@ PlantUML 形式の図を表します。
  *  @param[in]      a 被除数。
  *  @param[in]      b 除数。
  *  @return         除算結果。
- *  @details        PlantUML の図を挿入することができます。
+ *
+ *  PlantUML の図を挿入することができます。
+ *
     @startuml
         caption 図のテスト
         circle a
@@ -386,18 +395,16 @@ double divide(int a, int b);
 
 ```c
 /**
- *******************************************************************************
  *  @brief          プログラムのエントリーポイント。
  *  @param[in]      argc コマンドライン引数の数。
  *  @param[in]      argv コマンドライン引数の配列。
  *  @return         成功時は 0、失敗時は 0 以外の値を返します。
  *
- *  @details        以下に、calc コマンドの処理フローを示します。
+ *  以下に、calc コマンドの処理フローを示します。
  *
  *  @image          html calc-flow.png "calc コマンドの処理フロー"
  *
  *  @attention      引数は正確に 3 つ必要です。
- *******************************************************************************
  */
 int main(int argc, char *argv[]);
 ```
@@ -417,7 +424,8 @@ int main(int argc, char *argv[]);
 /**
  *  @brief          文字列を反転します。
  *  @param[in,out]  str 反転する文字列。
- *  @details        以下は使用例です。
+ *
+ *  以下は使用例です。
  *  @code{.c}
     char text[] = "Hello";
     reverseString(text);
@@ -433,7 +441,7 @@ void reverseString(char *str);
  *  @param[in]      arr 配列。
  *  @param[in]      size 配列のサイズ。
  *  @return         最大値。
- *  @details
+ *
  *  この関数は配列内の最大値を線形探索で見つけます。
  *
  *  @code
@@ -456,7 +464,8 @@ int findMax(const int *arr, size_t size);
 ```c
 /**
  *  @brief          環境変数の設定例を表示します。
- *  @details        以下の形式で環境変数を設定してください。
+ *
+ *  以下の形式で環境変数を設定してください。
     @verbatim
     export PATH=/usr/local/bin:$PATH
     export CC=gcc
@@ -469,7 +478,7 @@ void showEnvironmentSetup();
 ```c
 /**
  *  @brief          ビルド手順を表示します。
- *  @details
+ *
  *  以下のコマンドを順に実行してください。
  *
     @verbatim
@@ -494,7 +503,7 @@ Doxygen は Markdown 形式のコードブロック (バッククォート3つ) 
 /**
  *  @brief          エラーコードを返します。
  *  @return         エラーコード。
- *  @details
+ *
  *  以下のようにエラーコードを処理します:
  *
  *  ```c
@@ -815,7 +824,7 @@ else (No)
         :\\remarks を使用;
         stop
       else (No)
-        :通常の \\brief や \\param、\\details を使用;
+        :通常の \\brief、\\param、タグなし本文を使用;
         stop
       endif
     endif
@@ -829,8 +838,6 @@ endif
 ### コマンド (タグ) の接頭子
 
 Doxygen では、コマンドの先頭に `@` もしくは `\` のどちらを使用しても機能しますが、一般的なスタイルとして多くのプロジェクトやガイドラインでは `@` が推奨されている場合が多いです。
-
-統一性を保つためには、`@` に統一すると良いでしょう。
 
 以下に例を示します。
 

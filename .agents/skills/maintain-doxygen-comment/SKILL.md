@@ -32,6 +32,8 @@ when_to_use: |
 - 実装側に同じ関数コメントを重複記載しません
 - 実装 `.c` には必要に応じてファイルコメントだけを置き、関数本体の直前には `/* Doxygen コメントは、ヘッダーに記載 */` を使います。マーカー コメントと関数定義の間には空行を 1 行入れ、VS Code IntelliSense がマーカー コメントをホバー表示に拾うのを抑止します
 - `@brief` は Doxybook2 により Markdown の YAML front matter にある `summary` としても出力されるため、`Linux: fd` のような半角コロン + 空白を含む表現は避けます
+- `@brief` に続く通常の詳細説明は、空行を 1 行あけてタグなし本文として書きます。タグなし本文は Doxygen により details として扱われます
+- `@details` は、`@par` など別タグの本文に続けて details を再開したい場合のように、明示しないと所属が曖昧になる箇所で使います
 - タグ一覧を埋めるのではなく、利用者が必要とする制約、戻り値、使用例、注意点を優先して書きます
 - `docs/` にない表現を使う場合は、Doxygen 出力結果まで確認します
 
@@ -158,8 +160,10 @@ int calcHandler(const int kind, const int a, const int b, int *result)
 
 必要に応じて以下を追加します。
 
+- タグなし本文
+  - `@brief` に収まらない処理概要や前提知識を書くとき。通常は `@brief` の後に空行を置いて本文として書きます
 - `@details`
-  - `@brief` に収まらない処理概要や前提知識を書くとき
+  - `@par` など別タグの本文に続けて details を再開したいとき
 - `@pre`
   - 呼び出し前に満たす条件があるとき
 - `@post`
@@ -191,7 +195,8 @@ int calcHandler(const int kind, const int a, const int b, int *result)
  */
 ```
 
-短い説明は YAML と衝突しにくい文にし、詳しい説明は `@details` や本文へ分けます。
+短い説明は YAML と衝突しにくい文にし、詳しい説明は通常 `@brief` 後のタグなし本文へ分けます。
+`@details` は、`@par` など別タグの本文に続けて details を再開したい場合に使います。
 
 ### ファイルコメント
 
@@ -379,6 +384,7 @@ typedef struct
 - `@param` の名前や方向が宣言と一致していない
 - `@section` を関数単位の補足見出しに使う
 - `@par` でファイル全体の大きな構造化をしようとする
+- 省略できる `@details` を通常の詳細説明に使う
 - `@code` ブロックのコード本体まで `*` を付ける
 - `<br />` を改行用途で使う
 - 画像だけに依存した説明を作る
@@ -388,7 +394,8 @@ typedef struct
 
 - コメントの記載場所が適切か
 - `@brief` が YAML front matter の `summary` として出力されても解釈を壊さないか
-- `@brief` だけで足りない内容は `@details` や `@note` に分離できているか
+- `@brief` だけで足りない通常の詳細説明はタグなし本文に分離できているか
+- `@details` を使う場合、`@par` など別タグ後の details 再開のように明示が必要な箇所か
 - `@param`、`@return`、`@warning` が実装と矛盾していないか
 - `@section` と `@par` の使い分けが適切か
 - コードブロック、表、PlantUML の書式が `docs/` の規約に沿っているか
