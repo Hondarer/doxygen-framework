@@ -9,9 +9,12 @@ EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
 
 # ドキュメント大分類オプション (デフォルトは空)
 CATEGORY ?=
+# ドキュメント小分類オプション (デフォルトは空)
+SUBCATEGORY ?=
 
-# CATEGORY を環境変数としてエクスポート (postprocess.sh で使用)
+# CATEGORY、SUBCATEGORY を環境変数としてエクスポート (postprocess.sh で使用)
 export CATEGORY
+export SUBCATEGORY
 export WORKSPACE_DIR
 
 # ガードファイル用の変数 (PID を含む一意なファイル名)
@@ -19,21 +22,50 @@ SKIP_MARKER_PID := $(shell echo $$$$)
 SKIP_MARKER := /tmp/.skip_markdown_generation.$(SKIP_MARKER_PID)
 export SKIP_MARKER
 
-# CATEGORY に応じたパスの設定
+# CATEGORY、SUBCATEGORY に応じたパスの設定
 ifneq ($(strip $(CATEGORY)),)
-    CATEGORY_SUFFIX := /$(CATEGORY)
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/app/$(CATEGORY)
     DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)/prod
-    DOXYFILE_PART   := $(DOXYGEN_RUNDIR)/Doxyfile.part
     DOCS_DOXYBOOK2_BASE_DIR := $(DOXYGEN_WORKDIR)/docs
     APP_DOCS_DIR := $(DOXYGEN_WORKDIR)/docs
+    ifneq ($(strip $(SUBCATEGORY)),)
+        ifneq ($(words $(SUBCATEGORY)),1)
+            $(error SUBCATEGORY must be a single value without whitespace: $(SUBCATEGORY))
+        endif
+        ifneq ($(filter . ..,$(SUBCATEGORY)),)
+            $(error SUBCATEGORY must not be "." or "..": $(SUBCATEGORY))
+        endif
+        ifneq ($(findstring /,$(SUBCATEGORY)),)
+            $(error SUBCATEGORY must not contain "/": $(SUBCATEGORY))
+        endif
+        ifneq ($(findstring \,$(SUBCATEGORY)),)
+            $(error SUBCATEGORY must not contain "\\" : $(SUBCATEGORY))
+        endif
+        CATEGORY_ID     := $(CATEGORY)_$(SUBCATEGORY)
+        CATEGORY_SUFFIX := /$(CATEGORY_ID)
+        DOXYFILE_PART   := $(DOXYGEN_RUNDIR)/Doxyfile.part.$(SUBCATEGORY)
+        DOXYBOOK2_OUTPUT_DIR_DEFAULT := doxybook2_$(SUBCATEGORY)
+        DOXY_WARN_BASENAME := doxy_$(SUBCATEGORY).warn
+    else
+        CATEGORY_ID     := $(CATEGORY)
+        CATEGORY_SUFFIX := /$(CATEGORY)
+        DOXYFILE_PART   := $(DOXYGEN_RUNDIR)/Doxyfile.part
+        DOXYBOOK2_OUTPUT_DIR_DEFAULT := doxybook2
+        DOXY_WARN_BASENAME := doxy.warn
+    endif
 else
+    ifneq ($(strip $(SUBCATEGORY)),)
+        $(error SUBCATEGORY requires CATEGORY to be set)
+    endif
+    CATEGORY_ID     :=
     CATEGORY_SUFFIX :=
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/prod
     DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)
     DOXYFILE_PART   := $(WORKSPACE_DIR)/Doxyfile.part
     DOCS_DOXYBOOK2_BASE_DIR := $(WORKSPACE_DIR)/docs
     APP_DOCS_DIR :=
+    DOXYBOOK2_OUTPUT_DIR_DEFAULT := doxybook2
+    DOXY_WARN_BASENAME := doxy.warn
 endif
 export DOXYGEN_WORKDIR
 export DOXYGEN_RUNDIR
@@ -46,7 +78,6 @@ endif
 export DOXYFILE_PART_PATH
 
 DOXYBOOK2_OUTPUT_DIR_DIRECTIVE := DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME
-DOXYBOOK2_OUTPUT_DIR_DEFAULT := doxybook2
 
 ifneq ($(strip $(CATEGORY)),)
 ifneq ($(DOXYFILE_PART_PATH),)
@@ -86,7 +117,7 @@ DOCS_DOXYBOOK2_DIR := $(DOCS_DOXYBOOK2_BASE_DIR)/$(DOXYBOOK2_OUTPUT_DIR_NAME)
 DOCS_DOXYGEN_DIR := $(WORKSPACE_DIR)/pages/doxygen$(CATEGORY_SUFFIX)
 XML_DIR := $(WORKSPACE_DIR)/xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := $(WORKSPACE_DIR)/xml_org$(CATEGORY_SUFFIX)
-DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/doxy.warn
+DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/$(DOXY_WARN_BASENAME)
 
 .DEFAULT_GOAL := default
 
@@ -114,8 +145,8 @@ default: clean
 		fi; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY_ID)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY_ID)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
@@ -152,8 +183,8 @@ default: clean
 		fi; \
 		rm -f "$(DOXY_WARN_OUTPUT)"; \
 		if [ -n "$(CATEGORY)" ]; then \
-			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY)/|' \
-			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY)|' \
+			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY_ID)/|' \
+			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY_ID)|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \

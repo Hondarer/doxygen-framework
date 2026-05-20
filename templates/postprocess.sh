@@ -609,7 +609,11 @@ mkdir -p "$IMAGES_DIR"
 
 DOXYGEN_HTML_DIR="$WORKSPACE_ROOT/pages/doxygen"
 if [ -n "$CATEGORY" ]; then
-    DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/$CATEGORY"
+    if [ -n "$SUBCATEGORY" ]; then
+        DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/${CATEGORY}_${SUBCATEGORY}"
+    else
+        DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/$CATEGORY"
+    fi
 fi
 
 if [ -d "$DOXYGEN_HTML_DIR" ]; then

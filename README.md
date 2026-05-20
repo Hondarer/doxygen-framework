@@ -40,6 +40,24 @@ CATEGORY=calc make
 
 カスタム名を使用する app では、`docs/README.md` 内の Doxybook2 へのリンクと `\toc exclude` の対象も同じディレクトリ名に更新してください。
 
+### サブカテゴリ
+
+`Doxyfile.part` に加えて、`Doxyfile.part.<SUBCATEGORY>` を配置すると、同一 app から複数の Doxygen ドキュメントを生成できます。
+
+```text
+app/calc/prod/Doxyfile.part.public   # 公開 API (prod/include のみ)
+app/calc/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
+```
+
+各 Doxyfile.part.* の出力先は次のとおりです。
+
+- HTML: `pages/doxygen/<CATEGORY>_<SUBCATEGORY>/`
+- Markdown: `app/<CATEGORY>/docs/doxybook2_<SUBCATEGORY>/`
+
+`Doxyfile.part` と `Doxyfile.part.<SUBCATEGORY>` は、どちらか片方だけでも両方共存しても構いません。`Doxyfile.part` が存在しない app でも、`Doxyfile.part.<SUBCATEGORY>` だけを使えます。
+
+`<SUBCATEGORY>` にはディレクトリ区切り文字 (`/`、`\`) と空白文字を含まない任意の文字列を使用できます (日本語も可)。`Doxyfile.part` 内の `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` は、サブカテゴリでも同様に使えます (既定値は `doxybook2_<SUBCATEGORY>`)。
+
 ## 主なファイル
 
 - `makefile` - 生成処理の入口
