@@ -27,6 +27,19 @@ CATEGORY=calc make
 `CATEGORY` 指定時の Doxybook2 出力先は `app/<CATEGORY>/docs/doxybook2/` です。
 `CATEGORY` 未指定時は従来どおり `docs/doxybook2/` を使用します。
 
+`CATEGORY` 指定時は `app/<CATEGORY>/prod/Doxyfile.part` にコメントディレクティブを追加すると、Doxybook2 の Markdown 出力ディレクトリ名だけを変更できます。
+
+```text
+# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME = api
+```
+
+この例では Markdown 出力先が `app/<CATEGORY>/docs/api/` になります。Doxygen HTML 出力先は変わらず `pages/doxygen/<CATEGORY>/` です。
+
+値を空にした場合は未指定として扱われ、既定の `doxybook2` を使用します。
+値を指定する場合はディレクトリ名 1 要素だけです。絶対パス、`.`、`..`、`/`、`\` を含む値は使用できません。
+
+カスタム名を使用する app では、`docs/README.md` 内の Doxybook2 へのリンクと `\toc exclude` の対象も同じディレクトリ名に更新してください。
+
 ## 主なファイル
 
 - `makefile` - 生成処理の入口

@@ -25,14 +25,14 @@ ifneq ($(strip $(CATEGORY)),)
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/app/$(CATEGORY)
     DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)/prod
     DOXYFILE_PART   := $(DOXYGEN_RUNDIR)/Doxyfile.part
-    DOCS_DOXYBOOK2_DIR := $(DOXYGEN_WORKDIR)/docs/doxybook2
+    DOCS_DOXYBOOK2_BASE_DIR := $(DOXYGEN_WORKDIR)/docs
     APP_DOCS_DIR := $(DOXYGEN_WORKDIR)/docs
 else
     CATEGORY_SUFFIX :=
     DOXYGEN_WORKDIR := $(WORKSPACE_DIR)/prod
     DOXYGEN_RUNDIR  := $(DOXYGEN_WORKDIR)
     DOXYFILE_PART   := $(WORKSPACE_DIR)/Doxyfile.part
-    DOCS_DOXYBOOK2_DIR := $(WORKSPACE_DIR)/docs/doxybook2
+    DOCS_DOXYBOOK2_BASE_DIR := $(WORKSPACE_DIR)/docs
     APP_DOCS_DIR :=
 endif
 export DOXYGEN_WORKDIR
@@ -45,6 +45,44 @@ else
 endif
 export DOXYFILE_PART_PATH
 
+DOXYBOOK2_OUTPUT_DIR_DIRECTIVE := DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME
+DOXYBOOK2_OUTPUT_DIR_DEFAULT := doxybook2
+
+ifneq ($(strip $(CATEGORY)),)
+ifneq ($(DOXYFILE_PART_PATH),)
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := $(shell awk '/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") count++ } END { print count + 0 }' "$(DOXYFILE_PART_PATH)")
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE := $(shell awk '/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") { print value; exit } }' "$(DOXYFILE_PART_PATH)")
+else
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := 0
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE :=
+endif
+else
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := 0
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE :=
+endif
+
+ifneq ($(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT),0)
+    DOXYBOOK2_OUTPUT_DIR_NAME := $(strip $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE))
+    ifneq ($(words $(DOXYBOOK2_OUTPUT_DIR_NAME)),1)
+        $(error $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE) must be a single directory name in $(DOXYFILE_PART_PATH): $(DOXYBOOK2_OUTPUT_DIR_NAME))
+    endif
+    ifneq ($(filter /%,$(DOXYBOOK2_OUTPUT_DIR_NAME)),)
+        $(error $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE) must not be an absolute path in $(DOXYFILE_PART_PATH): $(DOXYBOOK2_OUTPUT_DIR_NAME))
+    endif
+    ifneq ($(filter . ..,$(DOXYBOOK2_OUTPUT_DIR_NAME)),)
+        $(error $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE) must not be "." or ".." in $(DOXYFILE_PART_PATH))
+    endif
+    ifneq ($(findstring /,$(DOXYBOOK2_OUTPUT_DIR_NAME)),)
+        $(error $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE) must not contain "/" in $(DOXYFILE_PART_PATH): $(DOXYBOOK2_OUTPUT_DIR_NAME))
+    endif
+    ifneq ($(findstring \,$(DOXYBOOK2_OUTPUT_DIR_NAME)),)
+        $(error $(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE) must not contain "\\" in $(DOXYFILE_PART_PATH): $(DOXYBOOK2_OUTPUT_DIR_NAME))
+    endif
+else
+    DOXYBOOK2_OUTPUT_DIR_NAME := $(DOXYBOOK2_OUTPUT_DIR_DEFAULT)
+endif
+
+DOCS_DOXYBOOK2_DIR := $(DOCS_DOXYBOOK2_BASE_DIR)/$(DOXYBOOK2_OUTPUT_DIR_NAME)
 DOCS_DOXYGEN_DIR := $(WORKSPACE_DIR)/pages/doxygen$(CATEGORY_SUFFIX)
 XML_DIR := $(WORKSPACE_DIR)/xml$(CATEGORY_SUFFIX)
 XML_ORG_DIR := $(WORKSPACE_DIR)/xml_org$(CATEGORY_SUFFIX)
