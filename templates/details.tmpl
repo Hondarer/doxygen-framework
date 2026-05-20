@@ -56,7 +56,7 @@
 
 {% if length(authors) == 1 %}{{first(authors)}}{% else %}
 
-{% for item in authors %}##### {{item}}
+{% for item in authors %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -65,7 +65,7 @@
 
 {% if length(version) == 1 %}{{first(version)}}{% else %}
 
-{% for item in version %}##### {{item}}
+{% for item in version %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -74,7 +74,7 @@
 
 {% if length(since) == 1 %}{{first(since)}}{% else %}
 
-{% for item in since %}##### {{item}}
+{% for item in since %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -83,7 +83,7 @@
 
 {% if length(date) == 1 %}{{first(date)}}{% else %}
 
-{% for item in date %}##### {{item}}
+{% for item in date %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -92,7 +92,7 @@
 
 {% if length(note) == 1 %}{{first(note)}}{% else %}
 
-{% for item in note %}##### {{item}}
+{% for item in note %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -182,7 +182,7 @@
 
 {% if length(rcs) == 1 %}{{first(rcs)}}{% else %}
 
-{% for item in rcs %}##### {{item}}
+{% for item in rcs %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -216,7 +216,7 @@
 
 {% if length(see) == 1 %}{{first(see)}}{% else %}
 
-{% for item in see %}##### {{item}}
+{% for item in see %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
@@ -225,6 +225,6 @@
 
 {% if length(copyright) == 1 %}{{first(copyright)}}{% else %}
 
-{% for item in copyright %}##### {{item}}
+{% for item in copyright %}* {{item}}
 {% endfor %}{% endif %}
 {% endif -%}
