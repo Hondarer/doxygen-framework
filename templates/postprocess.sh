@@ -588,6 +588,23 @@ process_markdown_file() {
     }
     ' | \
 
+    # 見出し行のインラインコード（バッククォート）除去
+    # # で始まる見出し行から `text` → text の変換を行う。
+    # コードブロック内の見出し行は変換しない。
+    awk '
+    BEGIN { in_code_block = 0 }
+    /^[[:space:]]*```/ { in_code_block = !in_code_block; print; next }
+    !in_code_block && /^#{1,6} / {
+        line = $0
+        while (match(line, /`[^`]+`/)) {
+            inner = substr(line, RSTART + 1, RLENGTH - 2)
+            line = substr(line, 1, RSTART - 1) inner substr(line, RSTART + RLENGTH)
+        }
+        print line; next
+    }
+    { print }
+    ' | \
+
     # !itembreak! を Markdown の改行 + 継続行インデントに変換
     # details.tmpl は項目名と説明文の間に !itembreak! を出力できるため、
     # ここで "  " を行末に付けた 1 行目と、2 文字インデント付きの 2 行目へ分割する。

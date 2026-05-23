@@ -119,7 +119,7 @@ extern int calcHandler(const int kind, const int a, const int b, int *result);
 int calcHandler(const int kind, const int a, const int b, int *result)
 ```
 
-### `.c` ファイル自体の説明
+### .c ファイル自体の説明
 
 実装ファイルには `@file` コメントを書いて構いません。
 `app/calc/prod/libsrc/calc/calcHandler.c` や `app/calc/prod/src/cmd/add/add.c` の形に合わせます。
@@ -184,7 +184,7 @@ int calcHandler(const int kind, const int a, const int b, int *result)
 `@param` は宣言と一致している必要があります。
 名前漏れや方向指定の誤りは警告原因になるため、関数シグネチャと一緒に確認します。
 
-### `@brief` と YAML front matter
+### @brief と YAML front matter
 
 `@brief` は生成後の Markdown で `summary` にも使われます。
 次のように半角コロンの直後へ空白を置く文は、YAML の構文と衝突する場合があります。
@@ -250,9 +250,9 @@ typedef struct
 
 詳細な雛形は `docs/cheatsheet.md`「スレッド セーフの記載」を参照してください。
 
-## `@section` と `@par` の使い分け
+## @section と @par の使い分け
 
-### `@section`
+### @section
 
 ファイル全体を構造化するときに使います。
 主な用途は、ヘッダー内で関連するマクロ群や定義群をまとめて説明することです。
@@ -265,7 +265,7 @@ typedef struct
  */
 ```
 
-### `@par`
+### @par
 
 関数やファイルに補足の見出しを足したいときに使います。
 `History` や `スレッド セーフ` のように、Doxygen に専用タグがない項目に向いています。
@@ -284,7 +284,7 @@ typedef struct
 
 ## コード例と文章整形
 
-### `@code{.c} ~ @endcode`
+### @code{.c} ~ @endcode
 
 プログラミングコードの例は、まずこれを使います。
 `@code` と `@endcode` の行には `*` を付け、コード本体には `*` を付けません。
@@ -307,7 +307,7 @@ typedef struct
 - `app/calc/prod/include/libcalcbase.h`
 - `app/calc/prod/src/cmd/add/add.c`
 
-### `@verbatim ~ @endverbatim`
+### @verbatim ~ @endverbatim
 
 シェルコマンド、設定ファイル、Doxygen コマンド自体の例示に使います。
 シンタックスハイライトは不要だが、そのままの形を保ちたいときに選びます。
@@ -335,7 +335,7 @@ typedef struct
 図が本当に必要なら PlantUML を使います。
 `@startuml` から `@enduml` の範囲は行頭の `*` を付けない形にします。
 
-### `@image`
+### @image
 
 画像ベースの説明は、修正、grep、構成管理が難しいため、可能な限り避けます。
 まずはテキスト、表、コード例、PlantUML を検討します。
@@ -355,7 +355,7 @@ typedef struct
 - `app/calc/prod/libsrc/calcbase/multiply.c`
 - `app/calc/prod/libsrc/calcbase/divide.c`
 
-### ファイルコメントと `main()` コメントの例
+### ファイルコメントと main() コメントの例
 
 - `app/calc/prod/src/cmd/add/add.c`
 - `app/calc/prod/src/cmd/calc/calc.c`

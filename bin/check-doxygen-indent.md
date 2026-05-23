@@ -135,19 +135,19 @@ clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
 
 ## オプション
 
-### `--check`（既定）
+### --check（既定）
 
 チェックモード：問題を検出して報告します。
 
-### `--dry-run`
+### --dry-run
 
 修正プレビューモード：修正内容を表示します（実際には修正しません）。
 
-### `--fix`
+### --fix
 
 修正モード：字下げレベルを統一します。
 
-### `--include-single-line`
+### --include-single-line
 
 末尾コメント（`/**< ... */` が同一行）も対象に含めます。既定では除外されます。
 
