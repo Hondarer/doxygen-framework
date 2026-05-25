@@ -89,7 +89,7 @@ process_markdown_file() {
                 ' "$include_path" | \
                 awk -v heading_offset="$include_heading_offset" '
                 {
-                    if (heading_offset > 0 && match($0, /^(#{1,6})[[:space:]]+/, m)) {
+                    if (heading_offset > 0 && match($0, /^[[:space:]]*(#{1,6})[[:space:]]+/, m)) {
                         level = length(m[1])
                         new_level = level + heading_offset
                         if (new_level > 6) {
@@ -492,11 +492,11 @@ process_markdown_file() {
     # レンダリングの一貫性のためにここで除去する。
     awk '
     BEGIN { in_params_section = 0; in_param_item = 0; pending_blank = 0 }
-    /^[[:space:]]*####[[:space:]]+引数[[:space:]]*$/ {
+    /^[[:space:]]*#{1,6}[[:space:]]+引数[[:space:]]*$/ {
         in_params_section = 1; in_param_item = 0; pending_blank = 0
         print; next
     }
-    in_params_section && /^[[:space:]]*####/ {
+    in_params_section && /^[[:space:]]*#{1,6}[[:space:]]/ {
         in_params_section = 0; in_param_item = 0
         if (pending_blank) { print ""; pending_blank = 0 }
         print; next
@@ -769,9 +769,10 @@ done
 # リンク除去ループの後に削除する (ループ内で Enums/*.md への .tmp 生成が必要なため)
 find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 
-# perfile__*.md (inject-groups.py が生成した Files ページ別の !include 用中間ファイル) を削除
-# Modules/group__*.md スタンドアロンページは保持し、perfile__* のみ削除する
+# perfile__*.md / perchild__*.md (inject-groups.py が生成した !include 用中間ファイル) を削除
+# Modules/group__*.md スタンドアロンページは保持し、perfile__* / perchild__* のみ削除する
 find "$MARKDOWN_DIR" -path "*/Modules/perfile__*.md" -type f -delete 2>/dev/null || true
+find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/null || true
 
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。

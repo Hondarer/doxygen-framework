@@ -47,22 +47,30 @@ def source_basename_to_md_name(basename):
 
 def collect_groups(xml_dir):
     """
-    XML ディレクトリからグループ情報を収集する。
+    XML ディレクトリからグループ情報と親子関係を収集する。
 
     各 group__*.xml の compounddef を解析し、すべてのメンバーの location を走査して
     「そのメンバーが定義されたファイル」ごとにグループを紐付ける (多対多マッピング)。
     グループメンバーが複数ファイルにまたがる場合、各ファイルに対して
     そのファイル内のメンバーのみを根拠にグループを関連付ける。
 
+    また <innergroup> 要素から親子関係 (hierarchy) も収集する。
+
     Returns:
-        dict: {group_id: (title, {source_basename: (member_names_set, min_line)})}
-            group_id: グループ ID (例: "group__COMM__RESULT")
-            title: グループタイトル (例: "戻り値")
-            source_basename: ソースファイルのベースネーム (例: "libporter_const.h")
-            member_names_set: そのファイルで定義されたメンバー名の集合
-            min_line: そのファイル内のメンバーの最小行番号 (ファイル内でのソートに使用)
+        tuple: (group_data, hierarchy)
+            group_data: {group_id: (title, {source_basename: (member_names_set, min_line)})}
+                group_id: グループ ID (例: "group__COMM__RESULT")
+                title: グループタイトル (例: "戻り値")
+                source_basename: ソースファイルのベースネーム (例: "libporter_const.h")
+                member_names_set: そのファイルで定義されたメンバー名の集合
+                min_line: そのファイル内のメンバーの最小行番号 (ファイル内でのソートに使用)
+            hierarchy: {parent_id: [(child_id, child_title), ...]}
+                parent_id: 親グループ ID
+                child_id: 子グループ ID
+                child_title: 子グループのタイトル (XML の <innergroup> テキスト)
     """
     group_data = {}
+    hierarchy = {}
 
     for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "group__*.xml"))):
         try:
@@ -108,7 +116,17 @@ def collect_groups(xml_dir):
             if file_data:
                 group_data[group_id] = (title, file_data)
 
-    return group_data
+            # 子グループ (innergroup) を収集して親子関係を構築する
+            innergroups = []
+            for ig in compounddef.findall("innergroup"):
+                child_refid = ig.get("refid", "")
+                child_title = (ig.text or "").strip()
+                if child_refid:
+                    innergroups.append((child_refid, child_title))
+            if innergroups:
+                hierarchy[group_id] = innergroups
+
+    return group_data, hierarchy
 
 
 def parse_group_md_sections(md_path):
@@ -296,6 +314,133 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     print("  [ok] {}: {} inserted (filtered)".format(files_md_path.name, ", ".join(generated)))
 
 
+def generate_perchild_md(group_md_path):
+    """
+    子グループの group__*.md を読み込み、**Module:** breadcrumb 行を除去した
+    perchild 用コンテンツを生成する。
+
+    フロントマター、HTML コメント、H1 は保持し、postprocess.sh の !include 処理に任せる。
+    **Module:** で始まる行とその直後の連続する空行のみ除去する。
+
+    Returns:
+        str: perchild ファイルに書き出すコンテンツ
+    """
+    with open(str(group_md_path), "r", encoding="utf-8") as f:
+        lines = f.read().split("\n")
+
+    result = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if line.startswith("**Module:**"):
+            # breadcrumb 行をスキップし、直後の連続する空行もスキップ
+            i += 1
+            while i < n and lines[i] == "":
+                i += 1
+            continue
+        result.append(line)
+        i += 1
+
+    return "\n".join(result)
+
+
+def flatten_descendants(parent_id, hierarchy):
+    """
+    グループ階層ツリーを DFS で走査し、子孫をフラットなリストとして返す。
+
+    各子のタイトルは hierarchy の (child_id, child_title) タプルから取得する。
+    path は直接の子から始まり、孫以降は / 区切りで連結する。
+    3 層以上の場合も見出しレベルを増やさず、パス形式で表現する。
+
+    例:
+        A → B → D, A → C
+        → [("group__B", "B"), ("group__D", "B/D"), ("group__C", "C")]
+
+    Returns:
+        list: [(descendant_id, path_title), ...]
+    """
+    result = []
+    visited = set()
+
+    def dfs(node_id, path_prefix):
+        for child_id, child_title in hierarchy.get(node_id, []):
+            if child_id in visited:
+                continue
+            visited.add(child_id)
+            path = "{}/{}".format(path_prefix, child_title) if path_prefix else child_title
+            result.append((child_id, path))
+            dfs(child_id, path)
+
+    dfs(parent_id, "")
+    return result
+
+
+def inject_children_into_parent_groups(docs_dir, hierarchy):
+    """
+    各親グループの Modules ページに子孫グループの内容を挿入する。
+
+    Files 注入の perfile__ パターンと同様に perchild__*.md 中間ファイルを生成し、
+    親グループ MD に ## カテゴリー セクションと !include ディレクティブを追記する。
+    postprocess.sh が !include を heading_offset=2 で展開した後、
+    perchild__*.md を削除する。
+
+    3 層以上の階層は ### パス形式の見出しでフラットに表現し、
+    見出しレベルの増加を回避する。
+    """
+    processed = 0
+
+    for parent_id in sorted(hierarchy.keys()):
+        descendants = flatten_descendants(parent_id, hierarchy)
+        if not descendants:
+            continue
+
+        for modules_dir in sorted(docs_dir.rglob("Modules")):
+            if not modules_dir.is_dir():
+                continue
+
+            parent_md = modules_dir / "{}.md".format(parent_id)
+            if not parent_md.exists():
+                continue
+
+            content = parent_md.read_text(encoding="utf-8")
+            if "\n## カテゴリー\n" in content:
+                print("  [skip] {}: ## カテゴリー section already exists".format(parent_md.name))
+                continue
+
+            modules_rel = str(modules_dir.relative_to(docs_dir))
+            append_lines = ["\n## カテゴリー\n"]
+            generated = []
+
+            for descendant_id, path_title in descendants:
+                child_md = modules_dir / "{}.md".format(descendant_id)
+                if not child_md.exists():
+                    print("  -> 警告: {} が見つかりません".format(child_md))
+                    continue
+
+                perchild_content = generate_perchild_md(child_md)
+                perchild_name = "perchild__{}__{}.md".format(parent_id, descendant_id)
+                perchild_path = modules_dir / perchild_name
+                with open(str(perchild_path), "w", encoding="utf-8", newline="\n") as f:
+                    f.write(perchild_content)
+
+                include_path = "{}/{}".format(modules_rel, perchild_name)
+                append_lines.append("\n### {}\n".format(path_title))
+                append_lines.append("\n!include {}\n".format(include_path))
+                generated.append(descendant_id)
+
+            if not generated:
+                continue
+
+            with open(str(parent_md), "a", encoding="utf-8", newline="\n") as f:
+                f.write("".join(append_lines))
+
+            print("  [ok] {}: {} inserted".format(parent_md.name, ", ".join(generated)))
+            processed += 1
+
+    print("[inject-groups] parent groups processed: {}".format(processed))
+
+
 def main():
     if len(sys.argv) < 3:
         print("Usage: {} <xml_dir> <docs_dir>".format(sys.argv[0]), file=sys.stderr)
@@ -313,10 +458,10 @@ def main():
 
     print("[inject-groups] xml={}  docs={}".format(xml_dir, docs_dir))
 
-    # グループデータ収集: {group_id: (title, {basename: (names_set, min_line)})}
-    group_data = collect_groups(xml_dir)
+    # グループデータ収集: ({group_id: (title, {basename: (names_set, min_line)})}, hierarchy)
+    group_data, hierarchy = collect_groups(xml_dir)
 
-    if not group_data:
+    if not group_data and not hierarchy:
         print("[inject-groups] Done: 0 file(s) processed")
         return 0
 
@@ -358,6 +503,11 @@ def main():
             processed += 1
 
     print("[inject-groups] Done: {} file(s) processed".format(processed))
+
+    # 親グループへの子グループ注入
+    if hierarchy:
+        inject_children_into_parent_groups(docs_dir, hierarchy)
+
     return 0
 
 
