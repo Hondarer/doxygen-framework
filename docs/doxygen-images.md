@@ -1,6 +1,6 @@
 # Doxygen における画像の仕様
 
-Doxygen 1.14.0 を使用した実験、および Doxygen ソースコード (`src/doxygen.cpp`, `src/docparser.cpp`, `src/docnode.cpp`) の調査に基づく仕様をまとめます。
+Doxygen 1.14.0 を使用した実験、および Doxygen ソース コード (`src/doxygen.cpp`, `src/docparser.cpp`, `src/docnode.cpp`) の調査に基づく仕様をまとめます。
 
 ## IMAGE_PATH の設定
 
@@ -37,7 +37,7 @@ RECURSIVE  = YES
 
 ### コピー対象の拡張子
 
-**Doxygen のソースコードに拡張子フィルタは存在しません。**
+**Doxygen のソース コードに拡張子フィルターは存在しません。**
 
 `src/doxygen.cpp` の `adjustConfiguration()` では、IMAGE_PATH のディレクトリを `readFileOrDirectory()` でスキャンする際に `patList=nullptr` を渡しており、すべてのファイルが `imageNameLinkedMap` に登録されます。Markdown から参照されたファイルをコピーする `findAndCopyImage()` にも拡張子チェックはありません。
 
@@ -52,7 +52,7 @@ readFileOrDirectory(path,
 
 つまり、Markdown から参照したファイルは拡張子に関係なくコピーされます。
 
-HTML での表示はブラウザに依存します。公式ドキュメントの `\image` コマンドには次の記載があります。
+HTML での表示はブラウザーに依存します。公式ドキュメントの `\image` コマンドには次の記載があります。
 
 > "The image format for HTML is limited to what your browser supports."
 > "Doxygen does not check if the image is in the correct format."
@@ -61,16 +61,16 @@ HTML での表示はブラウザに依存します。公式ドキュメントの
 
 HTML 出力での実用的な対応形式は以下の通りです。
 
-| 拡張子 | HTML 出力での扱い | ブラウザでの表示 |
+| 拡張子 | HTML 出力での扱い | ブラウザーでの表示 |
 |---|---|---|
 | `.png` | `<img>` タグ | ✅ |
 | `.jpg` / `.jpeg` | `<img>` タグ | ✅ |
 | `.gif` | `<img>` タグ | ✅ |
-| `.webp` | `<img>` タグ | ✅ (主要ブラウザ) |
+| `.webp` | `<img>` タグ | ✅ (主要ブラウザー) |
 | `.svg` | `<object type="image/svg+xml">` タグ | ✅ |
-| その他 | `<img>` タグ | ブラウザ依存 |
+| その他 | `<img>` タグ | ブラウザー依存 |
 
-`.svg` のみ、Doxygen ソースコード内の `DocImage::isSVG()` (`src/docnode.cpp`) が拡張子を判定して `<object>` タグに切り替えます。
+`.svg` のみ、Doxygen ソース コード内の `DocImage::isSVG()` (`src/docnode.cpp`) が拡張子を判定して `<object>` タグに切り替えます。
 
 ```html
 <!-- SVG の場合 -->
@@ -118,5 +118,5 @@ warning: image file name 'images/duplicate.png' is ambiguous.
   /path/to/dir2/images/duplicate.png
 ```
 
-ドキュメントセットが意図した出力になるためには、画像ファイル名がプロジェクト全体で一意であることが必要です。  
+ドキュメント セットが意図した出力になるためには、画像ファイル名がプロジェクト全体で一意であることが必要です。  
 本フレームワークでは、同名画像ファイルの警告を検出した場合、`make doxy` にて失敗します。これにより、CI/CD で問題を発見、対処できます。

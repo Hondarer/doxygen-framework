@@ -1,10 +1,10 @@
-# Doxygen コメント字下げレベルチェック・修正コマンド
+# Doxygen コメント字下げレベル チェック・修正コマンド
 
-`check-doxygen-indent.py` は、Doxygen コメントブロック（`/**` から `*/` まで）の字下げレベルが統一されているかをチェックし、不統一な場合に修正するコマンドです。
+`check-doxygen-indent.py` は、Doxygen コメント ブロック (`/**` から `*/` まで) の字下げレベルが統一されているかをチェックし、不統一な場合に修正するコマンドです。
 
 ## 問題の背景
 
-clang-format は、`/**` の行の字下げレベルを文脈に応じて自動調整します（例：extern C ブロック内では + 4 スペース）。しかし、その後に続く `* @brief` や `*/` の行の字下げレベルは自動調整されないため、見た目に矛盾が生じます。
+clang-format は、`/**` の行の字下げレベルを文脈に応じて自動調整します (例：extern C ブロック内では + 4 スペース)。しかし、その後に続く `* @brief` や `*/` の行の字下げレベルは自動調整されないため、見た目に矛盾が生じます。
 
 ### 不正な形式の例
 
@@ -17,7 +17,7 @@ void func(void);
 }
 ```
 
-修正後（`/**` が +4 スペース）：
+修正後 (`/**` が +4 スペース)：
 
 ```c
 extern "C" {
@@ -51,7 +51,7 @@ chmod +x framework/doxyfw/bin/check-doxygen-indent.py
 
 ## 使用方法
 
-### チェックモード（既定）
+### チェック モード (既定)
 
 指定したファイルまたはディレクトリをスキャンし、字下げレベルの不一致を報告します。
 
@@ -84,7 +84,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
     ...
 ```
 
-### 修正プレビューモード
+### 修正プレビュー モード
 
 修正内容を表示します。実際には修正しません。
 
@@ -135,13 +135,13 @@ clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
 
 ## オプション
 
-### --check（既定）
+### --check (既定)
 
-チェックモード：問題を検出して報告します。
+チェック モード：問題を検出して報告します。
 
 ### --dry-run
 
-修正プレビューモード：修正内容を表示します（実際には修正しません）。
+修正プレビュー モード：修正内容を表示します (実際には修正しません)。
 
 ### --fix
 
@@ -149,7 +149,7 @@ clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
 
 ### --include-single-line
 
-末尾コメント（`/**< ... */` が同一行）も対象に含めます。既定では除外されます。
+末尾コメント (`/**< ... */` が同一行) も対象に含めます。既定では除外されます。
 
 ```bash
 # マクロの末尾コメントも処理する場合
@@ -162,17 +162,17 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check --include-single-li
 
 1. ファイルを行単位で走査
 2. `/**` で始まるコメントを検出
-3. 末尾コメント形式（`/**< ... */` が同一行）の場合はスキップ（既定）
-4. `/**` のインデントを基準に、後続行の期待インデント（`/** のインデント + 1`）を計算
+3. 末尾コメント形式 (`/**< ... */` が同一行) の場合はスキップ (既定)
+4. `/**` のインデントを基準に、後続行の期待インデント (`/** のインデント + 1`) を計算
 5. 後続行のインデントが期待値と異なる場合を報告
 6. `*/` に到達するまで繰り返す
 
 ### 修正処理
 
 1. スキャンと同じ方法で対象を特定
-2. 不一致のある行を修正（期待インデントに揃える）
+2. 不一致のある行を修正 (期待インデントに揃える)
 3. 改行文字を保持しながら修正
-4. ファイルを上書き（`--dry-run` の場合は上書きしない）
+4. ファイルを上書き (`--dry-run` の場合は上書きしない)
 
 ## トラブルシューティング
 
@@ -211,5 +211,5 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check <target>
 ## 関連ドキュメント
 
 - `framework/doxyfw/.agents/skills/maintain-doxygen-comment/SKILL.md` — Doxygen コメント作成ガイドライン
-- `framework/doxyfw/docs/cheatsheet.md` — Doxygen 記法チートシート
+- `framework/doxyfw/docs/cheatsheet.md` — Doxygen 記法チート シート
 - `framework/doxyfw/docs/commands.md` — Doxygen コマンド リファレンス

@@ -1,4 +1,4 @@
-# パラメータの direction の処理
+# パラメーターの direction の処理
 
 doxybook2 では direction を解釈できないので、
 

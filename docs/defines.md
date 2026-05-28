@@ -65,7 +65,7 @@ PREDEFINED = FEATURE_A \
 
 ## 実際のコード例
 
-### ソースコード
+### ソース コード
 
 ```cpp
 /**
@@ -74,7 +74,7 @@ PREDEFINED = FEATURE_A \
 class Calculator {
 public:
     int add(int a, int b);
-    
+
 #ifdef ADVANCED_FEATURES
     /**
      * @brief 高度な計算機能
@@ -192,7 +192,7 @@ PREDEFINED = _WIN32
 PREDEFINED = __linux__
 ```
 
-## 注意点とベストプラクティス
+## 注意点とベスト プラクティス
 
 ### 長い行の分割
 
@@ -228,7 +228,7 @@ PREDEFINED = FEATURE_A \
 
 1. **マクロが認識されない**
    - `ENABLE_PREPROCESSING = YES` を確認
-   - マクロ名のスペルチェック
+   - マクロ名のスペル チェック
 
 2. **値が正しく設定されない**
    - 引用符の使用を確認

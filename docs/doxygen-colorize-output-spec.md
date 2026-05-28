@@ -2,9 +2,9 @@
 
 ## 概要
 
-`doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラーコードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルタースクリプトです。
+`doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラーコードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルター スクリプトです。
 
-## ファイルパス
+## ファイル パス
 
 ```text
 bin/doxygen-colorize-output.sh
@@ -16,11 +16,11 @@ bin/doxygen-colorize-output.sh
 
 ## 機能
 
-標準入力から受け取った各行を解析し、エラーまたはワーニングメッセージを検出して着色します。
+標準入力から受け取った各行を解析し、エラーまたはワーニング メッセージを検出して着色します。
 
 ### 着色ルール
 
-| メッセージタイプ | 検出パターン | ANSI カラーコード | 表示色 |
+| メッセージ タイプ | 検出パターン | ANSI カラーコード | 表示色 |
 |------------------|--------------|-------------------|--------|
 | エラー | ` error: ` | `\033[0;31m` | 🔴 赤 |
 | ワーニング | ` warning: ` | `\033[0;33m` | 🟡 黄 |
@@ -78,7 +78,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 
 ### 誤検知の防止
 
-スペースを含むパターンマッチングにより、以下のような誤検知を防止します。
+スペースを含むパターン マッチングにより、以下のような誤検知を防止します。
 
 - 変数名: `show_error_flag`, `warning_count`
 - 関数名: `print_error()`, `handle_warning()`
@@ -93,7 +93,7 @@ doxygen Doxyfile 2>&1 | $(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
-- `|`: パイプでフィルタースクリプトに渡す
+- `|`: パイプでフィルター スクリプトに渡す
 
 ### 終了コードの保持
 
@@ -119,24 +119,24 @@ Normal output line
 
 (ターミナルでは以下のように表示されます)
 
-<span style="color: #ffaa00">/path/to/file.c:42: warning: undocumented parameter 'foo'</span>
-<span style="color: #ff0000">/path/to/file.c:100: error: invalid syntax</span>
+<span style="color: #ffaa00">/path/to/file.c:42: warning: undocumented parameter 'foo'</span>  
+<span style="color: #ff0000">/path/to/file.c:100: error: invalid syntax</span>  
 Normal output line
 
 ## 制限事項
 
 ### ANSI カラーコード非対応環境
 
-Windows コマンドプロンプトなど、ANSI カラーコードに対応していないターミナルでは、エスケープシーケンスがそのまま表示される可能性があります。
+Windows コマンド プロンプトなど、ANSI カラーコードに対応していないターミナルでは、エスケープ シーケンスがそのまま表示される可能性があります。
 
-### ログファイルへの出力
+### ログ ファイルへの出力
 
-ANSI カラーコードを含む出力をファイルにリダイレクトすると、エスケープシーケンスがそのまま記録されます。
+ANSI カラーコードを含む出力をファイルにリダイレクトすると、エスケープ シーケンスがそのまま記録されます。
 
-ログファイルに保存する場合は、以下のいずれかの方法を推奨します。
+ログ ファイルに保存する場合は、以下のいずれかの方法を推奨します。
 
 - フィルターを適用せずに doxygen を直接実行
-- `WARN_LOGFILE` 設定を使用して Doxygen が直接ログファイルに出力
+- `WARN_LOGFILE` 設定を使用して Doxygen が直接ログ ファイルに出力
 
 ## テスト方法
 

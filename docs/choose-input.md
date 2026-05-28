@@ -29,7 +29,7 @@ INPUT = ./src ./include ./examples
 
 ## ワイルドカードの使用
 
-ワイルドカードパターンも使用できます。
+ワイルドカード パターンも使用できます。
 
 ```text
 INPUT = ./src/* ./libs/*/include
@@ -37,7 +37,7 @@ INPUT = ./src/* ./libs/*/include
 
 ## RECURSIVE 設定との組み合わせ
 
-`RECURSIVE` を `YES `に設定すると、指定したディレクトリのサブディレクトリも再帰的に処理されます。
+`RECURSIVE` を `YES` に設定すると、指定したディレクトリのサブディレクトリも再帰的に処理されます。
 
 ```text
 INPUT = dir1 dir2 dir3
@@ -48,7 +48,7 @@ RECURSIVE = YES
 
 特定のディレクトリやファイルを除外したい場合は `EXCLUDE` 設定を使用します。
 
-```
+```text
 INPUT = src libs
 EXCLUDE = src/deprecated libs/external
 RECURSIVE = YES
