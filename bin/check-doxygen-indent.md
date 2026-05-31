@@ -4,7 +4,7 @@
 
 ## 問題の背景
 
-clang-format は、`/**` の行の字下げレベルを文脈に応じて自動調整します (例：extern C ブロック内では + 4 スペース)。しかし、その後に続く `* @brief` や `*/` の行の字下げレベルは自動調整されないため、見た目に矛盾が生じます。
+clang-format は、`/**` の行の字下げレベルを文脈に応じて自動調整します (例: extern C ブロック内では + 4 スペース)。しかし、その後に続く `* @brief` や `*/` の行の字下げレベルは自動調整されないため、見た目に矛盾が生じます。
 
 ### 不正な形式の例
 
@@ -17,7 +17,7 @@ void func(void);
 }
 ```
 
-修正後 (`/**` が +4 スペース)：
+修正後 (`/**` が +4 スペース):
 
 ```c
 extern "C" {
@@ -28,7 +28,7 @@ extern "C" {
 }
 ```
 
-しかし clang-format は `/**` のみ調整し、後続行は調整しません：
+しかし clang-format は `/**` のみ調整し、後続行は調整しません:
 
 ```c
 extern "C" {
@@ -63,15 +63,15 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
 python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/include/com_util
 ```
 
-出力例：
+出力例:
 
-```
+```text
 🔍 チェックモード: 30 ファイルをスキャン中...
 
 ✅ 30 ファイルをスキャン: 問題なし
 ```
 
-問題が見つかった場合：
+問題が見つかった場合:
 
 ```
 ❌ Doxygen コメント字下げレベルの不一致が検出されました
@@ -92,7 +92,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
 python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/com_util/prod/include/com_util/runtime/shutdown.h
 ```
 
-出力例：
+出力例:
 
 ```
 🔍 修正プレビューモード: 1 ファイルを処理中...
@@ -118,7 +118,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/com_util/prod
 python3 framework/doxyfw/bin/check-doxygen-indent.py --fix app/com_util/prod/include/com_util/runtime/shutdown.h
 ```
 
-出力例：
+出力例:
 
 ```
 🔧 修正モード: 1 ファイルを処理中...
@@ -137,15 +137,15 @@ clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
 
 ### --check (既定)
 
-チェック モード：問題を検出して報告します。
+チェック モード: 問題を検出して報告します。
 
 ### --dry-run
 
-修正プレビュー モード：修正内容を表示します (実際には修正しません)。
+修正プレビュー モード: 修正内容を表示します (実際には修正しません)。
 
 ### --fix
 
-修正モード：字下げレベルを統一します。
+修正モード: 字下げレベルを統一します。
 
 ### --include-single-line
 
@@ -192,7 +192,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
 
 本コマンド で修正したあと、`clang-format` を適用すると、`/**` の行の字下げレベルが再度調整される場合があります。その場合は、修正を繰り返すか、clang-format の設定を見直してください。
 
-通常の workflow：
+通常の workflow:
 
 ```bash
 # 1. 修正プレビューで確認
