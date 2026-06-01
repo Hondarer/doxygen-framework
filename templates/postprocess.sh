@@ -665,63 +665,60 @@ for file in "${md_files[@]}"; do
     fi
 done
 
-# サブディレクトリ内 Markdown の画像パスを修正
-# Doxybook2 は Files/ 等のサブディレクトリに Markdown を配置するが、
-# 画像は doxybook2 ルートの images/ に置かれるため、
-# 相対パス images/{name} は ../images/{name} に修正する必要がある
-#
-# 修正対象ファイルで参照された画像ファイル名を収集し、
-# Pages のみで参照される画像の後処理 (削除) に使用する
-SUBDIR_IMAGES="$TEMP_DIR/subdir_images.txt"
-touch "$SUBDIR_IMAGES"
+# Files/ を実フォルダ構造へ再編
+# (process_markdown_file ループ後に実施: !include 展開済みが前提)
+python3 "$SCRIPT_DIR/restructure-files.py" "$MARKDOWN_DIR" || exit 1
+
+# Files/ 再編後に md_files を再収集
+# (画像パス補正・リンク除去ループが新しいネスト パスを対象にするため)
+mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
+
+# サブディレクトリ内 Markdown の画像を分散配置
+# Doxybook2 がルート images/ に出力した画像 (@image html 由来) を各 md と同階層の
+# images/ へ配置し、参照パスを images/<name> に正規化する。
+# Doxybook2 ルート images/ は @image html で実際に参照された画像のみを含み、
+# Doxygen HTML 出力 (dir_*.svg 等 Doxygen 固有ファイルを含む) より正確なコピー元。
+# Doxygen の仕様上、画像 basename はプロジェクト内で一意。
+
+DOXYBOOK2_IMAGES_DIR="$MARKDOWN_DIR/images"
 
 for file in "${md_files[@]}"; do
     rel_path="${file#$MARKDOWN_DIR/}"
     # スラッシュが含まれる = サブディレクトリ内のファイル
     if [[ "$rel_path" == */* ]] && grep -qE '!\[[^]]*\]\([^)]+\)' "$file" 2>/dev/null; then
-        # パス修正前に参照画像の basename を収集 (外部 URL は除外)
-        # ([^/)]*\/)* でディレクトリ部分を読み飛ばし、([^/)?# ]+) で basename を取得する
-        grep -oE '!\[[^]]*\]\([^)]+\)' "$file" | \
-            grep -Ev '\(https?://' | \
-            sed -E 's/!\[[^]]*\]\(([^/)]*\/)*([^/)?# ]+)\).*/\2/' >> "$SUBDIR_IMAGES"
-        # 画像パスの修正とキャプション補正を同時に適用
-        # - ディレクトリ部分を strip して ../images/{basename} に統一する
-        #   ([^/)]*\/)* でディレクトリ部分を除去し basename のみ残す
-        # - ![filename](url)caption → ![caption](url):
-        #   Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する。
+        file_dir="$(dirname "$file")"
+        local_images_dir="$file_dir/images"
+
+        # 参照画像の basename を収集し、Doxybook2 ルート images/ から各 md の隣接へコピー
+        # (外部 URL は除外。([^/)]*\/)* でディレクトリ部分を読み飛ばし basename を取得)
+        # 同一画像を複数 md が参照する場合も cp で各所に配置できるよう mv は使わない
+        while IFS= read -r img_name; do
+            [ -z "$img_name" ] && continue
+            if [ -f "$DOXYBOOK2_IMAGES_DIR/$img_name" ]; then
+                mkdir -p "$local_images_dir"
+                if [ ! -f "$local_images_dir/$img_name" ]; then
+                    cp "$DOXYBOOK2_IMAGES_DIR/$img_name" "$local_images_dir/$img_name"
+                    echo "  Copied image: $img_name -> ${rel_path%/*}/images/"
+                fi
+            fi
+        done < <(
+            grep -oE '!\[[^]]*\]\([^)]+\)' "$file" | \
+                grep -Ev '\(https?://' | \
+                sed -E 's/!\[[^]]*\]\(([^/)]*\/)*([^/)?# ]+)\).*/\2/'
+        )
+
+        # 画像パスを images/<name> に正規化 (ディレクトリ部分を除去) し、
+        # キャプション補正 (![filename](url)caption → ![caption](url)) も適用。
+        # - ディレクトリ部分を strip して images/{basename} に統一 (../ 不要)
+        # - Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する。
         #   ) の直後が非スペース文字で始まる場合にキャプションと判定する。
         sed -i -E \
-            -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](..\/images\/\3)/g' \
+            -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](images\/\3)/g' \
             -e 's/!\[[^]]*\]\(([^)]+)\)([^ ].*)/![\2](\1)/g' \
             "$file"
         echo "  Fixed image path/caption: $rel_path"
     fi
 done
-
-# Doxygen が HTML 出力ルートへ配置した画像を Markdown 側 images/ に補完コピー
-# @image html は Doxybook2 生成 Markdown から参照されるが、
-# 元画像は Doxygen HTML 出力側にしか存在しないため、ここで同期する
-IMAGES_DIR="$MARKDOWN_DIR/images"
-mkdir -p "$IMAGES_DIR"
-
-DOXYGEN_HTML_DIR="$WORKSPACE_ROOT/pages/doxygen"
-if [ -n "$CATEGORY" ]; then
-    if [ -n "$SUBCATEGORY" ]; then
-        DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/${CATEGORY}_${SUBCATEGORY}"
-    else
-        DOXYGEN_HTML_DIR="$DOXYGEN_HTML_DIR/$CATEGORY"
-    fi
-fi
-
-if [ -d "$DOXYGEN_HTML_DIR" ]; then
-    sort -u "$SUBDIR_IMAGES" | while IFS= read -r img_name; do
-        [ -z "$img_name" ] && continue
-        if [ ! -f "$IMAGES_DIR/$img_name" ] && [ -f "$DOXYGEN_HTML_DIR/$img_name" ]; then
-            cp "$DOXYGEN_HTML_DIR/$img_name" "$IMAGES_DIR/$img_name"
-            echo "  Copied Doxygen image: $img_name"
-        fi
-    done
-fi
 
 # サブディレクトリ内 Markdown のファイル間リンクを削除
 # Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
@@ -812,23 +809,13 @@ fi
 # copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
 
-# Pages のみで参照される画像を images/ から削除
-# サブディレクトリ (Files/ 等) から参照されていない画像は
-# Pages/ 以下に正しい相対パスでコピー済みのため、images/ の該当ファイルは不要
-if [ -d "$IMAGES_DIR" ]; then
-    # awk 連想配列で SUBDIR_IMAGES を一括ロードし、O(M+N) で削除対象を抽出
-    # SUBDIR_IMAGES が空ファイルでも第 2 入力を正しく処理できるよう、
-    # レコード数ベースの NR==FNR ではなく入力ファイル名で第 1 フェーズを判定する
-    while IFS= read -r img_name; do
-        rm "$IMAGES_DIR/$img_name"
-        echo "  Removed Pages-only image: $img_name from images/"
-    done < <(
-        awk '
-            FILENAME == ARGV[1] { subdir[$0]=1; next }
-            !subdir[$0]
-        ' "$SUBDIR_IMAGES" \
-          <(find "$IMAGES_DIR" -maxdepth 1 -type f -exec basename {} \;)
-    )
+# doxybook2 出力ルートの images/ が空ならば削除
+# 分散配置により各 md 隣接の images/ へコピー済みのため、ルート images/ は空になるはず。
+if [ -d "$MARKDOWN_DIR/images" ]; then
+    if [ -z "$(find "$MARKDOWN_DIR/images" -maxdepth 1 -type f -print -quit)" ]; then
+        rm -rf "$MARKDOWN_DIR/images"
+        echo "  Removed empty root images/ directory"
+    fi
 fi
 
 # ファイルインデックスのパッチ
