@@ -673,52 +673,6 @@ python3 "$SCRIPT_DIR/restructure-files.py" "$MARKDOWN_DIR" || exit 1
 # (画像パス補正・リンク除去ループが新しいネスト パスを対象にするため)
 mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
 
-# サブディレクトリ内 Markdown の画像を分散配置
-# Doxybook2 がルート images/ に出力した画像 (@image html 由来) を各 md と同階層の
-# images/ へ配置し、参照パスを images/<name> に正規化する。
-# Doxybook2 ルート images/ は @image html で実際に参照された画像のみを含み、
-# Doxygen HTML 出力 (dir_*.svg 等 Doxygen 固有ファイルを含む) より正確なコピー元。
-# Doxygen の仕様上、画像 basename はプロジェクト内で一意。
-
-DOXYBOOK2_IMAGES_DIR="$MARKDOWN_DIR/images"
-
-for file in "${md_files[@]}"; do
-    rel_path="${file#$MARKDOWN_DIR/}"
-    # スラッシュが含まれる = サブディレクトリ内のファイル
-    if [[ "$rel_path" == */* ]] && grep -qE '!\[[^]]*\]\([^)]+\)' "$file" 2>/dev/null; then
-        file_dir="$(dirname "$file")"
-        local_images_dir="$file_dir/images"
-
-        # 参照画像の basename を収集し、Doxybook2 ルート images/ から各 md の隣接へコピー
-        # (外部 URL は除外。([^/)]*\/)* でディレクトリ部分を読み飛ばし basename を取得)
-        # 同一画像を複数 md が参照する場合も cp で各所に配置できるよう mv は使わない
-        while IFS= read -r img_name; do
-            [ -z "$img_name" ] && continue
-            if [ -f "$DOXYBOOK2_IMAGES_DIR/$img_name" ]; then
-                mkdir -p "$local_images_dir"
-                if [ ! -f "$local_images_dir/$img_name" ]; then
-                    cp "$DOXYBOOK2_IMAGES_DIR/$img_name" "$local_images_dir/$img_name"
-                    echo "  Copied image: $img_name -> ${rel_path%/*}/images/"
-                fi
-            fi
-        done < <(
-            grep -oE '!\[[^]]*\]\([^)]+\)' "$file" | \
-                grep -Ev '\(https?://' | \
-                sed -E 's/!\[[^]]*\]\(([^/)]*\/)*([^/)?# ]+)\).*/\2/'
-        )
-
-        # 画像パスを images/<name> に正規化 (ディレクトリ部分を除去) し、
-        # キャプション補正 (![filename](url)caption → ![caption](url)) も適用。
-        # - ディレクトリ部分を strip して images/{basename} に統一 (../ 不要)
-        # - Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する。
-        #   ) の直後が非スペース文字で始まる場合にキャプションと判定する。
-        sed -i -E \
-            -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](images\/\3)/g' \
-            -e 's/!\[[^]]*\]\(([^)]+)\)([^ ].*)/![\2](\1)/g' \
-            "$file"
-        echo "  Fixed image path/caption: $rel_path"
-    fi
-done
 
 # サブディレクトリ内 Markdown のファイル間リンクを削除
 # Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
@@ -807,16 +761,8 @@ fi
 
 # Markdown ファイルのコピー処理
 # copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
+# (Pages/ ステージングと index_pages.md 生成を行う)
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
-
-# doxybook2 出力ルートの images/ が空ならば削除
-# 分散配置により各 md 隣接の images/ へコピー済みのため、ルート images/ は空になるはず。
-if [ -d "$MARKDOWN_DIR/images" ]; then
-    if [ -z "$(find "$MARKDOWN_DIR/images" -maxdepth 1 -type f -print -quit)" ]; then
-        rm -rf "$MARKDOWN_DIR/images"
-        echo "  Removed empty root images/ directory"
-    fi
-fi
 
 # ファイルインデックスのパッチ
 # Doxybook2 が出力するディレクトリ名・ファイル名は Doxygen INPUT ルートからの相対パス形式。
@@ -828,8 +774,98 @@ if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
 fi
 
 # index_files.md と index_pages.md のマージ処理
-# merge-index-files.py を呼び出して index_files_and_pages.md を生成
+# merge-index-files.py を呼び出してマージ結果を index_files.md へ上書きする
+# (index_files_and_pages.md は生成しない)
 python3 "$SCRIPT_DIR/merge-index-files.py" "$MARKDOWN_DIR" || exit 1
+
+# Pages/ の内容を Files/ へ物理統合
+# copy-markdown-from-input.sh が Pages/ へステージングした md と隣接画像を、
+# Files/ 配下の同一相対パスへ移動する。両者はディレクトリ構造が一致し、
+# ファイル名はユニーク (ソース由来は *.c.md 等、ページは README.md 等) という前提。
+if [ -d "$MARKDOWN_DIR/Pages" ]; then
+    echo "Merging Pages/ into Files/..."
+    find "$MARKDOWN_DIR/Pages" -type f | while IFS= read -r src_file; do
+        rel="${src_file#$MARKDOWN_DIR/Pages/}"
+        dest_file="$MARKDOWN_DIR/Files/$rel"
+        if [ -e "$dest_file" ]; then
+            echo "  警告: 移動先が既に存在します (ユニーク前提違反): Files/$rel"
+        else
+            mkdir -p "$(dirname "$dest_file")"
+            mv "$src_file" "$dest_file"
+            echo "  Merged: Pages/$rel -> Files/$rel"
+        fi
+    done
+    # 空になった Pages/ を削除し、後処理ファイルも削除
+    rm -rf "$MARKDOWN_DIR/Pages"
+    rm -f "$MARKDOWN_DIR/index_pages.md"
+    # 統合時に生じた空ディレクトリを除去
+    find "$MARKDOWN_DIR/Files" -type d -empty -delete 2>/dev/null || true
+    echo "  Removed Pages/ and index_pages.md"
+fi
+
+# Pages→Files 統合後に md_files を再収集
+# 画像分散配置ループが Pages 由来 md を含む Files/ 全体を対象にするため再収集する。
+mapfile -t md_files < <(find "$MARKDOWN_DIR/Files" -name "*.md" -type f 2>/dev/null)
+
+# サブディレクトリ内 Markdown の画像を分散配置
+# Doxybook2 がルート images/ に出力した画像を各 md と同階層の images/ へ移動する。
+# Pages→Files 統合後に実施することで、Pages 由来 md の参照画像も対象にできる。
+#
+# Doxybook2 はプロジェクト内で画像 basename を一意に管理するため、
+# 同一画像を複数 md が参照する場合の考慮は Doxybook2 の制約として不要。
+# mv で移動することで root images/ が空になり、処理後の削除を保証する。
+#
+# Pages 由来 md の画像は copy_referenced_images + Pages 統合で既に隣接 images/ に
+# 配置済みの場合がある。移動先に既存なら root 側を削除して root を確実に空にする。
+
+DOXYBOOK2_IMAGES_DIR="$MARKDOWN_DIR/images"
+
+if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
+    for file in "${md_files[@]}"; do
+        rel_path="${file#$MARKDOWN_DIR/}"
+        # スラッシュが含まれる = サブディレクトリ内のファイル
+        if [[ "$rel_path" == */* ]] && grep -qE '!\[[^]]*\]\([^)]+\)' "$file" 2>/dev/null; then
+            file_dir="$(dirname "$file")"
+            local_images_dir="$file_dir/images"
+
+            # 参照画像の basename を収集し、Doxybook2 ルート images/ から各 md の隣接へ移動
+            # 既に隣接 images/ に配置済みなら root 側を削除して root を確実に空にする
+            while IFS= read -r img_name; do
+                [ -z "$img_name" ] && continue
+                if [ -f "$DOXYBOOK2_IMAGES_DIR/$img_name" ]; then
+                    mkdir -p "$local_images_dir"
+                    if [ ! -f "$local_images_dir/$img_name" ]; then
+                        mv "$DOXYBOOK2_IMAGES_DIR/$img_name" "$local_images_dir/$img_name"
+                        echo "  Moved image: $img_name -> ${rel_path%/*}/images/"
+                    else
+                        # 配置済み (Pages 統合で既に存在) → root 側を削除して root を空にする
+                        rm "$DOXYBOOK2_IMAGES_DIR/$img_name"
+                        echo "  Removed from root (already placed): $img_name"
+                    fi
+                fi
+            done < <(
+                grep -oE '!\[[^]]*\]\([^)]+\)' "$file" | \
+                    grep -Ev '\(https?://' | \
+                    sed -E 's/!\[[^]]*\]\(([^/)]*\/)*([^/)?# ]+)\).*/\2/'
+            )
+
+            # 画像パスを images/<name> に正規化 (ディレクトリ部分を除去) し、
+            # キャプション補正 (![filename](url)caption → ![caption](url)) も適用。
+            # - ディレクトリ部分を strip して images/{basename} に統一
+            # - Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する
+            sed -i -E \
+                -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](images\/\3)/g' \
+                -e 's/!\[[^]]*\]\(([^)]+)\)([^ ].*)/![\2](\1)/g' \
+                "$file"
+        fi
+    done
+
+    # 分散配置後に root images/ が空になっていれば削除
+    if [ -z "$(find "$DOXYBOOK2_IMAGES_DIR" -maxdepth 1 -type f -print -quit)" ]; then
+        rm -rf "$DOXYBOOK2_IMAGES_DIR"
+        echo "  Removed empty root images/ directory"
+    fi
+fi
 
 # 処理終了
 exit 0

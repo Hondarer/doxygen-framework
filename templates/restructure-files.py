@@ -144,10 +144,18 @@ def restructure_files(docs_dir):
         text = data.decode('utf-8')
 
         for old_name, new_rel_str in rename_map.items():
-            # ](Files/<旧名>) -> ](Files/<新パス>)
-            old_link = '](Files/' + old_name + ')'
             new_link = '](Files/' + new_rel_str + ')'
-            text = text.replace(old_link, new_link)
+            # ](Files/<旧名>) -> ](Files/<新パス>)  (フラグメントなし形式)
+            old_link_plain = '](Files/' + old_name + ')'
+            text = text.replace(old_link_plain, new_link)
+            # ](Files/<旧名>#fragment) -> ](Files/<新パス>)  (Doxybook2 が付与するフラグメント付き形式)
+            # フラグメントは patch-index-files.py が除去するが、restructure が先に実行されるため
+            # ここでフラグメント付き形式も処理して旧エンコード名が残らないようにする。
+            text = re.sub(
+                r'\]\(Files/' + re.escape(old_name) + r'#[^)]*\)',
+                new_link,
+                text
+            )
 
         with open(str(index_path), 'wb') as f:
             f.write(text.encode('utf-8'))

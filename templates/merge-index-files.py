@@ -171,26 +171,38 @@ def tree_to_markdown(nodes: List[Node], base_indent: int = 0) -> List[str]:
     return lines
 
 def merge_index_files(files_path: str, pages_path: str, output_path: str):
-    """index_files.md と index_pages.md をマージ"""
-    # ファイルを読み込む
+    """index_files.md と index_pages.md をマージし、index_files.md へ上書きする。
+
+    Pages/ のリンクは Files/ へ書き換える。
+    ヘッダー (YAML フロントマター) は index_files.md 側を採用し、
+    page-break-before-heading: true 等を保持する。
+    """
+    # ファイルを先に全読込し、open したまま書き込む競合を避ける
     with open(files_path, 'r', encoding='utf-8') as f:
         files_lines = f.readlines()
 
     with open(pages_path, 'r', encoding='utf-8') as f:
         pages_lines = f.readlines()
 
-    # ヘッダー部分（YAML front matter と見出しまで）を抽出
+    # ヘッダー部分 (YAML フロントマターと見出しまで) を index_files.md 側から抽出
     header_lines = []
-    content_start_idx = 0
-    for i, line in enumerate(pages_lines):
+    files_content_start_idx = 0
+    for i, line in enumerate(files_lines):
         if line.startswith('# '):
-            content_start_idx = i + 1
+            files_content_start_idx = i + 1
             break
         header_lines.append(line.rstrip())
 
+    # pages_lines のコンテンツ開始位置を特定 (ヘッダーの行数は files と同じ構造)
+    pages_content_start_idx = 0
+    for i, line in enumerate(pages_lines):
+        if line.startswith('# '):
+            pages_content_start_idx = i + 1
+            break
+
     # ファイルとページのコンテンツ部分を抽出
-    files_content = [line.rstrip() for line in files_lines[content_start_idx:]]
-    pages_content = [line.rstrip() for line in pages_lines[content_start_idx:]]
+    files_content = [line.rstrip() for line in files_lines[files_content_start_idx:]]
+    pages_content = [line.rstrip() for line in pages_lines[pages_content_start_idx:]]
 
     # ツリーを構築
     files_tree = build_tree(files_content)
@@ -202,19 +214,23 @@ def merge_index_files(files_path: str, pages_path: str, output_path: str):
     # Markdown に変換
     merged_lines = tree_to_markdown(merged_tree)
 
-    # 出力ファイルを作成
+    # Pages/ リンクを Files/ へ書き換え
+    # index_files.md の新しい内容として index_files.md へ上書きする
+    rewritten_lines = [line.replace('](Pages/', '](Files/') for line in merged_lines]
+
+    # 出力ファイルを作成 (output_path == files_path で上書き)
     with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
-        # ヘッダーを書き込む
+        # ヘッダーを書き込む (index_files.md 側を採用)
         for line in header_lines:
             f.write(line + '\n')
 
-        # 見出しを変更
-        f.write('# ファイルとページの一覧\n')
+        # 見出しは「ファイルの一覧」を維持する
+        f.write('# ファイルの一覧\n')
         f.write('\n')
 
         # 展開可能リストとしてマージされたコンテンツを書き込む
         f.write('::: {.collapsible-list}\n')
-        for line in merged_lines:
+        for line in rewritten_lines:
             f.write(line + '\n')
         f.write(':::\n')
 
@@ -226,7 +242,8 @@ def main():
     markdown_dir = sys.argv[1]
     files_path = f"{markdown_dir}/index_files.md"
     pages_path = f"{markdown_dir}/index_pages.md"
-    output_path = f"{markdown_dir}/index_files_and_pages.md"
+    # マージ結果は index_files.md へ上書きする (index_files_and_pages.md は廃止)
+    output_path = files_path
 
     import os
     if not os.path.exists(files_path):
@@ -239,7 +256,7 @@ def main():
 
     print(f"Merging {files_path} and {pages_path} into {output_path}")
     merge_index_files(files_path, pages_path, output_path)
-    print(f"Successfully created {output_path}")
+    print(f"Successfully updated {output_path}")
 
 if __name__ == "__main__":
     main()
