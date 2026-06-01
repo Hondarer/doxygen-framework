@@ -37,18 +37,18 @@ process_markdown_file() {
         echo "エラー: 一時ファイルの作成に失敗しました: $file"
         return 1
     }
-    
+
     # インクルード処理
     local include_temp
     include_temp=$(mktemp "$TEMP_DIR/$(basename "$file").include.XXXXXX")
-    
+
     while IFS= read -r line; do
         # !include {filename} パターンをチェック
         if [[ "$line" =~ ^[[:space:]]*\!include[[:space:]]+([^[:space:]]+) ]]; then
             local include_file="${BASH_REMATCH[1]}"
             local include_path
             local include_heading_offset=0
-            
+
             # 相対パスとして解決 (markdownディレクトリを基準)
             if [[ "$include_file" == /* ]]; then
                 # 絶対パス
@@ -57,7 +57,7 @@ process_markdown_file() {
                 # 相対パス
                 include_path="$MARKDOWN_DIR/$include_file"
             fi
-            
+
             # インクルードファイルの存在チェック
             if [ -f "$include_path" ]; then
                 # Classes/ のページをインクルードする場合、
@@ -116,17 +116,17 @@ process_markdown_file() {
             echo "$line"
         fi
     done < "$file" > "$include_temp"
-    
+
     # YAML フロントマター処理
     # - YAML フロントマター内の空行を除去
     # - summary が複数行に分割された場合は 1 行へ正規化
     awk '
-    BEGIN { 
+    BEGIN {
         in_frontmatter = 0
         frontmatter_started = 0
         line_count = 0
     }
-    
+
     # 最初の行が --- で始まる場合、フロントマターの開始
     line_count == 0 && /^---[[:space:]]*$/ {
         frontmatter_started = 1
@@ -135,7 +135,7 @@ process_markdown_file() {
         line_count++
         next
     }
-    
+
     # フロントマター内で --- が見つかった場合、フロントマターの終了
     in_frontmatter && /^---[[:space:]]*$/ {
         in_frontmatter = 0
@@ -143,7 +143,7 @@ process_markdown_file() {
         line_count++
         next
     }
-    
+
     # フロントマター内の処理
     in_frontmatter {
         # 空行または空白のみの行をスキップ
@@ -156,7 +156,7 @@ process_markdown_file() {
         line_count++
         next
     }
-    
+
     # フロントマター外の処理 (通常の行)
     {
         print $0
@@ -242,7 +242,7 @@ process_markdown_file() {
         flush_summary()
     }
     ' | \
-     
+
     # 行末空白除去と !linebreak! 処理
     # - sedを使用して行末の空白文字を削除し、
     # - !linebreak! を空白 2 つ + 改行に変換
@@ -458,7 +458,7 @@ process_markdown_file() {
     # - 文末の複数の空行も1つの空行に置換
     awk '
     BEGIN { blank_count = 0 }
-    
+
     # 空白文字のみの行 (空行含む) をチェック
     /^[[:space:]]*$/ {
         blank_count++
@@ -468,7 +468,7 @@ process_markdown_file() {
         }
         next
     }
-    
+
     # 非空行の場合
     {
         # 前に空行があった場合、1つだけ出力
@@ -542,7 +542,7 @@ process_markdown_file() {
         in_code_block = 0
         in_code_block_first = 0
     }
-    
+
     # コード ブロックの開始/終了を検出
     /^[[:space:]]*```/ {
         if (in_code_block) {
@@ -555,23 +555,23 @@ process_markdown_file() {
         print $0
         next
     }
-    
+
     # コード ブロックの直後の行が空行の場合、その空行をスキップ
     in_code_block_first && /^[[:space:]]*$/ {
         in_code_block_first = 0
         next
     }
-    
+
     in_code_block_first {
         in_code_block_first = 0
     }
-    
+
     # コード ブロック内の場合は元の行をそのまま保持
     in_code_block {
         print $0
         next
     }
-    
+
     # 以下の場合は元の行をそのまま保持
     # - 箇条書きマーカー (*, -, +)
     # - 番号付きリスト (数字 + . + 空白)
@@ -580,7 +580,7 @@ process_markdown_file() {
         print $0
         next
     }
-    
+
     {
         # いずれでもない場合は行頭の空白を除去
         gsub(/^[[:space:]]*/, "")
@@ -622,9 +622,9 @@ process_markdown_file() {
         print line
     }
     ' > "$temp_file"
-    
+
     rm -f "$include_temp"
-    
+
     # ファイル更新
     if mv "$temp_file" "$file" 2>/dev/null; then
         return 0
@@ -672,7 +672,6 @@ python3 "$SCRIPT_DIR/restructure-files.py" "$MARKDOWN_DIR" || exit 1
 # Files/ 再編後に md_files を再収集
 # (画像パス補正・リンク除去ループが新しいネスト パスを対象にするため)
 mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
-
 
 # サブディレクトリ内 Markdown のファイル間リンクを削除
 # Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
