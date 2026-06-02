@@ -954,6 +954,17 @@ if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
     sed -i '/\](Files\/README\.md)/d' "$MARKDOWN_DIR/index_files.md"
 fi
 
+# フォルダ目次 README.md のフロントマターから不要キーを除去する
+# - page-break-before-heading: true は全ページに付与されるが、フォルダ目次では不要
+# - toc: true は Classes/Namespaces インデックスに付与されるが、フォルダ目次では不要
+strip_folder_index_frontmatter() {
+    local readme="$1"
+    [ -f "$readme" ] || return 0
+    sed -i -e '/^page-break-before-heading:[[:space:]]*true[[:space:]]*$/d' \
+           -e '/^toc:[[:space:]]*true[[:space:]]*$/d' \
+           "$readme"
+}
+
 # 各 index 一覧を対応フォルダの README.md (フォルダの目次) へ移動する。
 # フォルダ内ページを指すリンクはフォルダ基準へ変換するため先頭の "<フォルダ>/" を除去する
 # (例: ](Files/include/calc.h.md) -> ](include/calc.h.md))。
@@ -966,6 +977,7 @@ move_index_to_folder_readme() {
     mkdir -p "$MARKDOWN_DIR/$folder"
     sed -i "s|](${folder}/|](|g" "$index_path"
     mv "$index_path" "$MARKDOWN_DIR/$folder/README.md"
+    strip_folder_index_frontmatter "$MARKDOWN_DIR/$folder/README.md"
     echo "  Moved $index_name -> $folder/README.md"
 }
 move_index_to_folder_readme "index_files.md"      "Files"
@@ -988,6 +1000,7 @@ if [ -f "$CLASSES_INDEX" ]; then
         }
     ' "$CLASSES_INDEX" > "$CLASSES_INDEX.tmp" && mv "$CLASSES_INDEX.tmp" "$CLASSES_INDEX"
     mv "$CLASSES_INDEX" "$MARKDOWN_DIR/Classes/README.md"
+    strip_folder_index_frontmatter "$MARKDOWN_DIR/Classes/README.md"
     echo "  Moved index_classes.md -> Classes/README.md"
 fi
 
