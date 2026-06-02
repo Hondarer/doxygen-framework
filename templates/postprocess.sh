@@ -887,5 +887,36 @@ if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
     fi
 fi
 
+# mainpage README (Files/README.md) を出力フォルダ直下へ移動する。
+# README は元々 Files/ 直下にあり相対リンクは Files/ 基準で解決されていたため、
+# ルートへ移動後も同じ先を指すよう、Files/ 内の実ファイルを指す相対リンクには
+# Files/ を前置する (テキスト リンク・画像リンク両方が対象)。
+# URL・絶対パス・アンカーのみ・既に Files/ で始まるものは対象外。
+README_SRC="$MARKDOWN_DIR/Files/README.md"
+if [ -f "$README_SRC" ]; then
+    while IFS= read -r target; do
+        [ -z "$target" ] && continue
+        path="${target%%[?#]*}"     # アンカー/クエリを除いたパス部
+        [ -z "$path" ] && continue  # 純アンカー (#...) は対象外
+        case "$path" in
+            http://*|https://*|/*|mailto:*|Files/*) continue ;;
+        esac
+        if [ -f "$MARKDOWN_DIR/Files/$path" ]; then
+            esc_t=$(printf '%s' "$target" | sed 's/[&/\]/\\&/g')
+            sed -i "s|](${esc_t})|](Files/${esc_t})|g" "$README_SRC"
+        fi
+    done < <(grep -oE '\]\([^)]+\)' "$README_SRC" | sed -E 's/^\]\(([^)]+)\)$/\1/')
+    mv "$README_SRC" "$MARKDOWN_DIR/README.md"
+    echo "  Moved Files/README.md -> README.md"
+fi
+
+# ファイル一覧 (index_files.md) からホーム README のエントリ行を削除する。
+# ホームは出力フォルダ直下に配置するため、一覧に重複して載せない。
+# mainpage は必ず "Files/README.md"。サブディレクトリ README は
+# "Files/src/README.md" 等のため、この厳密一致では誤って消えない。
+if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
+    sed -i '/\](Files\/README\.md)/d' "$MARKDOWN_DIR/index_files.md"
+fi
+
 # 処理終了
 exit 0
