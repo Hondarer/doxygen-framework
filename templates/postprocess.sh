@@ -724,6 +724,27 @@ find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perfile__*.md" -type f -delete 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/null || true
 
+# 空の Namespaces / Classes / Modules フォルダを index ごと削除する。
+# メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリーの名前空間・クラス) は
+# 対応する index_*.md も中身が空になるため、両方とも削除する。
+# Files は常に内容を持つ想定のため対象外。
+# ※ フォルダ名と index 名の対応は一様でない (Modules ↔ index_groups.md)。
+# ※ この処理は Enums/・perfile__*・perchild__* の中間ファイルをすべて削除した後に
+#   実行することで、Modules/ に残るのが正規の group__*.md のみとなり正しく判定できる。
+for pair in "Namespaces:index_namespaces.md" \
+            "Classes:index_classes.md" \
+            "Modules:index_groups.md"; do
+    dir_name="${pair%%:*}"
+    index_name="${pair##*:}"
+    dir_path="$MARKDOWN_DIR/$dir_name"
+    if [ -d "$dir_path" ] && \
+       [ -z "$(find "$dir_path" -name '*.md' -type f -print -quit)" ]; then
+        rm -rf "$dir_path"
+        rm -f "$MARKDOWN_DIR/$index_name"
+        echo "  Removed empty $dir_name/ and $index_name"
+    fi
+done
+
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
     # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
