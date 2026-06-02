@@ -29,6 +29,30 @@ WORKSPACE_ROOT="${WORKSPACE_DIR:-$(cd "$FRAMEWORK_DIR/../.." && pwd)}"
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
+# Doxyfile から PROJECT_NAME を抽出する
+# 複数の PROJECT_NAME 行がある場合は最後の値 (Doxyfile.part が上書きした値) を採用する。
+# 値が二重引用符で囲まれている場合は除去する。
+extract_project_name_from_doxyfile() {
+    local doxyfile="$1"
+
+    if [ ! -f "$doxyfile" ]; then
+        return 1
+    fi
+
+    awk '
+        /^PROJECT_NAME[[:space:]]*=/ {
+            sub(/^PROJECT_NAME[[:space:]]*=[[:space:]]*/, "")
+            sub(/#.*/, "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            gsub(/^"|"$/, "")
+            last_value = $0
+        }
+        END {
+            if (last_value) print last_value
+        }
+    ' "$doxyfile"
+}
+
 # Markdown ファイルのポストプロセッシング関数
 process_markdown_file() {
     local file="$1"
@@ -887,6 +911,18 @@ if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
     fi
 fi
 
+# PROJECT_NAME を merged Doxyfile から取得する (mainpage README タイトル置換用)
+# DOXYFILE_PART_PATH が設定されていればベース Doxyfile と結合し、なければベースのみを参照する。
+DOXYFW_PROJECT_NAME=""
+if [ -n "$DOXYFILE_PART_PATH" ] && [ -f "$DOXYFILE_PART_PATH" ]; then
+    _pn_temp=$(mktemp)
+    cat "$FRAMEWORK_DIR/Doxyfile" "$DOXYFILE_PART_PATH" > "$_pn_temp"
+    DOXYFW_PROJECT_NAME=$(extract_project_name_from_doxyfile "$_pn_temp")
+    rm -f "$_pn_temp"
+else
+    DOXYFW_PROJECT_NAME=$(extract_project_name_from_doxyfile "$FRAMEWORK_DIR/Doxyfile")
+fi
+
 # mainpage README (Files/README.md) を出力フォルダ直下へ移動する。
 # README は元々 Files/ 直下にあり相対リンクは Files/ 基準で解決されていたため、
 # ルートへ移動後も同じ先を指すよう、Files/ 内の実ファイルを指す相対リンクには
@@ -908,6 +944,17 @@ if [ -f "$README_SRC" ]; then
     done < <(grep -oE '\]\([^)]+\)' "$README_SRC" | sed -E 's/^\]\(([^)]+)\)$/\1/')
     mv "$README_SRC" "$MARKDOWN_DIR/README.md"
     echo "  Moved Files/README.md -> README.md"
+    # mainpage README の先頭 H1 を PROJECT_NAME に置換する
+    # PROJECT_NAME が空またはベース既定値 Doxygen の場合は置換しない
+    if [ -n "$DOXYFW_PROJECT_NAME" ] && [ "$DOXYFW_PROJECT_NAME" != "Doxygen" ]; then
+        _readme_tmp=$(mktemp "$TEMP_DIR/readme.XXXXXX")
+        awk -v t="$DOXYFW_PROJECT_NAME" '
+        BEGIN { done = 0 }
+        !done && /^# / { print "# " t; done = 1; next }
+        { print }
+        ' "$MARKDOWN_DIR/README.md" > "$_readme_tmp" && mv "$_readme_tmp" "$MARKDOWN_DIR/README.md"
+        echo "  Updated README.md title: $DOXYFW_PROJECT_NAME"
+    fi
 fi
 
 # ファイル一覧 (index_files.md) からホーム README のエントリ行を削除する。
