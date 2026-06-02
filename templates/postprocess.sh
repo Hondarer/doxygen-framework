@@ -918,5 +918,41 @@ if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
     sed -i '/\](Files\/README\.md)/d' "$MARKDOWN_DIR/index_files.md"
 fi
 
+# 各 index 一覧を対応フォルダの README.md (フォルダの目次) へ移動する。
+# フォルダ内ページを指すリンクはフォルダ基準へ変換するため先頭の "<フォルダ>/" を除去する
+# (例: ](Files/include/calc.h.md) -> ](include/calc.h.md))。
+# ※ 空の Namespaces/Classes/Modules は前段で index ごと削除済みのため、
+#   ここで存在する index は非空フォルダのものに限られる。
+move_index_to_folder_readme() {
+    local index_name="$1" folder="$2"
+    local index_path="$MARKDOWN_DIR/$index_name"
+    [ -f "$index_path" ] || return 0
+    mkdir -p "$MARKDOWN_DIR/$folder"
+    sed -i "s|](${folder}/|](|g" "$index_path"
+    mv "$index_path" "$MARKDOWN_DIR/$folder/README.md"
+    echo "  Moved $index_name -> $folder/README.md"
+}
+move_index_to_folder_readme "index_files.md"      "Files"
+move_index_to_folder_readme "index_groups.md"     "Modules"
+move_index_to_folder_readme "index_namespaces.md" "Namespaces"
+
+# index_classes.md は名前空間でグルーピングされ Namespaces/ へのフォルダ外リンクを
+# 親行に含む。名前空間は Namespaces/README.md に一覧があるためグルーピング行を削除し、
+# 残るクラス項目をフラット化したうえで Classes/ 接頭辞を除去して Classes/README.md とする。
+CLASSES_INDEX="$MARKDOWN_DIR/index_classes.md"
+if [ -f "$CLASSES_INDEX" ]; then
+    mkdir -p "$MARKDOWN_DIR/Classes"
+    awk '
+        /\]\(Namespaces\// { next }
+        {
+            if (match($0, /^[[:space:]]*\* /)) { sub(/^[[:space:]]+/, "") }
+            gsub(/\]\(Classes\//, "](")
+            print
+        }
+    ' "$CLASSES_INDEX" > "$CLASSES_INDEX.tmp" && mv "$CLASSES_INDEX.tmp" "$CLASSES_INDEX"
+    mv "$CLASSES_INDEX" "$MARKDOWN_DIR/Classes/README.md"
+    echo "  Moved index_classes.md -> Classes/README.md"
+fi
+
 # 処理終了
 exit 0
