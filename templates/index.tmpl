@@ -7,5 +7,5 @@
                     * {% if child5.kind == "dir" %}📁{% else %}📄{% endif %} {% if child5.kind == "dir" %}{{child5.title}}{% else %}[{{child5.title}}]({{child5.url}}){% endif %} {% if existsIn(child5, "brief") %}<br/>{{child5.brief}}{% endif %}{% if existsIn(child5, "children") %}{% for child6 in child5.children %}
                         * {% if child6.kind == "dir" %}📁{% else %}📄{% endif %} {% if child6.kind == "dir" %}{{child6.title}}{% else %}[{{child6.title}}]({{child6.url}}){% endif %} {% if existsIn(child6, "brief") %}<br/>{{child6.brief}}{% endif %}{% if existsIn(child6, "children") %}{% for child7 in child6.children %}
                             * {% if child7.kind == "dir" %}📁{% else %}📄{% endif %} {% if child7.kind == "dir" %}{{child7.title}}{% else %}[{{child7.title}}]({{child7.url}}){% endif %} {% if existsIn(child7, "brief") %}<br/>{{child7.brief}}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}{% endfor %}{% endif %}
-{% endfor %}
+{% endfor -%}
 :::
