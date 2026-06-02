@@ -661,15 +661,11 @@ process_markdown_file() {
 # 不要ファイルの削除
 # 現段階で対象としていない Markdown を削除する
 #
-# - 使用例インデックス
-# - Examples
 # - ディレクトリページ
 # - ページインデックス
 # - Pages
 # - インデックスページ
-rm -rf "$MARKDOWN_DIR"/index_examples.md \
-       "$MARKDOWN_DIR"/Examples \
-       "$MARKDOWN_DIR"/Files/dir_*.md \
+rm -rf "$MARKDOWN_DIR"/Files/dir_*.md \
        "$MARKDOWN_DIR"/index_pages.md \
        "$MARKDOWN_DIR"/Pages \
        "$MARKDOWN_DIR"/indexpage.md
@@ -748,7 +744,7 @@ find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perfile__*.md" -type f -delete 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/null || true
 
-# 空の Namespaces / Classes / Modules フォルダを index ごと削除する。
+# 空の Namespaces / Classes / Modules / Examples フォルダを index ごと削除する。
 # メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリーの名前空間・クラス) は
 # 対応する index_*.md も中身が空になるため、両方とも削除する。
 # Files は常に内容を持つ想定のため対象外。
@@ -757,7 +753,8 @@ find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/nul
 #   実行することで、Modules/ に残るのが正規の group__*.md のみとなり正しく判定できる。
 for pair in "Namespaces:index_namespaces.md" \
             "Classes:index_classes.md" \
-            "Modules:index_groups.md"; do
+            "Modules:index_groups.md" \
+            "Examples:index_examples.md"; do
     dir_name="${pair%%:*}"
     index_name="${pair##*:}"
     dir_path="$MARKDOWN_DIR/$dir_name"
@@ -795,14 +792,6 @@ if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
 #    }' "$MARKDOWN_DIR/index_pages.md" > "$MARKDOWN_DIR/index_pages.md.tmp"
 #    mv "$MARKDOWN_DIR/index_pages.md.tmp" "$MARKDOWN_DIR/index_pages.md"
 fi
-if [ -f "$MARKDOWN_DIR/index_examples.md" ]; then
-    sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
-           -e 's/\(\.md\)#[^)]*/\1/g' \
-           -e '/(Pages\/)/d' \
-           -e 's/<br\/>\([^&]\)/<br\/>\&nbsp;\&nbsp;\&nbsp;\&nbsp;\&nbsp;\1/g' \
-           "$MARKDOWN_DIR/index_examples.md"
-fi
-
 # Markdown ファイルのコピー処理
 # copy-markdown-from-input.sh を呼び出して INPUT からの Markdown をコピー
 # (Pages/ ステージングと index_pages.md 生成を行う)
@@ -968,7 +957,7 @@ fi
 # 各 index 一覧を対応フォルダの README.md (フォルダの目次) へ移動する。
 # フォルダ内ページを指すリンクはフォルダ基準へ変換するため先頭の "<フォルダ>/" を除去する
 # (例: ](Files/include/calc.h.md) -> ](include/calc.h.md))。
-# ※ 空の Namespaces/Classes/Modules は前段で index ごと削除済みのため、
+# ※ 空の Namespaces/Classes/Modules/Examples は前段で index ごと削除済みのため、
 #   ここで存在する index は非空フォルダのものに限られる。
 move_index_to_folder_readme() {
     local index_name="$1" folder="$2"
@@ -982,6 +971,7 @@ move_index_to_folder_readme() {
 move_index_to_folder_readme "index_files.md"      "Files"
 move_index_to_folder_readme "index_groups.md"     "Modules"
 move_index_to_folder_readme "index_namespaces.md" "Namespaces"
+move_index_to_folder_readme "index_examples.md"   "Examples"
 
 # index_classes.md は名前空間でグルーピングされ Namespaces/ へのフォルダ外リンクを
 # 親行に含む。名前空間は Namespaces/README.md に一覧があるためグルーピング行を削除し、
