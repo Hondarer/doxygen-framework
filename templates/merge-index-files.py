@@ -229,7 +229,7 @@ def merge_index_files(files_path: str, pages_path: str, output_path: str):
         f.write('\n')
 
         # 展開可能リストとしてマージされたコンテンツを書き込む
-        f.write('::: {.collapsible-list}\n')
+        f.write('::: {.collapsible-list open-level=-1}\n')
         for line in rewritten_lines:
             f.write(line + '\n')
         f.write(':::\n')
