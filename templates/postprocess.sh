@@ -744,6 +744,35 @@ find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perfile__*.md" -type f -delete 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/null || true
 
+# 内容が空の Namespaces/*.md を削除し、index_namespaces.md の該当エントリ行も除去する。
+# 空 = フロントマター + 自動生成コメント + H1 見出しのみで本文がない名前空間
+# (例: C# が参照するのみで本プロジェクトに文書化メンバーを持たない System::IO 等)。
+# この処理を空フォルダ削除ループの前に実行することで、全エントリが空の場合に
+# 既存ループがフォルダ + index ごと自動的に削除する動作と整合する。
+if [ -d "$MARKDOWN_DIR/Namespaces" ]; then
+    NS_INDEX="$MARKDOWN_DIR/index_namespaces.md"
+    find "$MARKDOWN_DIR/Namespaces" -name 'namespace*.md' -type f | while IFS= read -r ns_file; do
+        body=$(awk '
+            NR == 1 && $0 == "---" { in_fm = 1; next }
+            in_fm && $0 == "---"   { in_fm = 0; next }
+            in_fm                  { next }
+            /^<!--/                { next }
+            /^#[[:space:]]/        { next }
+            /^[[:space:]]*$/       { next }
+            { print; exit }
+        ' "$ns_file")
+        if [ -z "$body" ]; then
+            base=$(basename "$ns_file")
+            rm -f "$ns_file"
+            if [ -f "$NS_INDEX" ]; then
+                esc_base=$(printf '%s' "$base" | sed 's/[.[\*^$/]/\\&/g')
+                sed -i "/](Namespaces\/${esc_base})/d" "$NS_INDEX"
+            fi
+            echo "  Removed empty namespace: Namespaces/$base"
+        fi
+    done
+fi
+
 # 空の Namespaces / Classes / Modules / Examples フォルダを index ごと削除する。
 # メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリーの名前空間・クラス) は
 # 対応する index_*.md も中身が空になるため、両方とも削除する。
