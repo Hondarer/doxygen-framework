@@ -267,6 +267,14 @@ process_markdown_file() {
     }
     ' | \
 
+    # short-title のパス値をバレなファイル名に正規化
+    # doxybook2 テンプレートの {{name}} が File ページ向けに相対パスを返すため、
+    # postprocess 側でフロントマター内の short-title 値を basename 化する。
+    # 例: short-title: "libsrc/CalcLib/CalcException.cs"
+    #   → short-title: "CalcException.cs"
+    # パスを含まない値 (ルート直下のファイルなど) はそのまま維持する。
+    sed 's|^\(short-title: "\).\+/\([^/]*\)"\([[:space:]]*\)$|\1\2"\3|' | \
+
     # 行末空白除去と !linebreak! 処理
     # - sedを使用して行末の空白文字を削除し、
     # - !linebreak! を空白 2 つ + 改行に変換

@@ -2,6 +2,9 @@
 {% if exists("summary") -%}
 summary: {{summary}}
 {% endif -%}
+{% if exists("kind") and kind == "file" -%}
+short-title: "{{name}}"
+{% endif -%}
 author: doxygen and doxybook2
 {% include "meta" %}
 {% if title != "Examples" and title != "Files" and title != "Modules" and title != "Pages" and title != "Classes" and title != "Namespaces" %}toc: true{% endif %}
