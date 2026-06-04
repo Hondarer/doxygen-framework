@@ -23,6 +23,7 @@ Modules/group__*.md はスタンドアロンのグループページとして保
 
 import sys
 import os
+import re
 import glob
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -45,6 +46,40 @@ def source_basename_to_md_name(basename):
     return basename.replace("_", "__").replace(".", "_8") + ".md"
 
 
+def build_file_compound_map(xml_dir):
+    """
+    ファイル コンパウンド XML を走査し、ソースファイルパス → compound_id のマップを構築する。
+
+    group__*.xml などの非ファイル コンパウンドは除外する。
+    compound_id は Doxybook2 が生成する .md ファイルのベース名に相当する。
+
+    Returns:
+        dict: {location_file_path: compound_id}
+    """
+    file_map = {}
+    skip_names = {"compound.xsd", "combine.xslt", "index.xml", "Doxyfile.xml"}
+    for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "*.xml"))):
+        if os.path.basename(xml_file) in skip_names:
+            continue
+        try:
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+        except ET.ParseError:
+            continue
+        for compounddef in root.findall("compounddef"):
+            if compounddef.get("kind") != "file":
+                continue
+            compound_id = compounddef.get("id", "")
+            if not compound_id:
+                continue
+            location = compounddef.find("location")
+            if location is not None:
+                loc_file = location.get("file", "")
+                if loc_file:
+                    file_map[loc_file] = compound_id
+    return file_map
+
+
 def collect_groups(xml_dir):
     """
     XML ディレクトリからグループ情報と親子関係を収集する。
@@ -57,7 +92,7 @@ def collect_groups(xml_dir):
     また <innergroup> 要素から親子関係 (hierarchy) も収集する。
 
     Returns:
-        tuple: (group_data, hierarchy)
+        tuple: (group_data, hierarchy, body_file_data)
             group_data: {group_id: (title, {source_basename: (member_names_set, min_line)})}
                 group_id: グループ ID (例: "group__COMM__RESULT")
                 title: グループタイトル (例: "戻り値")
@@ -68,9 +103,14 @@ def collect_groups(xml_dir):
                 parent_id: 親グループ ID
                 child_id: 子グループ ID
                 child_title: 子グループのタイトル (XML の <innergroup> テキスト)
+            body_file_data: {bodyfile_path: [(group_id, member_name, bodystart_line)]}
+                bodyfile_path: Doxygen が記録した定義ファイルパス (例: "libsrc/calc/calcHandler.c")
+                member_name:   メンバー名
+                bodystart_line: 定義の開始行 (ソート用)
     """
     group_data = {}
     hierarchy = {}
+    body_file_data = {}
 
     for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "group__*.xml"))):
         try:
@@ -113,6 +153,19 @@ def collect_groups(xml_dir):
                     if line < cur_min:
                         file_data[basename] = (names_set, line)
 
+                    # bodyfile (定義ファイル) を収集する
+                    # bodyfile が宣言ファイル (file_path) と異なる場合のみ対象とする。
+                    # #define のように bodyfile が存在しないメンバーはスキップする。
+                    body_path = location.get("bodyfile", "")
+                    if body_path and body_path != file_path:
+                        try:
+                            body_line = int(location.get("bodystart", "999999"))
+                        except ValueError:
+                            body_line = 999999
+                        if body_path not in body_file_data:
+                            body_file_data[body_path] = []
+                        body_file_data[body_path].append((group_id, name, body_line))
+
             if file_data:
                 group_data[group_id] = (title, file_data)
 
@@ -126,7 +179,7 @@ def collect_groups(xml_dir):
             if innergroups:
                 hierarchy[group_id] = innergroups
 
-    return group_data, hierarchy
+    return group_data, hierarchy, body_file_data
 
 
 def parse_group_md_sections(md_path):
@@ -244,6 +297,109 @@ def generate_filtered_md(title, sections, member_names):
             out.append("")
 
     return "\n".join(out)
+
+
+def inject_into_body_files_md(docs_dir, body_data):
+    """
+    グループメンバーの定義ファイル (.c ページ) に ## 関数 セクションを補完する。
+
+    Doxygen が FILE コンパウンド XML に <member refid="..."> (参照のみ) を出力した場合、
+    Doxybook2 はそのメンバーを publicFunctions として扱わず、.c ページの
+    ## 関数 セクションにメンバーが出力されない。
+    この関数は Modules/group__*.md から対象メンバーの内容を抽出し、
+    欠落している ## 関数 セクションを .c ページへ直接追記する。
+
+    inject-groups.py は postprocess.sh より前に実行されるため、
+    追記内容は postprocess.sh の変換 (dunder エスケープ、ポインタ整形等) を
+    同様に受ける。これにより native Doxybook2 出力と同一品質になる。
+
+    Files/*.md はこの時点でフラット構造 (restructure-files.py 実行前) であり、
+    ファイル名は compound_id + ".md" 形式になっている。
+
+    @param[in] docs_dir  doxybook2 出力ディレクトリ
+    @param[in] body_data {compound_id: [(group_id, member_name, line)]}
+    """
+    processed = 0
+
+    for files_dir in sorted(docs_dir.rglob("Files")):
+        if not files_dir.is_dir():
+            continue
+
+        modules_dir = files_dir.parent / "Modules"
+        if not modules_dir.is_dir():
+            continue
+
+        for compound_id, member_infos in body_data.items():
+            body_md_path = files_dir / (compound_id + ".md")
+            if not body_md_path.exists():
+                continue
+
+            content = body_md_path.read_text(encoding="utf-8")
+
+            # 欠落しているメンバーを特定する (行頭 ### <name> の有無で判定)
+            missing = []
+            for (group_id, member_name, _) in sorted(member_infos, key=lambda x: x[2]):
+                pattern = re.compile(
+                    r"^### " + re.escape(member_name) + r"[ \t]*$", re.MULTILINE
+                )
+                if not pattern.search(content):
+                    missing.append((group_id, member_name))
+
+            if not missing:
+                continue
+
+            # 欠落メンバーをグループ md から抽出して追記する
+            func_section_present = bool(
+                re.search(r"^## 関数[ \t]*$", content, re.MULTILINE)
+            )
+            append_lines = []
+
+            for (group_id, member_name) in missing:
+                group_md = modules_dir / "{}.md".format(group_id)
+                if not group_md.exists():
+                    print("  -> 警告: {} が見つかりません".format(group_md))
+                    continue
+
+                sections = parse_group_md_sections(group_md)
+                injected = False
+                for (h2_line, members) in sections:
+                    for (name, lines) in members:
+                        if name != member_name:
+                            continue
+                        if not func_section_present:
+                            # ## 関数 セクション見出しを先頭に追加する
+                            append_lines.append("")
+                            append_lines.append(h2_line)
+                            append_lines.append("")
+                            func_section_present = True
+                        # H3 以降のメンバー内容を追記する
+                        # Doxybook2 がグループ コンパウンドを出力するとき {{language}} が
+                        # 空になるため、関数シグネチャの ``` が言語指定なしになる。
+                        # ファイル コンパウンドでは ```cpp になるため、最初の ``` を修正する。
+                        fixed_lines = list(lines)
+                        for fix_i, fix_line in enumerate(fixed_lines):
+                            if fix_line == "```":
+                                fixed_lines[fix_i] = "```cpp"
+                                break
+                        append_lines.extend(fixed_lines)
+                        append_lines.append("")
+                        injected = True
+                        print("  [body] {}: {} 追記 (from {})".format(
+                            body_md_path.name, member_name, group_id))
+                        break
+                    if injected:
+                        break
+
+            if not append_lines:
+                continue
+
+            append_text = "\n".join(append_lines) + "\n"
+            with open(str(body_md_path), "a", encoding="utf-8", newline="\n") as f:
+                f.write(append_text)
+
+            processed += 1
+
+    print("[inject-groups] body files processed: {}".format(processed))
 
 
 def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_data):
@@ -458,8 +614,11 @@ def main():
 
     print("[inject-groups] xml={}  docs={}".format(xml_dir, docs_dir))
 
-    # グループデータ収集: ({group_id: (title, {basename: (names_set, min_line)})}, hierarchy)
-    group_data, hierarchy = collect_groups(xml_dir)
+    # グループデータ収集:
+    #   group_data:     {group_id: (title, {decl_basename: (names_set, min_line)})}
+    #   hierarchy:      {parent_id: [(child_id, child_title), ...]}
+    #   body_file_data: {bodyfile_path: [(group_id, name, line)]}
+    group_data, hierarchy, body_file_data = collect_groups(xml_dir)
 
     if not group_data and not hierarchy:
         print("[inject-groups] Done: 0 file(s) processed")
@@ -503,6 +662,20 @@ def main():
             processed += 1
 
     print("[inject-groups] Done: {} file(s) processed".format(processed))
+
+    # 定義ファイル (.c ページ) への ## 関数 セクション補完注入
+    if body_file_data:
+        # bodyfile_path → compound_id に変換する
+        file_compound_map = build_file_compound_map(xml_dir)
+        body_data = {}
+        for body_path, infos in body_file_data.items():
+            cid = file_compound_map.get(body_path)
+            if cid:
+                if cid not in body_data:
+                    body_data[cid] = []
+                body_data[cid].extend(infos)
+        if body_data:
+            inject_into_body_files_md(docs_dir, body_data)
 
     # 親グループへの子グループ注入
     if hierarchy:
