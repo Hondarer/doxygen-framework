@@ -782,7 +782,7 @@ if [ -d "$MARKDOWN_DIR/Namespaces" ]; then
 fi
 
 # 空の Namespaces / Classes / Modules / Examples フォルダを index ごと削除する。
-# メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリーの名前空間・クラス) は
+# メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリの名前空間・クラス) は
 # 対応する index_*.md も中身が空になるため、両方とも削除する。
 # Files は常に内容を持つ想定のため対象外。
 # ※ フォルダ名と index 名の対応は一様でない (Modules ↔ index_groups.md)。
