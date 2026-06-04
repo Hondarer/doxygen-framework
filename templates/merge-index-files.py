@@ -23,13 +23,14 @@ def parse_line(line: str) -> Optional[Tuple[int, str, str, str, str]]:
     """Markdown行を解析して (インデント, アイコン, 名前, リンク, 説明) を返す"""
     # インデントを計算（4スペース = 1レベル）
     stripped = line.lstrip()
-    if not stripped or not stripped.startswith('*'):
+    # * / - / + のいずれかのマーカーで始まる行を対象とする
+    if not stripped or stripped[0] not in ('*', '-', '+'):
         return None
 
     indent_count = (len(line) - len(stripped)) // 4
 
     # アイコンと残りの部分を抽出
-    match = re.match(r'\* (📁|📄) (.+)', stripped)
+    match = re.match(r'[*+\-] (📁|📄) (.+)', stripped)
     if not match:
         return None
 
@@ -153,11 +154,11 @@ def tree_to_markdown(nodes: List[Node], base_indent: int = 0) -> List[str]:
         # インデント文字列を生成
         indent_str = "    " * node.indent
 
-        # ノード部分を構築
+        # ノード部分を構築 (マーカーは - で統一)
         if node.link:
-            node_str = f"{indent_str}* {node.icon} [{node.name}]({node.link})"
+            node_str = f"{indent_str}- {node.icon} [{node.name}]({node.link})"
         else:
-            node_str = f"{indent_str}* {node.icon} {node.name}"
+            node_str = f"{indent_str}- {node.icon} {node.name}"
 
         # 説明を追加
         if node.description:

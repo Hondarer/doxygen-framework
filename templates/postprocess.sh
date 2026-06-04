@@ -653,6 +653,83 @@ process_markdown_file() {
         }
         print line
     }
+    ' | \
+
+    # 箇条書き正規化
+    # 箇条書きマーカーを * / + / - から - に統一し、
+    # ネスト 1 段あたりのインデントを 4 スペースに統一する。
+    # 論理ネスト深さはスタックで生インデントを追跡して計算する。
+    # コードフェンス内、テーブル行、番号付きリストは対象外。
+    # 見出し行 (# ...) でスタックをリセットし、次リストブロックのベースを確定する。
+    awk '
+    BEGIN {
+        in_code_block = 0
+        stack_depth = 0
+    }
+
+    /^[[:space:]]*```/ {
+        if (in_code_block) {
+            in_code_block = 0
+        } else {
+            in_code_block = 1
+            stack_depth = 0
+        }
+        print; next
+    }
+
+    in_code_block { print; next }
+
+    /^[[:space:]]*\|/ { print; next }
+
+    /^[[:space:]]*[0-9]+\.[[:space:]]/ { print; next }
+
+    /^[[:space:]]*#{1,6}[[:space:]]/ {
+        stack_depth = 0
+        print; next
+    }
+
+    /^[[:space:]]*[*+\-][[:space:]]/ {
+        # 先頭スペース数を計算
+        s = $0
+        raw_indent = 0
+        while (substr(s, 1, 1) == " ") {
+            raw_indent++
+            s = substr(s, 2)
+        }
+        # マーカー 1 文字 + 空白 1 文字をスキップして本文を取得
+        rest = substr(s, 3)
+
+        # スタックで論理深さを決定
+        if (stack_depth == 0) {
+            stack_depth = 1
+            stack[1] = raw_indent
+            depth = 0
+        } else if (raw_indent > stack[stack_depth]) {
+            stack_depth++
+            stack[stack_depth] = raw_indent
+            depth = stack_depth - 1
+        } else if (raw_indent == stack[stack_depth]) {
+            depth = stack_depth - 1
+        } else {
+            while (stack_depth > 1 && stack[stack_depth] > raw_indent) {
+                stack_depth--
+            }
+            if (stack[stack_depth] != raw_indent) {
+                stack[stack_depth] = raw_indent
+            }
+            depth = stack_depth - 1
+        }
+
+        # 4 * depth スペース + "- " + 本文を出力
+        indent_str = ""
+        for (i = 0; i < depth * 4; i++) {
+            indent_str = indent_str " "
+        }
+        print indent_str "- " rest
+        next
+    }
+
+    { print }
     ' > "$temp_file"
 
     rm -f "$include_temp"
