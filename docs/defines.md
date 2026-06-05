@@ -227,16 +227,16 @@ PREDEFINED = FEATURE_A \
 ### よくある問題
 
 1. **マクロが認識されない**
-   - `ENABLE_PREPROCESSING = YES` を確認
-   - マクロ名のスペル チェック
+    - `ENABLE_PREPROCESSING = YES` を確認
+    - マクロ名のスペル チェック
 
 2. **値が正しく設定されない**
-   - 引用符の使用を確認
-   - エスケープ文字の確認
+    - 引用符の使用を確認
+    - エスケープ文字の確認
 
 3. **複雑な条件が評価されない**
-   - `ENABLE_PREPROCESSING = NO` を検討
-   - より単純な条件に分割
+    - `ENABLE_PREPROCESSING = NO` を検討
+    - より単純な条件に分割
 
 ### デバッグ方法
 
