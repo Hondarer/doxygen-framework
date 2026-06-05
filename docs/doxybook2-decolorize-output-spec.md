@@ -108,7 +108,7 @@ elif [[ "$line" == *"[warning]"* ]] || [[ "$line" == *"[error]"* ]]; then
 #### Info ログの完全脱色
 
 ```bash
-# 全ての ANSI エスケープコード (\033[XXm 形式) を削除
+# すべての ANSI エスケープ コード (\033[XXm 形式) を削除
 echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
 ```
 
@@ -216,7 +216,7 @@ exit $DOXYBOOK2_EXIT;
 ANSI カラーコードを含む出力をファイルにリダイレクトする場合、本スクリプトを適用することで、ログ ファイルに不要なエスケープ シーケンスが含まれることを防げます。
 
 ```bash
-# 推奨: フィルターを適用してログファイルに保存
+# 推奨: フィルターを適用してログ ファイルに保存
 doxybook2 ... 2>&1 | bin/doxybook2-decolorize-output.sh | tee doxybook2.log
 ```
 

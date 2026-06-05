@@ -91,7 +91,7 @@ public:
 
 #if VERSION >= 2
     /**
-     * @brief バージョン2 以降の機能
+     * @brief バージョン 2 以降の機能
      */
     void new_feature();
 #endif
@@ -161,7 +161,7 @@ PREDEFINED = DOXYGEN_SHOULD_SKIP_THIS= \
 ### 関数修飾子の除去
 
 ```cpp
-// ソースコード
+// ソース コード
 API_EXPORT DEPRECATED int old_function();
 ```
 
