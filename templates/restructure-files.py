@@ -165,7 +165,7 @@ def restructure_files(docs_dir):
 
 
 def main():
-    """エントリーポイント。"""
+    """エントリ ポイント。"""
     if len(sys.argv) != 2:
         print('使用方法: restructure-files.py <docs_dir>', file=sys.stderr)
         sys.exit(1)

@@ -204,7 +204,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --fix <target>
 # 3. clang-format で体裁を整える
 clang-format -i <target>
 
-# 4. 再度チェック（問題があれば繰り返す）
+# 4. 再度チェック (問題があれば繰り返す)
 python3 framework/doxyfw/bin/check-doxygen-indent.py --check <target>
 ```
 
