@@ -770,6 +770,9 @@ for file in "${md_files[@]}"; do
     fi
 done
 
+# Doxygen の注釈 marker セクションを docsfw の GitHub alert 形式へ変換する。
+python3 "$SCRIPT_DIR/convert-admonitions.py" "$MARKDOWN_DIR" || exit 1
+
 # Files/ を実フォルダ構造へ再編
 # (process_markdown_file ループ後に実施: !include 展開済みが前提)
 python3 "$SCRIPT_DIR/restructure-files.py" "$MARKDOWN_DIR" || exit 1

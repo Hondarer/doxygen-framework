@@ -32,6 +32,12 @@ fi
 XML_COUNT=$(echo "$XML_FILES" | wc -l)
 PROCESSED_COUNT=0
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Doxygen の注釈 simplesect を Doxybook2 が保持できる marker 付き par へ変換する。
+# 特に @important は Doxybook2 v1.6.1 の JSON に出ないため、XML 段階で退避する。
+python3 "$SCRIPT_DIR/mark-admonitions.py" "$XML_FOLDER"
+
 # 各 XML ファイルを処理
 while IFS= read -r xml_file; do
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))

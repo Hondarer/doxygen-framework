@@ -200,6 +200,22 @@ void sortArray(int *arr, size_t size);
 
 不変条件を表します。不変条件とは、関数の実行前後で常に成り立つべき条件のことです。
 
+## @note { text }
+
+技術的な背景や実装の注釈を表します。
+
+## @remark { remark text }
+
+使用上のヒントや最適化のアドバイスなどの補足情報を表します。
+
+## @remarks { remark text }
+
+`@remark` と同等の別名です。この repo では `@remark` に統一し、`@remarks` は非推奨とします。
+
+## @important { important text }
+
+見落とすと誤用や重大な判断ミスにつながる重要情報を表します。
+
 ## @warning { warning message }
 
 重大なエラーや危険の回避のための警告を表します。
@@ -207,14 +223,6 @@ void sortArray(int *arr, size_t size);
 ## @attention { attention text }
 
 必須の制約条件・使用条件などの注意を表します。
-
-## @note { text }
-
-技術的な背景や実装の注釈を表します。
-
-## @remarks { remark text }
-
-使用上のヒントや最適化のアドバイスなどの補足情報を表します。
 
 ## @par [(paragraph title)] { paragraph }
 
@@ -636,7 +644,21 @@ class Token {};  // @class を省略
 
 ## 注釈コマンド (タグ) 使い分けガイド
 
-`\note`、`\warning`、`\remarks`、`\attention` の 4 つの注釈コマンド (タグ) を適切に使い分けるためのガイドラインを示します。
+`\note`、`\remark`、`\important`、`\warning`、`\attention` の 5 つの注釈コマンド (タグ) を適切に使い分けるためのガイドラインを示します。
+
+### Markdown admonition との対応
+
+この repo では、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION` の 5 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
+
+| Markdown admonition | Doxygen コマンド | 備考 |
+|---|---|---|
+| `NOTE` | `@note` | 技術的な背景や実装の注釈 |
+| `TIP` | `@remark` | 使用上のヒントや補足情報 |
+| `IMPORTANT` | `@important` | 見落とすと誤用や重大な判断ミスにつながる重要情報 |
+| `WARNING` | `@warning` | 重大なエラーや危険の回避 |
+| `CAUTION` | `@attention` | 必須の制約条件・使用条件 |
+
+`@remarks` は `@remark` と同等の別名ですが、この repo では非推奨です。新規作成・既存更新では `@remark` に統一してください。
 
 適切なコマンド (タグ) の使い分けにより、開発者にとって実用的で理解しやすいドキュメントを作成できます。各コマンド (タグ) の特徴を理解し、情報の重要度と緊急度に応じて適切に選択することで、コードの品質と保守性の向上につながります。
 
@@ -644,12 +666,13 @@ class Token {};  // @class を省略
 
 #### 優先度・重要度マトリックス
 
-| タグ         | 重要度     | 緊急度     | 主な用途                |
-|--------------|------------|------------|-------------------------|
-| `\warning`   | 🔴 高     | 🔴 高     | 重大なエラーや危険の回避 |
-| `\attention` | 🔴 高     | 🟡 中     | 必須の制約条件・使用条件 |
-| `\note`      | 🟡 中     | 🟡 中     | 技術的詳細・実装仕様     |
-| `\remarks`   | 🟢 低～中 | 🟢 低     | 補足情報・推奨事項       |
+| タグ | 重要度 | 緊急度 | 主な用途 |
+|---|---|---|---|
+| `\warning` | 🔴 高 | 🔴 高 | 重大なエラーや危険の回避 |
+| `\attention` | 🔴 高 | 🟡 中 | 必須の制約条件・使用条件 |
+| `\important` | 🔴 高 | 🟢 低 | 重要情報の強調 |
+| `\note` | 🟡 中 | 🟡 中 | 技術的詳細・実装仕様 |
+| `\remark` | 🟢 低～中 | 🟢 低 | 補足情報・推奨事項 |
 
 ### @warning - 危険回避のための警告
 
@@ -746,7 +769,7 @@ char *sendHttpRequest(const char *url);
 - 性能特性の説明
 - 実装の技術的な詳細
 
-### @remarks - 補足情報・推奨事項
+### @remark - 補足情報・推奨事項
 
 **使用場面**: 使用上のヒントや最適化のアドバイスを提供する場合
 
@@ -756,9 +779,9 @@ char *sendHttpRequest(const char *url);
 /**
  *  @brief          大量のデータを処理します。
  *  @param[in]      dataset 処理するデータセット。
- *  @remarks        10 万件以上のデータの場合は並列処理版の使用を推奨します。
- *  @remarks        メモリ使用量はデータサイズの約 1.5 倍になります。
- *  @remarks        処理中にプログレスバーを表示することを推奨します。
+ *  @remark         10 万件以上のデータの場合は並列処理版の使用を推奨します。
+ *  @remark         メモリ使用量はデータサイズの約 1.5 倍になります。
+ *  @remark         処理中にプログレスバーを表示することを推奨します。
  */
 void processLargeDataset(const Dataset *dataset);
 
@@ -766,7 +789,7 @@ void processLargeDataset(const Dataset *dataset);
  *  @brief          設定ファイルを読み込みます。
  *  @param[in]      filePath ファイルパス。
  *  @return         設定内容。
- *  @remarks        起動時のパフォーマンスを向上させるため、設定をキャッシュすることを推奨します。
+ *  @remark         起動時のパフォーマンスを向上させるため、設定をキャッシュすることを推奨します。
  */
 Config *loadConfiguration(const char *filePath);
 ```
@@ -777,6 +800,29 @@ Config *loadConfiguration(const char *filePath);
 - 代替手段の提案
 - 使用経験に基づくアドバイス
 - 設計上の考慮事項
+
+### @important - 重要情報
+
+**使用場面**: 危険ではないものの、見落とすと誤用や重大な判断ミスにつながる重要情報を強調する場合
+
+#### 適用例
+
+```c
+/**
+ *  @brief          設定を読み込みます。
+ *  @param[in]      path 設定ファイルのパス。
+ *  @return         読み込んだ設定。
+ *  @important      この関数は既存の設定値を上書きします。
+ *  @important      空の設定ファイルを指定した場合は既定値が使用されます。
+ */
+Config *loadSettings(const char *path);
+```
+
+#### 使用指針
+
+- API の意味や結果を理解するうえで重要な情報
+- 利用者の判断に強く影響する仕様
+- 危険回避ではないが、見落とすべきではない制約
 
 ### 実践的な使い分け例
 
@@ -790,9 +836,10 @@ Config *loadConfiguration(const char *filePath);
  *  @return         取引結果。
  *
  *  @attention      取引実行前に必ず口座残高を確認してください。
+ *  @important      この関数は監査ログの出力対象です。
  *  @warning        取引が失敗した場合でも重複実行は禁止です。
  *  @note           取引履歴は自動的にデータベースに保存されます。
- *  @remarks        高頻度取引の場合はバッチ処理の使用を検討してください。
+ *  @remark         高頻度取引の場合はバッチ処理の使用を検討してください。
  */
 TransactionResult *executeTransaction(const Transaction *transaction, 
                                       const Account *account);
@@ -816,16 +863,21 @@ else (No)
     :\\attention を使用;
     stop
   else (No)
-    if (技術的な詳細や実装仕様?\n例：アルゴリズムの説明\n使用ライブラリ、性能特性) then (Yes)
-      :\\note を使用;
+    if (重要情報として強調すべき?\n例：仕様理解に必須\n判断ミスにつながる情報) then (Yes)
+      :\\important を使用;
       stop
     else (No)
-      if (補足情報や推奨事項?\n例：最適化のヒント\n代替手段の提案) then (Yes)
-        :\\remarks を使用;
+      if (技術的な詳細や実装仕様?\n例：アルゴリズムの説明\n使用ライブラリ、性能特性) then (Yes)
+        :\\note を使用;
         stop
       else (No)
-        :通常の \\brief、\\param、タグなし本文を使用;
-        stop
+        if (補足情報や推奨事項?\n例：最適化のヒント\n代替手段の提案) then (Yes)
+          :\\remark を使用;
+          stop
+        else (No)
+          :通常の \\brief、\\param、タグなし本文を使用;
+          stop
+        endif
       endif
     endif
   endif

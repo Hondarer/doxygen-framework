@@ -174,7 +174,7 @@ int calcHandler(const int kind, const int a, const int b, int *result)
     - 失敗条件や危険な使い方を書くとき
 - `@note`
     - 技術的な背景や補足を書くとき
-- `@remarks`
+- `@remark`
     - 運用上のヒントを書くとき
 - `@deprecated`
     - 非推奨 API を示すとき
