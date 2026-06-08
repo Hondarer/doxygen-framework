@@ -81,8 +81,8 @@ DOXYBOOK2_OUTPUT_DIR_DIRECTIVE := DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME
 
 ifneq ($(strip $(CATEGORY)),)
 ifneq ($(DOXYFILE_PART_PATH),)
-    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := $(shell awk '/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") count++ } END { print count + 0 }' "$(DOXYFILE_PART_PATH)")
-    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE := $(shell awk '/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*\#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") { print value; exit } }' "$(DOXYFILE_PART_PATH)")
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := $(shell awk '/^[[:space:]]*#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") count++ } END { print count + 0 }' "$(DOXYFILE_PART_PATH)")
+    DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE := $(shell awk '/^[[:space:]]*#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=/ { value = $$0; sub(/^[[:space:]]*#[[:space:]]*$(DOXYBOOK2_OUTPUT_DIR_DIRECTIVE)[[:space:]]*=[[:space:]]*/, "", value); sub(/[[:space:]]*$$/, "", value); if (value != "") { print value; exit } }' "$(DOXYFILE_PART_PATH)")
 else
     DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_COUNT := 0
     DOXYBOOK2_OUTPUT_DIR_DIRECTIVE_VALUE :=
