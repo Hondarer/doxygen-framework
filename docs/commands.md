@@ -365,6 +365,9 @@ PlantUML 形式の図を表します。
 
 以下のように記載すると、[PlantUML プラグイン](https://marketplace.visualstudio.com/items?itemName=jebbs.plantuml) のプレビュー機能も活用できます。
 
+> [!NOTE]
+> Markdown で PlantUML を記載する際には `@startuml` に続けて図のキャプション名を宣言しますが、Doxygen の場合は二重にキャプションが表示されてしまうため、宣言を省略してください。
+
 ```c
 /**
  *  @brief          2 つの整数を除算します。
