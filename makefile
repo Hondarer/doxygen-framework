@@ -270,6 +270,8 @@ markdown-generation:
 	fi; \
 	rm -f "$$DOXYBOOK2_LOG"; \
 	if [ $$DOXYBOOK2_EXIT -ne 0 ]; then exit $$DOXYBOOK2_EXIT; fi
+    # Doxybook2 が Windows で非 ASCII ファイル名の画像コピーに失敗する場合があるため補完
+	python3 templates/copy-doxygen-images.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # C# enum を Files ドキュメントに挿入
 	python3 templates/inject-cs-enums.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # グループ (@defgroup) を Files ドキュメントに挿入
