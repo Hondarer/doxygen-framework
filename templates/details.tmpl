@@ -2,48 +2,48 @@
 {% endif -%}
 
 {% if exists("details") and kind != "enum" %}
-{# #### 詳細 #}{# details のタイトルは表示しない。brief に 続けて出力する。 #}
+{# **詳細** #}{# details のタイトルは表示しない。brief に 続けて出力する。 #}
 
 {{details}}
 
 {% endif -%}
 
 {% if exists("paramList") %}
- #### 引数
+ **引数**
 
 {% for param in paramList %}* !paramitem!{{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("returnsList") %}
- #### 戻り値
+ **戻り値**
 
 {% for param in returnsList %}* **{{param.name}}**!itembreak!{{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("exceptionsList") %}
- #### 例外
+ **例外**
 
-{% for param in exceptionsList %}##### {{param.name}} {{param.text}}
+{% for param in exceptionsList %}!doxyfw-detail-title!{{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("templateParamsList") %}
- #### テンプレート引数
+ **テンプレート引数**
 
-{% for param in templateParamsList %}##### {{param.name}} {{param.text}}
+{% for param in templateParamsList %}!doxyfw-detail-title!{{param.name}} {{param.text}}
 {% endfor %}
 {% endif -%}
 
 {% if exists("deprecated") %}
- #### 非推奨
+ **非推奨**
 
 {{deprecated}}
 {% endif -%}
 
 {% if exists("returns") %}
- #### 戻り値
+ **戻り値**
 
 {% if length(returns) == 1 %}{{first(returns)}}{% else %}
 
@@ -52,7 +52,7 @@
 {% endif -%}
 
 {% if exists("authors") %}
- #### 作者
+ **作者**
 
 {% if length(authors) == 1 %}{{first(authors)}}{% else %}
 
@@ -61,7 +61,7 @@
 {% endif -%}
 
 {% if exists("version") %}
- #### バージョン
+ **バージョン**
 
 {% if length(version) == 1 %}{{first(version)}}{% else %}
 
@@ -70,7 +70,7 @@
 {% endif -%}
 
 {% if exists("since") %}
- #### 導入バージョン
+ **導入バージョン**
 
 {% if length(since) == 1 %}{{first(since)}}{% else %}
 
@@ -79,7 +79,7 @@
 {% endif -%}
 
 {% if exists("date") %}
- #### 日付
+ **日付**
 
 {% if length(date) == 1 %}{{first(date)}}{% else %}
 
@@ -88,7 +88,7 @@
 {% endif -%}
 
 {% if exists("note") %}
- #### 補足
+ **補足**
 
 {% if length(note) == 1 %}{{first(note)}}{% else %}
 
@@ -97,88 +97,88 @@
 {% endif -%}
 
 {% if exists("bugs") %}
- #### バグ
+ **バグ**
 
 {% if length(bugs) == 1 %}{{first(bugs)}}{% else %}
 
-{% for item in bugs %}##### {{item}}
+{% for item in bugs %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("tests") %}
- #### テスト
+ **テスト**
 
 {% if length(tests) == 1 %}{{first(tests)}}{% else %}
 
-{% for item in tests %}##### {{item}}
+{% for item in tests %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("todos") %}
- #### TODO
+ **TODO**
 
 {% if length(todos) == 1 %}{{first(todos)}}{% else %}
 
-{% for item in todos %}##### {{item}}
+{% for item in todos %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("warning") %}
- #### 警告
+ **警告**
 
 {% if length(warning) == 1 %}{{first(warning)}}{% else %}
 
-{% for item in warning %}##### {{item}}
+{% for item in warning %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("pre") %}
- #### 事前条件
+ **事前条件**
 
 {% if length(pre) == 1 %}{{first(pre)}}{% else %}
 
-{% for item in pre %}##### {{item}}
+{% for item in pre %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("post") %}
- #### 事後条件
+ **事後条件**
 
 {% if length(post) == 1 %}{{first(post)}}{% else %}
 
-{% for item in post %}##### {{item}}
+{% for item in post %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("invariant") %}
- #### 不変条件
+ **不変条件**
 
 {% if length(invariant) == 1 %}{{first(invariant)}}{% else %}
 
-{% for item in invariant %}##### {{item}}
+{% for item in invariant %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("remark") %}
- #### 備考
+ **備考**
 
 {% if length(remark) == 1 %}{{first(remark)}}{% else %}
 
-{% for item in remark %}##### {{item}}
+{% for item in remark %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("attention") %}
- #### 注意
+ **注意**
 
 {% if length(attention) == 1 %}{{first(attention)}}{% else %}
 
-{% for item in attention %}##### {{item}}
+{% for item in attention %}!doxyfw-detail-title!{{item}}
 {% endfor %}{% endif %}
 {% endif -%}
 
 {% if exists("rcs") %}
- #### RCS
+ **RCS**
 
 {% if length(rcs) == 1 %}{{first(rcs)}}{% else %}
 
@@ -187,21 +187,21 @@
 {% endif -%}
 
 {% if exists("reimplements") %}
- #### 再実装
+ **再実装**
 
 [{{reimplements.fullname}}]({{reimplements.url}})
 
 {% endif -%}
 
 {% if exists("reimplementedBy") %}
- #### 派生クラスの実装
+ **派生クラスの実装**
 
 {% for impl in reimplementedBy %}[{{impl.fullname}}]({{impl.url}}){% if not loop.is_last %}, {% endif %}{% endfor %}
 
 {% endif -%}
 
 {% if exists("par") %}
-{% for item in par %}{% if kind in ["class", "struct"] %}## {{item}}{% else %}#### {{item}}{% endif %}
+{% for item in par %}!doxyfw-detail-title!{% if kind in ["class", "struct"] %}##{% else %}####{% endif %} {{item}}
 
 {% endfor %}
 {% endif -%}
@@ -212,7 +212,7 @@
 {% endif -%}
 
 {% if exists("see") %}
- #### 参照
+ **参照**
 
 {% if length(see) == 1 %}{{first(see)}}{% else %}
 
@@ -221,7 +221,7 @@
 {% endif -%}
 
 {% if exists("copyright") %}
- #### 著作権
+ **著作権**
 
 {% if length(copyright) == 1 %}{{first(copyright)}}{% else %}
 

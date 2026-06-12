@@ -113,6 +113,36 @@ process_markdown_file() {
                 ' "$include_path" | \
                 awk -v heading_offset="$include_heading_offset" '
                 {
+                    if (heading_offset > 0 && match($0, /^!doxyfw-structure-title!(#{1,6})[[:space:]]+/, m)) {
+                        level = length(m[1])
+                        new_level = level + heading_offset
+                        if (new_level > 6) {
+                            new_level = 6
+                        }
+                        hash = ""
+                        for (i = 0; i < new_level; i++) {
+                            hash = hash "#"
+                        }
+                        rest = substr($0, RLENGTH + 1)
+                        print "!doxyfw-structure-title!" hash " " rest
+                        next
+                    }
+                    if (heading_offset > 0 &&
+                        $0 ~ /^!doxyfw-detail-title!#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]+/ &&
+                        match($0, /^!doxyfw-detail-title!(#{1,6})[[:space:]]+/, m)) {
+                        level = length(m[1])
+                        new_level = level + heading_offset
+                        if (new_level > 6) {
+                            new_level = 6
+                        }
+                        hash = ""
+                        for (i = 0; i < new_level; i++) {
+                            hash = hash "#"
+                        }
+                        rest = substr($0, RLENGTH + 1)
+                        print "!doxyfw-detail-title-include!" hash " " rest
+                        next
+                    }
                     if (heading_offset > 0 && match($0, /^[[:space:]]*(#{1,6})[[:space:]]+/, m)) {
                         level = length(m[1])
                         new_level = level + heading_offset
@@ -333,6 +363,8 @@ process_markdown_file() {
     # extract-graphs.py が details_only=True のグラフタイトルに付与した
     # "__DETAILS_ONLY__" プレフィックスを検出し、その見出しと plantuml
     # コードフェンスを <!--details:--> / <!--:details--> で囲む。
+    # details.tmpl の単位項目タイトル marker は通常は **タイトル** に変換し、
+    # DOXYFW_DETAILS_ONLY を持つグラフタイトルだけは詳細タグ付き見出しに戻す。
     awk '
     BEGIN { details_open = 0; in_fence = 0 }
     /^#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
@@ -340,6 +372,38 @@ process_markdown_file() {
         print "<!--details:-->"
         print
         details_open = 1
+        next
+    }
+    /^!doxyfw-detail-title!#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
+        sub(/^!doxyfw-detail-title!/, "")
+        sub(/DOXYFW_DETAILS_ONLY[[:space:]]+/, "")
+        print "<!--details:-->"
+        print
+        details_open = 1
+        next
+    }
+    /^!doxyfw-detail-title-include!#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
+        sub(/^!doxyfw-detail-title-include!/, "")
+        sub(/DOXYFW_DETAILS_ONLY[[:space:]]+/, "")
+        print "<!--details:-->"
+        print ""
+        print
+        details_open = 1
+        next
+    }
+    /^!doxyfw-detail-title!#{1,6}[[:space:]]+!doxyfw-admonition[[:space:]]/ {
+        sub(/^!doxyfw-detail-title!/, "")
+        print
+        next
+    }
+    /^!doxyfw-detail-title!#{1,6}[[:space:]]+/ {
+        sub(/^!doxyfw-detail-title!#{1,6}[[:space:]]+/, "")
+        print "!doxyfw-detail-title-bold!" $0
+        next
+    }
+    /^!doxyfw-detail-title!/ {
+        sub(/^!doxyfw-detail-title!/, "")
+        print "!doxyfw-detail-title-bold!" $0
         next
     }
     /^```/ && details_open {
@@ -524,11 +588,11 @@ process_markdown_file() {
     # レンダリングの一貫性のためにここで除去する。
     awk '
     BEGIN { in_params_section = 0; in_param_item = 0; pending_blank = 0 }
-    /^[[:space:]]*#{1,6}[[:space:]]+引数[[:space:]]*$/ {
+    /^[[:space:]]*(#{1,6}[[:space:]]+引数|\*\*引数\*\*|!doxyfw-detail-title-bold!引数)[[:space:]]*$/ {
         in_params_section = 1; in_param_item = 0; pending_blank = 0
         print; next
     }
-    in_params_section && /^[[:space:]]*#{1,6}[[:space:]]/ {
+    in_params_section && /^[[:space:]]*(#{1,6}[[:space:]]|\*\*.*\*\*[[:space:]]*$|!doxyfw-detail-title-bold!)/ {
         in_params_section = 0; in_param_item = 0
         if (pending_blank) { print ""; pending_blank = 0 }
         print; next
@@ -637,6 +701,31 @@ process_markdown_file() {
     { print }
     ' | \
 
+    # 単位項目内タイトルを Markdown 見出しから太字表現へ変換する。
+    # H1-H3 はページ/セクション構造として維持し、H4-H6 のみ対象にする。
+    # alert marker は convert-admonitions.py で見出しとして扱うためここでは維持する。
+    awk '
+    BEGIN { in_code_block = 0 }
+    /^[[:space:]]*```/ {
+        if (in_code_block) {
+            in_code_block = 0
+        } else {
+            in_code_block = 1
+        }
+        print; next
+    }
+    in_code_block { print; next }
+    /^#{4,6}[[:space:]]+!doxyfw-admonition[[:space:]]/ {
+        print; next
+    }
+    /^#{4,6}[[:space:]]+/ {
+        sub(/^#{4,6}[[:space:]]+/, "")
+        print "!doxyfw-detail-title-bold!" $0
+        next
+    }
+    { print }
+    ' | \
+
     # !itembreak! を Markdown の改行 + 継続行インデントに変換
     # details.tmpl は項目名と説明文の間に !itembreak! を出力できるため、
     # ここで "  " を行末に付けた 1 行目と、2 文字インデント付きの 2 行目へ分割する。
@@ -660,7 +749,8 @@ process_markdown_file() {
     # ネスト 1 段あたりのインデントを 4 スペースに統一する。
     # 論理ネスト深さはスタックで生インデントを追跡して計算する。
     # コードフェンス内、テーブル行、番号付きリストは対象外。
-    # 見出し行 (# ...) でスタックをリセットし、次リストブロックのベースを確定する。
+    # 見出し行 (# ...) と単位項目タイトル marker でスタックをリセットし、
+    # 次リストブロックのベースを確定する。marker は alert 変換後に **タイトル** へ変換する。
     awk '
     BEGIN {
         in_code_block = 0
@@ -684,6 +774,11 @@ process_markdown_file() {
     /^[[:space:]]*[0-9]+\.[[:space:]]/ { print; next }
 
     /^[[:space:]]*#{1,6}[[:space:]]/ {
+        stack_depth = 0
+        print; next
+    }
+
+    /^!doxyfw-detail-title-bold!/ {
         stack_depth = 0
         print; next
     }
@@ -772,6 +867,40 @@ done
 
 # Doxygen の注釈 marker セクションを docsfw の GitHub alert 形式へ変換する。
 python3 "$SCRIPT_DIR/convert-admonitions.py" "$MARKDOWN_DIR" || exit 1
+
+# alert 変換の終了判定に使った単位項目タイトル marker を最終 Markdown 表現へ変換する。
+find "$MARKDOWN_DIR" -name "*.md" -type f | while IFS= read -r file; do
+    awk '
+    function emit(line) {
+        print line
+        prev_blank = (line == "")
+    }
+    BEGIN {
+        prev_blank = 1
+    }
+    /^!doxyfw-structure-title!#{1,6}[[:space:]]+/ {
+        sub(/^!doxyfw-structure-title!/, "")
+        emit($0)
+        next
+    }
+    /^!doxyfw-detail-title-bold!/ {
+        sub(/^!doxyfw-detail-title-bold!/, "")
+        if (!prev_blank) {
+            emit("")
+        }
+        emit("**" $0 "**")
+        next
+    }
+    /^[[:space:]]*\*\*(引数|戻り値|例外|テンプレート引数|非推奨|作者|バージョン|導入バージョン|日付|関連項目|補足|事前条件|事後条件|不変条件|警告|注意|バグ|テスト|著作権|スレッド セーフ|使用例|チェーン例|コラボレーション図|呼び出し元|呼び出し先|インクルード元|インクルード先)\*\*[[:space:]]*$/ {
+        if (!prev_blank) {
+            emit("")
+        }
+        emit($0)
+        next
+    }
+    { emit($0) }
+    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+done
 
 # Files/ を実フォルダ構造へ再編
 # (process_markdown_file ループ後に実施: !include 展開済みが前提)

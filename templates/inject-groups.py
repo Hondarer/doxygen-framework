@@ -221,6 +221,8 @@ def parse_group_md_sections(md_path):
 
     remaining = raw_lines[i:]
 
+    structure_marker = "!doxyfw-structure-title!"
+
     # H2/H3 境界でセクションを分解
     sections = []          # [(h2_line, [(name, [lines])])]
     current_h2 = None
@@ -233,7 +235,11 @@ def parse_group_md_sections(md_path):
         if line.startswith("```"):
             in_code_block = not in_code_block
 
-        if not in_code_block and line.startswith("## "):
+        heading_line = line
+        if heading_line.startswith(structure_marker):
+            heading_line = heading_line[len(structure_marker):]
+
+        if not in_code_block and heading_line.startswith("## "):
             # 進行中のメンバーをフラッシュ
             if current_name is not None:
                 current_members.append((current_name, current_lines))
@@ -245,11 +251,11 @@ def parse_group_md_sections(md_path):
                 current_members = []
             current_h2 = line
 
-        elif not in_code_block and line.startswith("### "):
+        elif not in_code_block and heading_line.startswith("### "):
             # 進行中のメンバーをフラッシュ
             if current_name is not None:
                 current_members.append((current_name, current_lines))
-            current_name = line[4:].strip()
+            current_name = heading_line[4:].strip()
             current_lines = [line]
 
         else:
@@ -337,10 +343,16 @@ def inject_into_body_files_md(docs_dir, body_data):
             content = body_md_path.read_text(encoding="utf-8")
 
             # 欠落しているメンバーを特定する (行頭 ### <name> の有無で判定)
+            structure_marker = re.escape("!doxyfw-structure-title!")
             missing = []
             for (group_id, member_name, _) in sorted(member_infos, key=lambda x: x[2]):
                 pattern = re.compile(
-                    r"^### " + re.escape(member_name) + r"[ \t]*$", re.MULTILINE
+                    r"^(?:"
+                    + structure_marker
+                    + r")?### "
+                    + re.escape(member_name)
+                    + r"[ \t]*$",
+                    re.MULTILINE,
                 )
                 if not pattern.search(content):
                     missing.append((group_id, member_name))
@@ -350,7 +362,13 @@ def inject_into_body_files_md(docs_dir, body_data):
 
             # 欠落メンバーをグループ md から抽出して追記する
             func_section_present = bool(
-                re.search(r"^## 関数[ \t]*$", content, re.MULTILINE)
+                re.search(
+                    r"^(?:"
+                    + structure_marker
+                    + r")?## 関数[ \t]*$",
+                    content,
+                    re.MULTILINE,
+                )
             )
             append_lines = []
 

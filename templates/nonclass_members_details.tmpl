@@ -1,35 +1,35 @@
 
-{% if exists("publicFunctions") %}## 関数
+{% if exists("publicFunctions") %}!doxyfw-structure-title!## 関数
 
-{% for child in publicFunctions %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif %}
-
-{% if exists("publicAttributes") %}## 変数
-
-{% for child in publicAttributes %}### {{child.name}}
+{% for child in publicFunctions %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}
 
-{% if exists("defines") %}## 定数、マクロ
+{% if exists("publicAttributes") %}!doxyfw-structure-title!## 変数
 
-{% for child in defines %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif %}
-
-{% if exists("publicTypes") %}## 型
-
-{% for child in publicTypes %}### {% if kind != "file" %}{{name}}::{% endif %}{{child.name}}
+{% for child in publicAttributes %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}
 
-{% if exists("publicClasses") %}## クラス/構造体
+{% if exists("defines") %}!doxyfw-structure-title!## 定数、マクロ
 
-{% for child in publicClasses %}### {{child.name}}
+{% for child in defines %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("publicTypes") %}!doxyfw-structure-title!## 型
+
+{% for child in publicTypes %}!doxyfw-structure-title!### {% if kind != "file" %}{{name}}::{% endif %}{{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif %}
+
+{% if exists("publicClasses") %}!doxyfw-structure-title!## クラス/構造体
+
+{% for child in publicClasses %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}

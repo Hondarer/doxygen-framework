@@ -1,111 +1,111 @@
-{% if exists("publicTypes") %}## 型
+{% if exists("publicTypes") %}!doxyfw-structure-title!## 型
 
-{% for child in publicTypes %}### {{child.kind}} {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("protectedTypes") %}## Protected 型
-
-{% for child in protectedTypes %}### {{child.kind}} {{child.name}}
+{% for child in publicTypes %}!doxyfw-structure-title!### {{child.kind}} {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicSlots") %}## スロット
+{% if exists("protectedTypes") %}!doxyfw-structure-title!## Protected 型
 
-{% for child in publicSlots %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("protectedSlots") %}## Protected スロット
-
-{% for child in protectedSlots %}### {{child.name}}
+{% for child in protectedTypes %}!doxyfw-structure-title!### {{child.kind}} {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicSignals") %}## シグナル
+{% if exists("publicSlots") %}!doxyfw-structure-title!## スロット
 
-{% for child in publicSignals %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("protectedSignals") %}## Protected シグナル
-
-{% for child in protectedSignals %}### {{child.name}}
+{% for child in publicSlots %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicEvents") %}## イベント
+{% if exists("protectedSlots") %}!doxyfw-structure-title!## Protected スロット
 
-{% for child in publicEvents %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("protectedEvents") %}## Protected イベント
-
-{% for child in protectedEvents %}### {{child.name}}
+{% for child in protectedSlots %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("publicJavaenumconstants") %}## 列挙定数
+{% if exists("publicSignals") %}!doxyfw-structure-title!## シグナル
 
-{% for child in publicJavaenumconstants %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("publicFunctions") %}## 関数
-
-{% for child in publicFunctions %}### {{child.name}}
+{% for child in publicSignals %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("protectedFunctions") %}## Protected 関数
+{% if exists("protectedSignals") %}!doxyfw-structure-title!## Protected シグナル
 
-{% for child in protectedFunctions %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("publicProperties") %}## プロパティ
-
-{% for child in publicProperties %}### {{child.name}}
+{% for child in protectedSignals %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("protectedProperties") %}## Protected プロパティ
+{% if exists("publicEvents") %}!doxyfw-structure-title!## イベント
 
-{% for child in protectedProperties %}### {{child.name}}
-
-{{ render("member_details", child) }}
-{% endfor %}{% endif -%}
-
-{% if exists("publicAttributes") %}## 属性
-
-{% for child in publicAttributes %}### {{child.name}}
+{% for child in publicEvents %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("protectedAttributes") %}## Protected 属性
+{% if exists("protectedEvents") %}!doxyfw-structure-title!## Protected イベント
 
-{% for child in protectedAttributes %}### {{child.name}}
+{% for child in protectedEvents %}!doxyfw-structure-title!### {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
 
-{% if exists("friends") %}## フレンド
+{% if exists("publicJavaenumconstants") %}!doxyfw-structure-title!## 列挙定数
 
-{% for child in friends %}### {{child.kind}} {{child.name}}
+{% for child in publicJavaenumconstants %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("publicFunctions") %}!doxyfw-structure-title!## 関数
+
+{% for child in publicFunctions %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("protectedFunctions") %}!doxyfw-structure-title!## Protected 関数
+
+{% for child in protectedFunctions %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("publicProperties") %}!doxyfw-structure-title!## プロパティ
+
+{% for child in publicProperties %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("protectedProperties") %}!doxyfw-structure-title!## Protected プロパティ
+
+{% for child in protectedProperties %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("publicAttributes") %}!doxyfw-structure-title!## 属性
+
+{% for child in publicAttributes %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("protectedAttributes") %}!doxyfw-structure-title!## Protected 属性
+
+{% for child in protectedAttributes %}!doxyfw-structure-title!### {{child.name}}
+
+{{ render("member_details", child) }}
+{% endfor %}{% endif -%}
+
+{% if exists("friends") %}!doxyfw-structure-title!## フレンド
+
+{% for child in friends %}!doxyfw-structure-title!### {{child.kind}} {{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif -%}
