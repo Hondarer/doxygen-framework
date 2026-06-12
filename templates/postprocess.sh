@@ -93,11 +93,11 @@ process_markdown_file() {
                     include_heading_offset=2
                 fi
                 # Modules/ のページをインクルードする場合、
-                # 埋め込み先の ### グループタイトル (H3) 配下に揃えるため
-                # 2 段下げる (H2 → H4、H3 → H5 など)。
+                # 埋め込み先の ## グループタイトル (H2) 配下に揃えるため
+                # 1 段下げる (H2 → H3、H3 → H4 など)。
                 # ※ Modules 側ファイルそのものは変更しない。
                 if [[ "$include_file" == Modules/*.md ]]; then
-                    include_heading_offset=2
+                    include_heading_offset=1
                 fi
                 #echo "  -> インクルード: $include_file"
                 # YAML フロントマター、HTML コメント行、H1 見出しを除いてファイル内容を出力
