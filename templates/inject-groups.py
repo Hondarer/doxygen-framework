@@ -305,25 +305,28 @@ def generate_filtered_md(title, sections, member_names):
     return "\n".join(out)
 
 
-def inject_into_body_files_md(docs_dir, body_data):
+def inject_into_body_files_md(docs_dir, body_data, group_titles):
     """
-    グループメンバーの定義ファイル (.c ページ) に ## 関数 セクションを補完する。
+    グループメンバーの定義ファイル (.c ページ) にグループセクションを補完する。
 
     Doxygen が FILE コンパウンド XML に <member refid="..."> (参照のみ) を出力した場合、
-    Doxybook2 はそのメンバーを publicFunctions として扱わず、.c ページの
-    ## 関数 セクションにメンバーが出力されない。
-    この関数は Modules/group__*.md から対象メンバーの内容を抽出し、
-    欠落している ## 関数 セクションを .c ページへ直接追記する。
+    Doxybook2 はそのメンバーを publicFunctions として扱わず、.c ページに
+    メンバーが出力されない。
+    この関数は Files/*.md への注入 (inject_into_files_md) と同じ perfile 機構を使い、
+    欠落メンバーのみを含むフィルタ済み中間 MD
+    (Modules/perfile__<group_id>__<compound_id>.md) を生成して、
+    .c ページの末尾に ## グループタイトル セクションと !include ディレクティブを追記する。
 
     inject-groups.py は postprocess.sh より前に実行されるため、
-    追記内容は postprocess.sh の変換 (dunder エスケープ、ポインタ整形等) を
-    同様に受ける。これにより native Doxybook2 出力と同一品質になる。
+    追記内容は postprocess.sh の変換 (!include 展開、dunder エスケープ等) を
+    同様に受ける。
 
     Files/*.md はこの時点でフラット構造 (restructure-files.py 実行前) であり、
     ファイル名は compound_id + ".md" 形式になっている。
 
-    @param[in] docs_dir  doxybook2 出力ディレクトリ
-    @param[in] body_data {compound_id: [(group_id, member_name, line)]}
+    @param[in] docs_dir     doxybook2 出力ディレクトリ
+    @param[in] body_data    {compound_id: [(group_id, member_name, line)]}
+    @param[in] group_titles {group_id: title}
     """
     processed = 0
 
@@ -335,6 +338,8 @@ def inject_into_body_files_md(docs_dir, body_data):
         if not modules_dir.is_dir():
             continue
 
+        modules_rel = str(modules_dir.relative_to(docs_dir))
+
         for compound_id, member_infos in body_data.items():
             body_md_path = files_dir / (compound_id + ".md")
             if not body_md_path.exists():
@@ -342,9 +347,15 @@ def inject_into_body_files_md(docs_dir, body_data):
 
             content = body_md_path.read_text(encoding="utf-8")
 
-            # 欠落しているメンバーを特定する (行頭 ### <name> の有無で判定)
+            if "!include {}/perfile__".format(modules_rel) in content:
+                print("  [skip] {}: perfile include already exists".format(body_md_path.name))
+                continue
+
+            # 欠落しているメンバーをグループごとに特定する (行頭 ### <name> の有無で判定)。
+            # グループの出現順は、そのグループに属する欠落メンバーの最小定義行を基準にする。
             structure_marker = re.escape("!doxyfw-structure-title!")
-            missing = []
+            missing_names = {}  # {group_id: set(member_name)}
+            group_order = []
             for (group_id, member_name, _) in sorted(member_infos, key=lambda x: x[2]):
                 pattern = re.compile(
                     r"^(?:"
@@ -354,66 +365,55 @@ def inject_into_body_files_md(docs_dir, body_data):
                     + r"[ \t]*$",
                     re.MULTILINE,
                 )
-                if not pattern.search(content):
-                    missing.append((group_id, member_name))
+                if pattern.search(content):
+                    continue
+                if group_id not in missing_names:
+                    missing_names[group_id] = set()
+                    group_order.append(group_id)
+                missing_names[group_id].add(member_name)
 
-            if not missing:
+            if not missing_names:
                 continue
 
-            # 欠落メンバーをグループ md から抽出して追記する
-            func_section_present = bool(
-                re.search(
-                    r"^(?:"
-                    + structure_marker
-                    + r")?## 関数[ \t]*$",
-                    content,
-                    re.MULTILINE,
-                )
-            )
             append_lines = []
-
-            for (group_id, member_name) in missing:
+            for group_id in group_order:
                 group_md = modules_dir / "{}.md".format(group_id)
                 if not group_md.exists():
                     print("  -> 警告: {} が見つかりません".format(group_md))
                     continue
 
                 sections = parse_group_md_sections(group_md)
-                injected = False
-                for (h2_line, members) in sections:
-                    for (name, lines) in members:
-                        if name != member_name:
-                            continue
-                        if not func_section_present:
-                            # ## 関数 セクション見出しを先頭に追加する
-                            append_lines.append("")
-                            append_lines.append(h2_line)
-                            append_lines.append("")
-                            func_section_present = True
-                        # H3 以降のメンバー内容を追記する
-                        # Doxybook2 がグループ コンパウンドを出力するとき {{language}} が
-                        # 空になるため、関数シグネチャの ``` が言語指定なしになる。
-                        # ファイル コンパウンドでは ```cpp になるため、最初の ``` を修正する。
-                        fixed_lines = list(lines)
-                        for fix_i, fix_line in enumerate(fixed_lines):
-                            if fix_line == "```":
-                                fixed_lines[fix_i] = "```cpp"
-                                break
-                        append_lines.extend(fixed_lines)
-                        append_lines.append("")
-                        injected = True
-                        print("  [body] {}: {} 追記 (from {})".format(
-                            body_md_path.name, member_name, group_id))
-                        break
-                    if injected:
-                        break
+
+                # グループ md に実在するメンバーだけを対象にする
+                # (空の !include による空セクションを防ぐ)
+                available = set()
+                for (_, members) in sections:
+                    for (name, _) in members:
+                        available.add(name)
+                effective = missing_names[group_id] & available
+                if not effective:
+                    print("  -> 警告: {} に対象メンバーが見つかりません: {}".format(
+                        group_md.name, ", ".join(sorted(missing_names[group_id]))))
+                    continue
+
+                title = group_titles.get(group_id, group_id)
+                filtered_content = generate_filtered_md(title, sections, effective)
+
+                filtered_name = "perfile__{}__{}.md".format(group_id, compound_id)
+                filtered_path = modules_dir / filtered_name
+                with open(str(filtered_path), "w", encoding="utf-8", newline="\n") as f:
+                    f.write(filtered_content)
+
+                append_lines.append("\n## {}\n".format(title))
+                append_lines.append("\n!include {}/{}\n".format(modules_rel, filtered_name))
+                print("  [body] {}: {} を追記 (from {})".format(
+                    body_md_path.name, ", ".join(sorted(effective)), group_id))
 
             if not append_lines:
                 continue
 
-            append_text = "\n".join(append_lines) + "\n"
             with open(str(body_md_path), "a", encoding="utf-8", newline="\n") as f:
-                f.write(append_text)
+                f.write("".join(append_lines))
 
             processed += 1
 
@@ -682,7 +682,7 @@ def main():
 
     print("[inject-groups] Done: {} file(s) processed".format(processed))
 
-    # 定義ファイル (.c ページ) への ## 関数 セクション補完注入
+    # 定義ファイル (.c ページ) へのグループセクション補完注入
     if body_file_data:
         # bodyfile_path → compound_id に変換する
         file_compound_map = build_file_compound_map(xml_dir)
@@ -694,7 +694,10 @@ def main():
                     body_data[cid] = []
                 body_data[cid].extend(infos)
         if body_data:
-            inject_into_body_files_md(docs_dir, body_data)
+            group_titles = {}
+            for gid, (title, _) in group_data.items():
+                group_titles[gid] = title
+            inject_into_body_files_md(docs_dir, body_data, group_titles)
 
     # 親グループへの子グループ注入
     if hierarchy:
