@@ -1,5 +1,10 @@
 {% include "header" %}
 
+{% if exists("brief") or hasDetails %}## 概要
+
+{% else if exists("publicAttributes") %}{% if length(publicAttributes) > 0 %}## 概要
+
+{% endif %}{% endif -%}
 {% if exists("publicAttributes") %}
 {% if length(publicAttributes) > 0 %}
 ```{{language}}

@@ -2,6 +2,9 @@
 
 {% include "breadcrumbs" -%}
 
+{% if exists("brief") or hasDetails %}## 概要
+
+{% endif -%}
 {% include "details" -%}
 
 {# Markdown 側で目次を生成するため、テーブルは出力しない #}
