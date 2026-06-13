@@ -31,6 +31,20 @@ from xml.etree import ElementTree as ET
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
+# メンバーの宣言ファイル拡張子 → コード フェンスの言語指定
+# Doxygen の group コンパウンドには language 属性がなく、Doxybook2 の
+# メンバー描画で {{language}} が空になるため、宣言ファイルから言語を推定する。
+EXT_LANGUAGE_MAP = {
+    ".c": "cpp",
+    ".h": "cpp",
+    ".cc": "cpp",
+    ".hh": "cpp",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+    ".cxx": "cpp",
+    ".cs": "csharp",
+}
+
 
 def source_basename_to_md_name(basename):
     """
@@ -92,7 +106,7 @@ def collect_groups(xml_dir):
     また <innergroup> 要素から親子関係 (hierarchy) も収集する。
 
     Returns:
-        tuple: (group_data, hierarchy, body_file_data)
+        tuple: (group_data, hierarchy, body_file_data, member_langs)
             group_data: {group_id: (title, {source_basename: (member_names_set, min_line)})}
                 group_id: グループ ID (例: "group__COMM__RESULT")
                 title: グループタイトル (例: "戻り値")
@@ -107,10 +121,14 @@ def collect_groups(xml_dir):
                 bodyfile_path: Doxygen が記録した定義ファイルパス (例: "libsrc/calc/calcHandler.c")
                 member_name:   メンバー名
                 bodystart_line: 定義の開始行 (ソート用)
+            member_langs: {group_id: {member_name: language}}
+                宣言ファイルの拡張子から推定したコード フェンスの言語指定。
+                EXT_LANGUAGE_MAP にない拡張子のメンバーは含まれない。
     """
     group_data = {}
     hierarchy = {}
     body_file_data = {}
+    member_langs = {}
 
     for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "group__*.xml"))):
         try:
@@ -153,6 +171,14 @@ def collect_groups(xml_dir):
                     if line < cur_min:
                         file_data[basename] = (names_set, line)
 
+                    # 宣言ファイルの拡張子からフェンス言語を推定する
+                    ext = os.path.splitext(basename)[1].lower()
+                    lang = EXT_LANGUAGE_MAP.get(ext)
+                    if lang:
+                        if group_id not in member_langs:
+                            member_langs[group_id] = {}
+                        member_langs[group_id][name] = lang
+
                     # bodyfile (定義ファイル) を収集する
                     # bodyfile が宣言ファイル (file_path) と異なる場合のみ対象とする。
                     # #define のように bodyfile が存在しないメンバーはスキップする。
@@ -179,7 +205,92 @@ def collect_groups(xml_dir):
             if innergroups:
                 hierarchy[group_id] = innergroups
 
-    return group_data, hierarchy, body_file_data
+    return group_data, hierarchy, body_file_data, member_langs
+
+
+def fix_member_fence_language(docs_dir, member_langs):
+    """
+    Modules/group__*.md のメンバー シグネチャ フェンスに言語指定を付与する。
+
+    Doxygen の group コンパウンドには language 属性がなく、Doxybook2 の
+    メンバー描画で {{language}} が空になるため、シグネチャのコード フェンスが
+    言語指定なしの ``` で出力される。
+    collect_groups が宣言ファイルの拡張子から推定した言語 (member_langs) を使い、
+    メンバー見出しの直後 (空行のみを挟む) に現れる ``` 行へ言語を付与する。
+
+    member_details.tmpl は function / variable / typedef 等のシグネチャ フェンスを
+    メンバー描画の先頭に出力するため、この条件でシグネチャ フェンスのみを
+    正確に特定できる。メンバー本文中の言語なしフェンス (@code 由来など) は
+    見出し直後ではないため変更されない。
+
+    perfile / perchild / body 注入より前に実行することで、グループ md から
+    抽出されるすべての埋め込みセクションに言語指定が波及する。
+
+    @param[in] docs_dir     doxybook2 出力ディレクトリ
+    @param[in] member_langs {group_id: {member_name: language}}
+    """
+    structure_marker = "!doxyfw-structure-title!"
+    processed = 0
+
+    for modules_dir in sorted(docs_dir.rglob("Modules")):
+        if not modules_dir.is_dir():
+            continue
+
+        for group_id in sorted(member_langs.keys()):
+            name_langs = member_langs[group_id]
+            group_md = modules_dir / "{}.md".format(group_id)
+            if not group_md.exists():
+                continue
+
+            with open(str(group_md), "r", encoding="utf-8") as f:
+                lines = f.read().split("\n")
+
+            changed = False
+            in_code_block = False
+            pending_lang = None
+            strip_inline_in_fence = False
+
+            for i, line in enumerate(lines):
+                if line.startswith("```"):
+                    if not in_code_block:
+                        strip_inline_in_fence = False
+                        if pending_lang is not None and line == "```":
+                            lines[i] = "```" + pending_lang
+                            changed = True
+                            # C# に inline キーワードはない。member_details.tmpl が
+                            # language 空のときに出力した inline を除去する。
+                            strip_inline_in_fence = (pending_lang == "csharp")
+                    in_code_block = not in_code_block
+                    pending_lang = None
+                    continue
+
+                if in_code_block:
+                    if strip_inline_in_fence:
+                        new_line = re.sub(r"\binline ", "", line)
+                        if new_line != line:
+                            lines[i] = new_line
+                            changed = True
+                    continue
+
+                if line == "":
+                    # 見出しとシグネチャ フェンスの間の空行では判定を維持する
+                    continue
+
+                heading_line = line
+                if heading_line.startswith(structure_marker):
+                    heading_line = heading_line[len(structure_marker):]
+
+                if heading_line.startswith("### "):
+                    pending_lang = name_langs.get(heading_line[4:].strip())
+                else:
+                    pending_lang = None
+
+            if changed:
+                with open(str(group_md), "w", encoding="utf-8", newline="\n") as f:
+                    f.write("\n".join(lines))
+                processed += 1
+
+    print("[inject-groups] fence language fixed: {} file(s)".format(processed))
 
 
 def parse_group_md_sections(md_path):
@@ -305,6 +416,173 @@ def generate_filtered_md(title, sections, member_names):
     return "\n".join(out)
 
 
+def shift_heading_line(line, offset):
+    """
+    見出し行を offset 段深くする。見出し以外の行はそのまま返す。
+
+    !doxyfw-structure-title! / !doxyfw-detail-title! マーカー付きの見出しにも
+    対応する (postprocess.sh の !include 展開と同じ規則)。レベルは H6 で飽和する。
+    """
+    match = re.match(
+        r"^(!doxyfw-structure-title!|!doxyfw-detail-title!)?(#{1,6})([ \t].*)$",
+        line,
+    )
+    if not match:
+        return line
+    prefix = match.group(1)
+    if prefix is None:
+        prefix = ""
+    level = len(match.group(2)) + offset
+    if level > 6:
+        level = 6
+    return prefix + "#" * level + match.group(3)
+
+
+def build_embedded_group_section(title, sections, member_names):
+    """
+    対象メンバーのみを含むグループ セクションを、直接埋め込み用に組み立てる。
+
+    !include を使わず、見出しを 1 段シフト済みのテキストとして返す。
+    Classes/*.md のように自身が Files/*.md や Namespaces/*.md から !include
+    される側のファイルでは、ネストした !include を postprocess.sh が解決
+    できないため、この直接埋め込みを使う。
+
+    グループ タイトルは !doxyfw-structure-title! マーカー付き H2 とし、
+    !include 展開で H4 以深にシフトされても太字変換されず見出しとして残るようにする。
+    """
+    out = ["", "!doxyfw-structure-title!## {}".format(title), ""]
+    in_code_block = False
+
+    def emit(line):
+        nonlocal in_code_block
+        if line.startswith("```"):
+            in_code_block = not in_code_block
+            out.append(line)
+            return
+        if in_code_block:
+            out.append(line)
+            return
+        out.append(shift_heading_line(line, 1))
+
+    for (h2_line, members) in sections:
+        filtered = [(name, lines) for (name, lines) in members if name in member_names]
+        if not filtered:
+            continue
+        emit(h2_line)
+        out.append("")
+        for (_, member_lines) in filtered:
+            for member_line in member_lines:
+                emit(member_line)
+            out.append("")
+
+    return "\n".join(out)
+
+
+def append_missing_group_sections(md_path, modules_dir, modules_rel,
+                                  ordered_members, group_titles, log_prefix,
+                                  embed=False):
+    """
+    対象 md に存在しないグループ メンバーをグループ セクションとして追記する。
+
+    ordered_members の各メンバーについて、対象 md に見出し行 (### または ####) が
+    存在するかを判定し、欠落メンバーのみを対象 md の末尾に
+    ## グループタイトル セクションとして追記する。
+
+    embed=False の場合はフィルタ済み中間 MD
+    (Modules/perfile__<group_id>__<対象 md の stem>.md) を生成して !include で
+    参照する (postprocess.sh が heading offset=1 で展開する)。
+    embed=True の場合は見出しを 1 段シフトした内容を直接追記する。
+    対象 md 自身が !include される側 (Classes/*.md) の場合に使う。
+
+    @param[in] md_path         追記対象の md (Files/*.md または Classes/*.md)
+    @param[in] modules_dir     Modules ディレクトリ
+    @param[in] modules_rel     docs_dir からの Modules 相対パス (!include 用)
+    @param[in] ordered_members [(group_id, member_name)] 出力したい順
+    @param[in] group_titles    {group_id: title}
+    @param[in] log_prefix      ログ表示用の種別 (例: "body", "class")
+    @param[in] embed           True: 直接埋め込み / False: !include 参照
+    @return    True: 追記した / False: 追記不要または追記済み
+    """
+    content = md_path.read_text(encoding="utf-8")
+
+    if not embed and "!include {}/perfile__".format(modules_rel) in content:
+        print("  [skip] {}: perfile include already exists".format(md_path.name))
+        return False
+
+    # 欠落しているメンバーをグループごとに特定する。
+    # 見出しレベルはネイティブ出力 (###) と直接埋め込み (####) の両方を許容する。
+    # グループの出現順は ordered_members の順序を保持する。
+    structure_marker = re.escape("!doxyfw-structure-title!")
+    missing_names = {}  # {group_id: set(member_name)}
+    group_order = []
+    for (group_id, member_name) in ordered_members:
+        pattern = re.compile(
+            r"^(?:"
+            + structure_marker
+            + r")?####? "
+            + re.escape(member_name)
+            + r"[ \t]*$",
+            re.MULTILINE,
+        )
+        if pattern.search(content):
+            continue
+        if group_id not in missing_names:
+            missing_names[group_id] = set()
+            group_order.append(group_id)
+        missing_names[group_id].add(member_name)
+
+    if not missing_names:
+        return False
+
+    append_lines = []
+    for group_id in group_order:
+        group_md = modules_dir / "{}.md".format(group_id)
+        if not group_md.exists():
+            print("  -> 警告: {} が見つかりません".format(group_md))
+            continue
+
+        sections = parse_group_md_sections(group_md)
+
+        # グループ md に実在するメンバーだけを対象にする
+        # (空セクションの追記を防ぐ)
+        available = set()
+        for (_, members) in sections:
+            for (name, _) in members:
+                available.add(name)
+        effective = missing_names[group_id] & available
+        if not effective:
+            print("  -> 警告: {} に対象メンバーが見つかりません: {}".format(
+                group_md.name, ", ".join(sorted(missing_names[group_id]))))
+            continue
+
+        title = group_titles.get(group_id, group_id)
+
+        if embed:
+            append_lines.append(build_embedded_group_section(title, sections, effective))
+            append_lines.append("\n")
+        else:
+            filtered_content = generate_filtered_md(title, sections, effective)
+
+            filtered_name = "perfile__{}__{}.md".format(group_id, md_path.stem)
+            filtered_path = modules_dir / filtered_name
+            with open(str(filtered_path), "w", encoding="utf-8", newline="\n") as f:
+                f.write(filtered_content)
+
+            append_lines.append("\n!doxyfw-structure-title!## {}\n".format(title))
+            append_lines.append("\n!include {}/{}\n".format(modules_rel, filtered_name))
+
+        print("  [{}] {}: {} を追記 (from {})".format(
+            log_prefix, md_path.name, ", ".join(sorted(effective)), group_id))
+
+    if not append_lines:
+        return False
+
+    with open(str(md_path), "a", encoding="utf-8", newline="\n") as f:
+        f.write("".join(append_lines))
+
+    return True
+
+
 def inject_into_body_files_md(docs_dir, body_data, group_titles):
     """
     グループメンバーの定義ファイル (.c ページ) にグループセクションを補完する。
@@ -313,9 +591,7 @@ def inject_into_body_files_md(docs_dir, body_data, group_titles):
     Doxybook2 はそのメンバーを publicFunctions として扱わず、.c ページに
     メンバーが出力されない。
     この関数は Files/*.md への注入 (inject_into_files_md) と同じ perfile 機構を使い、
-    欠落メンバーのみを含むフィルタ済み中間 MD
-    (Modules/perfile__<group_id>__<compound_id>.md) を生成して、
-    .c ページの末尾に ## グループタイトル セクションと !include ディレクティブを追記する。
+    欠落メンバーのみを .c ページの末尾に ## グループタイトル セクションとして追記する。
 
     inject-groups.py は postprocess.sh より前に実行されるため、
     追記内容は postprocess.sh の変換 (!include 展開、dunder エスケープ等) を
@@ -345,82 +621,116 @@ def inject_into_body_files_md(docs_dir, body_data, group_titles):
             if not body_md_path.exists():
                 continue
 
-            content = body_md_path.read_text(encoding="utf-8")
-
-            if "!include {}/perfile__".format(modules_rel) in content:
-                print("  [skip] {}: perfile include already exists".format(body_md_path.name))
-                continue
-
-            # 欠落しているメンバーをグループごとに特定する (行頭 ### <name> の有無で判定)。
-            # グループの出現順は、そのグループに属する欠落メンバーの最小定義行を基準にする。
-            structure_marker = re.escape("!doxyfw-structure-title!")
-            missing_names = {}  # {group_id: set(member_name)}
-            group_order = []
+            # グループの出現順は定義行を基準にする
+            ordered_members = []
             for (group_id, member_name, _) in sorted(member_infos, key=lambda x: x[2]):
-                pattern = re.compile(
-                    r"^(?:"
-                    + structure_marker
-                    + r")?### "
-                    + re.escape(member_name)
-                    + r"[ \t]*$",
-                    re.MULTILINE,
-                )
-                if pattern.search(content):
-                    continue
-                if group_id not in missing_names:
-                    missing_names[group_id] = set()
-                    group_order.append(group_id)
-                missing_names[group_id].add(member_name)
+                ordered_members.append((group_id, member_name))
 
-            if not missing_names:
-                continue
-
-            append_lines = []
-            for group_id in group_order:
-                group_md = modules_dir / "{}.md".format(group_id)
-                if not group_md.exists():
-                    print("  -> 警告: {} が見つかりません".format(group_md))
-                    continue
-
-                sections = parse_group_md_sections(group_md)
-
-                # グループ md に実在するメンバーだけを対象にする
-                # (空の !include による空セクションを防ぐ)
-                available = set()
-                for (_, members) in sections:
-                    for (name, _) in members:
-                        available.add(name)
-                effective = missing_names[group_id] & available
-                if not effective:
-                    print("  -> 警告: {} に対象メンバーが見つかりません: {}".format(
-                        group_md.name, ", ".join(sorted(missing_names[group_id]))))
-                    continue
-
-                title = group_titles.get(group_id, group_id)
-                filtered_content = generate_filtered_md(title, sections, effective)
-
-                filtered_name = "perfile__{}__{}.md".format(group_id, compound_id)
-                filtered_path = modules_dir / filtered_name
-                with open(str(filtered_path), "w", encoding="utf-8", newline="\n") as f:
-                    f.write(filtered_content)
-
-                append_lines.append("\n## {}\n".format(title))
-                append_lines.append("\n!include {}/{}\n".format(modules_rel, filtered_name))
-                print("  [body] {}: {} を追記 (from {})".format(
-                    body_md_path.name, ", ".join(sorted(effective)), group_id))
-
-            if not append_lines:
-                continue
-
-            with open(str(body_md_path), "a", encoding="utf-8", newline="\n") as f:
-                f.write("".join(append_lines))
-
-            processed += 1
+            if append_missing_group_sections(
+                    body_md_path, modules_dir, modules_rel,
+                    ordered_members, group_titles, "body"):
+                processed += 1
 
     print("[inject-groups] body files processed: {}".format(processed))
 
 
-def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_data):
+def collect_class_group_members(xml_dir):
+    """
+    クラス/構造体コンパウンドからグループへ移動したメンバーを収集する。
+
+    C# などでクラス メンバーを @ingroup すると、Doxygen は memberdef を
+    クラス コンパウンドからグループ コンパウンドへ移動し、クラス側には
+    listofallmembers の参照だけが残る。
+    listofallmembers の refid が group__ で始まるメンバーを「グループへ
+    移動したメンバー」として収集する。
+
+    Returns:
+        dict: {class_compound_id: [(group_id, member_name), ...]}  (記載順)
+    """
+    result = {}
+    skip_names = {"compound.xsd", "combine.xslt", "index.xml", "Doxyfile.xml"}
+    # メンバー refid は <グループ compound id>_1<アンカー> 形式。
+    # compound id 自体に _1 を含む場合があるため、最長一致で分割する。
+    member_refid_re = re.compile(r"^(group__.+)_1[0-9a-zA-Z]+$")
+
+    for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "*.xml"))):
+        if os.path.basename(xml_file) in skip_names:
+            continue
+        try:
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
+        except ET.ParseError:
+            continue
+
+        for compounddef in root.findall("compounddef"):
+            if compounddef.get("kind") not in ("class", "struct", "interface", "union"):
+                continue
+            compound_id = compounddef.get("id", "")
+            if not compound_id:
+                continue
+
+            lom = compounddef.find("listofallmembers")
+            if lom is None:
+                continue
+
+            entries = []
+            for member in lom.findall("member"):
+                match = member_refid_re.match(member.get("refid", ""))
+                if not match:
+                    continue
+                name = member.findtext("name", "")
+                if not name:
+                    continue
+                entries.append((match.group(1), name))
+
+            if entries:
+                result[compound_id] = entries
+
+    return result
+
+
+def inject_into_class_files_md(docs_dir, class_group_members, group_titles):
+    """
+    グループへ移動したクラス メンバーをクラス ページへ補完する。
+
+    inject_into_body_files_md と同じ perfile 機構で、欠落メンバーのみを
+    Classes/*.md の末尾に ## グループタイトル セクションとして追記する。
+
+    Classes/*.md は Files/*.md や Namespaces/*.md から !include される側のため、
+    postprocess.sh はソート順 (Classes が Files / Namespaces より先) で
+    処理することでネストした !include を解決する。
+
+    @param[in] docs_dir            doxybook2 出力ディレクトリ
+    @param[in] class_group_members {class_compound_id: [(group_id, member_name)]}
+    @param[in] group_titles        {group_id: title}
+    """
+    processed = 0
+
+    for classes_dir in sorted(docs_dir.rglob("Classes")):
+        if not classes_dir.is_dir():
+            continue
+
+        modules_dir = classes_dir.parent / "Modules"
+        if not modules_dir.is_dir():
+            continue
+
+        modules_rel = str(modules_dir.relative_to(docs_dir))
+
+        for compound_id, ordered_members in class_group_members.items():
+            class_md_path = classes_dir / (compound_id + ".md")
+            if not class_md_path.exists():
+                continue
+
+            if append_missing_group_sections(
+                    class_md_path, modules_dir, modules_rel,
+                    ordered_members, group_titles, "class", embed=True):
+                processed += 1
+
+    print("[inject-groups] class files processed: {}".format(processed))
+
+
+def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_data,
+                         class_member_names):
     """
     Files/*.md の末尾に ## グループタイトル セクションと !include ディレクティブを追記する。
 
@@ -428,9 +738,16 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     フィルタ済み中間 MD (perfile__<group_id>__<files_stem>.md) を
     Modules/ に生成してから !include で参照する。
 
+    クラスに属するメンバー (class_member_names) は除外する。
+    クラス メンバーは inject_into_class_files_md が Classes/*.md へ注入し、
+    Files ページにはクラスの埋め込み (## クラス/構造体 セクション) を通じて
+    表示されるため、ファイル レベルで重複させない。
+
     すでに perfile の !include ディレクティブがある場合はスキップする。
     !include のパスは docs_dir からの相対パスで記述する
     (postprocess.sh が MARKDOWN_DIR 基準で解決するため)。
+
+    @param[in] class_member_names {group_id: set(member_name)} クラス所属メンバー
     """
     with open(str(files_md_path), "r", encoding="utf-8") as f:
         content = f.read()
@@ -459,6 +776,11 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
         if not member_names:
             continue
 
+        # クラス所属メンバーを除外する (Classes/*.md 側で注入される)
+        member_names = member_names - class_member_names.get(group_id, set())
+        if not member_names:
+            continue
+
         # Modules/group_id.md をパース
         group_md_path = modules_dir / "{}.md".format(group_id)
         if not group_md_path.exists():
@@ -475,7 +797,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
             f.write(filtered_content)
 
         include_path = "{}/{}".format(modules_rel, filtered_name)
-        append_lines.append("\n## {}\n".format(title))
+        append_lines.append("\n!doxyfw-structure-title!## {}\n".format(title))
         append_lines.append("\n!include {}\n".format(include_path))
         generated.append(group_id)
 
@@ -600,7 +922,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
                     f.write(perchild_content)
 
                 include_path = "{}/{}".format(modules_rel, perchild_name)
-                append_lines.append("\n## {}\n".format(path_title))
+                append_lines.append("\n!doxyfw-structure-title!## {}\n".format(path_title))
                 append_lines.append("\n!include {}\n".format(include_path))
                 generated.append(descendant_id)
 
@@ -637,11 +959,33 @@ def main():
     #   group_data:     {group_id: (title, {decl_basename: (names_set, min_line)})}
     #   hierarchy:      {parent_id: [(child_id, child_title), ...]}
     #   body_file_data: {bodyfile_path: [(group_id, name, line)]}
-    group_data, hierarchy, body_file_data = collect_groups(xml_dir)
+    #   member_langs:   {group_id: {name: language}}
+    group_data, hierarchy, body_file_data, member_langs = collect_groups(xml_dir)
 
     if not group_data and not hierarchy:
         print("[inject-groups] Done: 0 file(s) processed")
         return 0
+
+    # メンバー シグネチャ フェンスへの言語付与
+    # (perfile / perchild / body のすべての抽出より前に行い、埋め込みへ波及させる)
+    if member_langs:
+        fix_member_fence_language(docs_dir, member_langs)
+
+    # グループ タイトルのマップ (body / class 注入とログで使用)
+    group_titles = {}
+    for gid, (title, _) in group_data.items():
+        group_titles[gid] = title
+
+    # クラスへ所属するグループ メンバーの収集
+    #   class_group_members: {class_compound_id: [(group_id, member_name)]}
+    #   class_member_names:  {group_id: set(member_name)} (Files 注入の除外用)
+    class_group_members = collect_class_group_members(xml_dir)
+    class_member_names = {}
+    for entries in class_group_members.values():
+        for (gid, name) in entries:
+            if gid not in class_member_names:
+                class_member_names[gid] = set()
+            class_member_names[gid].add(name)
 
     # ファイルごとのグループリスト構築: {source_basename: [(group_id, title, min_line), ...]}
     file_groups = {}
@@ -676,7 +1020,8 @@ def main():
                 continue
 
             inject_into_files_md(
-                files_md_path, groups, modules_dir, modules_rel, group_data
+                files_md_path, groups, modules_dir, modules_rel, group_data,
+                class_member_names
             )
             processed += 1
 
@@ -694,10 +1039,11 @@ def main():
                     body_data[cid] = []
                 body_data[cid].extend(infos)
         if body_data:
-            group_titles = {}
-            for gid, (title, _) in group_data.items():
-                group_titles[gid] = title
             inject_into_body_files_md(docs_dir, body_data, group_titles)
+
+    # クラス ページへのグループ メンバー補完注入
+    if class_group_members:
+        inject_into_class_files_md(docs_dir, class_group_members, group_titles)
 
     # 親グループへの子グループ注入
     if hierarchy:

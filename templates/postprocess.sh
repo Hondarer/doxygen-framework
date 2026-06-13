@@ -852,6 +852,8 @@ rm -rf "$MARKDOWN_DIR"/Files/dir_*.md \
 
 # .mdファイルを配列に収集
 # ※ Enums/ はこの時点でまだ削除しない (!include 処理で参照するため)
+# ※ !include されるファイル (Classes/、Modules/perfile__* 等) は自身に !include を
+#    含まないリーフであることが前提。ネストした !include は解決されない。
 mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
 
 # 処理対象ファイル数をカウント
