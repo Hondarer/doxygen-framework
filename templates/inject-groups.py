@@ -382,7 +382,107 @@ def parse_group_md_sections(md_path):
     return sections
 
 
-def generate_filtered_md(title, sections, member_names):
+# メンバー本文中の Classes include 行を検出する正規表現
+# (例: !include Classes/structcom__util__realtime__timestamp.md)
+_CLASSES_INCLUDE_RE = re.compile(r"^[ \t]*!include[ \t]+(Classes/.+\.md)[ \t]*$")
+
+
+def _strip_classes_md_header(md_path):
+    """
+    raw Classes/*.md からフロントマター・先頭 HTML コメント・H1 を除いた本文行を返す。
+
+    inject-groups.py は postprocess.sh より前に実行されるため、ここで読む内容は
+    !doxyfw-structure-title! マーカー・!dunder!・!linebreak! が未変換の raw である。
+
+    Doxybook2 出力では フロントマターと HTML コメントの間、HTML コメントと H1 の間に
+    空行が入る。空行が混在しても本文先頭 (最初の H2 以降の実コンテンツ) まで
+    確実にスキップするため、空行 / HTML コメント / H1 を区別せず読み飛ばす。
+    """
+    with open(str(md_path), "r", encoding="utf-8") as f:
+        raw_lines = f.read().split("\n")
+
+    i = 0
+    n = len(raw_lines)
+
+    # YAML フロントマターをスキップ
+    if i < n and raw_lines[i].strip() == "---":
+        i += 1
+        while i < n and raw_lines[i].strip() != "---":
+            i += 1
+        i += 1  # closing ---
+
+    # フロントマター後、本文開始まで 空行 / HTML コメント / H1 をスキップ
+    while i < n:
+        if raw_lines[i] == "":
+            i += 1
+            continue
+        if raw_lines[i].startswith("<!--"):
+            while i < n and "-->" not in raw_lines[i]:
+                i += 1
+            i += 1  # closing -->
+            continue
+        if raw_lines[i].startswith("# "):
+            i += 1
+            continue
+        break
+
+    return raw_lines[i:]
+
+
+def resolve_classes_includes(member_lines, classes_dir, offset):
+    """
+    メンバー本文中の !include Classes/<name>.md を raw Classes 本文でインライン解決する。
+
+    struct / class メンバーは member_details.tmpl により本文が
+    !include Classes/struct....md の 1 行になる。これを Files/.c への注入経路で
+    そのまま残すと、perfile の !include 展開 (postprocess.sh) の内側に位置する
+    ネストした !include となり、postprocess.sh が解決できずリテラルとして残る。
+    そこで inject-groups.py 段階で raw Classes 本文に展開しておき、
+    postprocess.sh には常に 1 段だけの include を渡す。
+
+    展開した Classes 本文の見出しは shift_heading_line で offset 段シフトする。
+    perfile 経由 (postprocess.sh が後段で offset 1 を加える) では offset=1 を与え、
+    最終的にスタンドアロン Modules ページと同じ offset 2 に揃える。
+
+    @param[in] member_lines 1 メンバー分の行リスト
+    @param[in] classes_dir  Classes ディレクトリ (None の場合は解決しない)
+    @param[in] offset       展開した Classes 本文に与える見出しシフト段数
+    @return    解決後の行リスト
+    """
+    if classes_dir is None:
+        return member_lines
+
+    resolved = []
+    for line in member_lines:
+        match = _CLASSES_INCLUDE_RE.match(line)
+        if not match:
+            resolved.append(line)
+            continue
+
+        # Classes/<name>.md の <name> 部分を取り出してファイルを特定する
+        rel = match.group(1)
+        classes_md = classes_dir / Path(rel).name
+        if not classes_md.exists():
+            # 解決できない場合は元の行を保持 (後方互換)
+            resolved.append(line)
+            continue
+
+        body_lines = _strip_classes_md_header(classes_md)
+        in_code_block = False
+        for body_line in body_lines:
+            if body_line.startswith("```"):
+                in_code_block = not in_code_block
+                resolved.append(body_line)
+                continue
+            if in_code_block:
+                resolved.append(body_line)
+                continue
+            resolved.append(shift_heading_line(body_line, offset))
+
+    return resolved
+
+
+def generate_filtered_md(title, sections, member_names, classes_dir=None):
     """
     対象ファイルのメンバー名集合でフィルタした中間 MD コンテンツを生成する。
 
@@ -390,6 +490,12 @@ def generate_filtered_md(title, sections, member_names):
     H2/H3 見出しレベルは Doxybook2 出力のまま保持する。
     postprocess.sh の !include 処理が YAML・HTML コメント・H1 を除去し、
     heading_offset=1 でシフトして埋め込む。
+
+    struct / class メンバー本文の !include Classes/...md は、postprocess.sh の
+    perfile 展開の内側でネストし解決されないため、classes_dir が与えられた場合は
+    resolve_classes_includes でここで raw Classes 本文に展開する。perfile は
+    postprocess.sh が offset 1 で展開するため offset=1 を与え、最終的に
+    スタンドアロン Modules ページと同じ offset 2 に揃える。
     """
     out = []
     out.append("---")
@@ -410,7 +516,7 @@ def generate_filtered_md(title, sections, member_names):
         out.append(h2_line)
         out.append("")
         for (_, member_lines) in filtered:
-            out.extend(member_lines)
+            out.extend(resolve_classes_includes(member_lines, classes_dir, 1))
             out.append("")
 
     return "\n".join(out)
@@ -438,7 +544,7 @@ def shift_heading_line(line, offset):
     return prefix + "#" * level + match.group(3)
 
 
-def build_embedded_group_section(title, sections, member_names):
+def build_embedded_group_section(title, sections, member_names, classes_dir=None):
     """
     対象メンバーのみを含むグループ セクションを、直接埋め込み用に組み立てる。
 
@@ -449,6 +555,12 @@ def build_embedded_group_section(title, sections, member_names):
 
     グループ タイトルは !doxyfw-structure-title! マーカー付き H2 とし、
     !include 展開で H4 以深にシフトされても太字変換されず見出しとして残るようにする。
+
+    struct / class メンバー本文の !include Classes/...md は、この埋め込み先 (Classes/*.md)
+    が更に Files/*.md や Namespaces/*.md から !include されるためネストする。
+    classes_dir が与えられた場合は resolve_classes_includes で raw Classes 本文に
+    展開する。埋め込み自身が emit で見出しを 1 段シフトするため、ここでの追加
+    offset は 0 とする。
     """
     out = ["", "!doxyfw-structure-title!## {}".format(title), ""]
     in_code_block = False
@@ -471,7 +583,7 @@ def build_embedded_group_section(title, sections, member_names):
         emit(h2_line)
         out.append("")
         for (_, member_lines) in filtered:
-            for member_line in member_lines:
+            for member_line in resolve_classes_includes(member_lines, classes_dir, 0):
                 emit(member_line)
             out.append("")
 
@@ -480,7 +592,7 @@ def build_embedded_group_section(title, sections, member_names):
 
 def append_missing_group_sections(md_path, modules_dir, modules_rel,
                                   ordered_members, group_titles, log_prefix,
-                                  embed=False):
+                                  embed=False, classes_dir=None):
     """
     対象 md に存在しないグループ メンバーをグループ セクションとして追記する。
 
@@ -501,6 +613,8 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
     @param[in] group_titles    {group_id: title}
     @param[in] log_prefix      ログ表示用の種別 (例: "body", "class")
     @param[in] embed           True: 直接埋め込み / False: !include 参照
+    @param[in] classes_dir     Classes ディレクトリ (struct メンバー本文の
+                               !include Classes/...md をインライン解決する。None で無効)
     @return    True: 追記した / False: 追記不要または追記済み
     """
     content = md_path.read_text(encoding="utf-8")
@@ -558,10 +672,11 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
         title = group_titles.get(group_id, group_id)
 
         if embed:
-            append_lines.append(build_embedded_group_section(title, sections, effective))
+            append_lines.append(
+                build_embedded_group_section(title, sections, effective, classes_dir))
             append_lines.append("\n")
         else:
-            filtered_content = generate_filtered_md(title, sections, effective)
+            filtered_content = generate_filtered_md(title, sections, effective, classes_dir)
 
             filtered_name = "perfile__{}__{}.md".format(group_id, md_path.stem)
             filtered_path = modules_dir / filtered_name
@@ -616,6 +731,11 @@ def inject_into_body_files_md(docs_dir, body_data, group_titles):
 
         modules_rel = str(modules_dir.relative_to(docs_dir))
 
+        # struct メンバー本文の !include Classes/...md 解決用 (同階層の Classes)
+        classes_dir = files_dir.parent / "Classes"
+        if not classes_dir.is_dir():
+            classes_dir = None
+
         for compound_id, member_infos in body_data.items():
             body_md_path = files_dir / (compound_id + ".md")
             if not body_md_path.exists():
@@ -628,7 +748,7 @@ def inject_into_body_files_md(docs_dir, body_data, group_titles):
 
             if append_missing_group_sections(
                     body_md_path, modules_dir, modules_rel,
-                    ordered_members, group_titles, "body"):
+                    ordered_members, group_titles, "body", classes_dir=classes_dir):
                 processed += 1
 
     print("[inject-groups] body files processed: {}".format(processed))
@@ -723,14 +843,15 @@ def inject_into_class_files_md(docs_dir, class_group_members, group_titles):
 
             if append_missing_group_sections(
                     class_md_path, modules_dir, modules_rel,
-                    ordered_members, group_titles, "class", embed=True):
+                    ordered_members, group_titles, "class",
+                    embed=True, classes_dir=classes_dir):
                 processed += 1
 
     print("[inject-groups] class files processed: {}".format(processed))
 
 
 def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_data,
-                         class_member_names):
+                         class_member_names, classes_dir=None):
     """
     Files/*.md の末尾に ## グループタイトル セクションと !include ディレクティブを追記する。
 
@@ -748,6 +869,8 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     (postprocess.sh が MARKDOWN_DIR 基準で解決するため)。
 
     @param[in] class_member_names {group_id: set(member_name)} クラス所属メンバー
+    @param[in] classes_dir        Classes ディレクトリ (struct メンバー本文の
+                                  !include Classes/...md をインライン解決する。None で無効)
     """
     with open(str(files_md_path), "r", encoding="utf-8") as f:
         content = f.read()
@@ -788,7 +911,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
             continue
 
         sections = parse_group_md_sections(group_md_path)
-        filtered_content = generate_filtered_md(title, sections, member_names)
+        filtered_content = generate_filtered_md(title, sections, member_names, classes_dir)
 
         # フィルタ済み中間 MD を Modules/ に書き出す
         filtered_name = "perfile__{}__{}.md".format(group_id, files_stem)
@@ -1013,6 +1136,11 @@ def main():
         # !include で使う相対パス (docs_dir からの相対)
         modules_rel = str(modules_dir.relative_to(docs_dir))
 
+        # struct メンバー本文の !include Classes/...md 解決用 (同階層の Classes)
+        classes_dir = files_dir.parent / "Classes"
+        if not classes_dir.is_dir():
+            classes_dir = None
+
         for source_basename, groups in file_groups.items():
             md_name = source_basename_to_md_name(source_basename)
             files_md_path = files_dir / md_name
@@ -1021,7 +1149,7 @@ def main():
 
             inject_into_files_md(
                 files_md_path, groups, modules_dir, modules_rel, group_data,
-                class_member_names
+                class_member_names, classes_dir
             )
             processed += 1
 
