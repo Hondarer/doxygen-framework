@@ -1088,6 +1088,12 @@ fi
 # 画像分散配置ループが Pages 由来 md を含む Files/ 全体を対象にするため再収集する。
 mapfile -t md_files < <(find "$MARKDOWN_DIR/Files" -name "*.md" -type f 2>/dev/null)
 
+# Files/ 配下の各 md に元ソースの origin パス (git-origin) を埋め込む
+# (Pages→Files 統合後に実施: プログラム由来と Markdown 由来の両方が最終構造で揃った状態が前提。
+#  Files/ 配下相対パスが Doxygen の INPUT 相対ソース パスと一致することを利用して元ソースを特定する)
+# docsfw 側はこのヒントを使い、gitignore 対象の生成 md でも元ソースへの Git リンクを表示する。
+python3 "$SCRIPT_DIR/inject-source-origin.py" "$MARKDOWN_DIR" "$DOXYGEN_RUNDIR" "$WORKSPACE_ROOT" || exit 1
+
 # サブディレクトリ内 Markdown の画像を分散配置
 # Doxybook2 がルート images/ に出力した画像を各 md と同階層の images/ へ移動する。
 # Pages→Files 統合後に実施することで、Pages 由来 md の参照画像も対象にできる。
