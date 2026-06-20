@@ -248,6 +248,8 @@ markdown-generation:
 #	rm -rf $(XML_ORG_DIR)
 #	mkdir -p $(XML_ORG_DIR)
 #	cp -rp $(XML_DIR)/* $(XML_ORG_DIR)/
+    # 宣言側 (統合済み) memberdef の説明をソース定義側 memberdef へ同期 (非グループ関数)
+	python3 templates/merge-member-docs.py $(XML_DIR) || exit 1
     # グラフ抽出 (XML のグラフ情報から PlantUML を生成し XML に挿入)
 	python3 templates/extract-graphs.py $(XML_DIR) || exit 1
     # プリプロセッシング
