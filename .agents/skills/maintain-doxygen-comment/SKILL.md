@@ -34,6 +34,7 @@ when_to_use: |
 - 実装 `.c` には必要に応じてファイル コメントだけを置き、関数本体の直前には `/* Doxygen コメントは、ヘッダーに記載 */` を使います。マーカー コメントと関数定義の間には空行を 1 行入れ、VS Code IntelliSense がマーカー コメントをホバー表示に拾うのを抑止します
 - 定義側にはエクスポート / 呼び出し規約マクロ (`CALC_EXPORT` / `CALC_API` 等) を付けません。宣言と定義での修飾子・マクロの配置は、コーディング規範の「宣言と定義の関係」に従います
 - `@brief` は Doxybook2 により Markdown の YAML front matter にある `summary` としても出力されるため、`Linux: fd` のような半角コロン + 空白を含む表現は避けます
+- `@file` の `@brief` は、ファイルの種別を述べるラベル (「～の実装ファイル。」「～のヘッダー ファイル。」「～の呼び出しコマンド。」) ではなく、そのファイルが提供する機能・役割を述べるですます体の一文にします。Microsoft の名前空間 / 型サマリー (「～を提供します。」「～を表します。」等) に倣い、`docs/cheatsheet.md` の「@file の説明文の書き方」の文末表現を参考にします
 - `@brief` に続く通常の詳細説明は、空行を 1 行あけてタグなし本文として書きます。タグなし本文は Doxygen により details として扱われます
 - `@details` は、`@par` など別タグの本文に続けて details を再開したい場合のように、明示しないと所属が曖昧になる箇所で使います
 - タグ一覧を埋めるのではなく、利用者が必要とする制約、戻り値、使用例、注意点を優先して書きます
@@ -164,18 +165,19 @@ int calcHandler(const int kind, const int a, const int b, int *result)
 ### .c ファイル自体の説明
 
 実装ファイルには `@file` コメントを書きます。  
-`app/calc/prod/libsrc/calc/calcHandler.c` や `app/calc/prod/src/cmd/add/add.c` の形に合わせます。
+セパレータの配置やタグ構成は `app/calc/prod/libsrc/calc/calcHandler.c` や `app/calc/prod/src/cmd/add/add.c` を参照し、`@brief` などの文体は本ガイドの方針に従います。  
+`@brief` は、ファイルの種別を述べるラベルではなく、そのファイルが提供する機能を述べる、ですます体の一文にします。文末表現は `docs/cheatsheet.md` の「@file の説明文の書き方」を参考にします。
 
 ```c
 /**
  *******************************************************************************
  *  @file           calcHandler.c
- *  @brief          calcHandler 関数の実装ファイル。
+ *  @brief          演算種別に基づいて適切な計算関数を呼び出すハンドラーを提供します。
  *  @author         c-modernization-kit sample team
  *  @date           2025/11/22
  *  @version        1.0.0
  *
- *  演算種別に基づいて適切な計算関数を呼び出すハンドラーを提供します。
+ *  呼び出し側から渡された演算種別を判定し、対応する計算関数へ処理を振り分けます。
  *
  *  @copyright      Copyright (C) CompanyName, Ltd. 2025. All rights reserved.
  *******************************************************************************
@@ -243,7 +245,8 @@ int calcHandler(const int kind, const int a, const int b, int *result)
 ### ファイル コメント
 
 `@file`、`@brief`、本文、`@copyright` を基本とします。  
-`@author`、`@date`、`@version`、`@par History` は、対象モジュールの慣例に合わせて追加します。
+`@author`、`@date`、`@version`、`@par History` は、対象モジュールの慣例に合わせて追加します。  
+`@brief` は、ファイルの種別を述べるラベルではなく、そのファイルが提供する機能を述べるですます体の一文にします。文末表現は `docs/cheatsheet.md` の「@file の説明文の書き方」を参考にします。
 
 ### マクロと定数
 
@@ -416,7 +419,7 @@ typedef struct
 4. 宣言側に置くべきコメントか、ファイル コメントか、末尾コメントかを決める
 5. `docs/cheatsheet.md` の雛形を起点に必要なタグだけ残す
 6. `docs/commands.md` を見て、`@section`、`@par`、`@code` などの使い分けを確認する
-7. `app/calc/prod` の近い例に表記を揃える
+7. セパレータ配置やタグ構成は `app/calc/prod` の近い例を参照し、`@file` の `@brief` などの文体は本ガイドの方針に従う
 8. コメントがですます調で統一されているか確認する
 9. Doxygen の変換結果で崩れや警告が出そうな箇所を見直す
 
@@ -446,6 +449,7 @@ typedef struct
 - 外部利用者向けの説明と実装上の補足が、`docs/cheatsheet.md` の書き分けに従って宣言側と定義側へ記載されているか
 - Win32 API の記述方法を参考に、説明、パラメーター、戻り値、解説に相当する情報が過不足なく記載されているか
 - `@brief` が YAML front matter の `summary` として出力されても解釈を壊さないか
+- `@file` の `@brief` が、ファイルの種別を述べるラベルではなく、提供する機能を述べるですます体になっているか
 - `@brief` だけで足りない通常の詳細説明はタグなし本文に分離できているか
 - `@details` を使う場合、`@par` など別タグ後の details 再開のように明示が必要な箇所か
 - `@param`、`@return`、`@warning` が実装と矛盾していないか
