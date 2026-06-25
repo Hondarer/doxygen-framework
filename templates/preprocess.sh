@@ -38,6 +38,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 特に @important は Doxybook2 v1.6.1 の JSON に出ないため、XML 段階で退避する。
 python3 "$SCRIPT_DIR/mark-admonitions.py" "$XML_FOLDER"
 
+# 無名 enum の空 <name /> を placeholder に置換する。
+# Doxygen は C の無名 enum を XML に出力する際 <memberdef kind="enum"> 直下に
+# <name /> を生成する。Doxybook2 はこれを null 文字列として解釈し、
+# std::string のコンストラクタが失敗してクラッシュする。
+# このクラッシュが発生すると、同一ディレクトリの後続ファイルすべてが
+# ディレクトリ パス情報を失い Files/ 直下にフラットに出力される。
+python3 "$SCRIPT_DIR/fix-anonymous-enums.py" "$XML_FOLDER"
+
 # 各 XML ファイルを処理
 while IFS= read -r xml_file; do
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
