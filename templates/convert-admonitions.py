@@ -8,11 +8,12 @@ import sys
 from pathlib import Path
 
 
-MARKER_RE = re.compile(r"^(#{1,6})\s+!doxyfw-admonition\s+(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\s*$")
+MARKER_RE = re.compile(r"^(#{1,6})\s+!doxyfw-admonition\s+(NOTE|TIP|IMPORTANT|WARNING|CAUTION|DEPRECATED)\s*$")
 HEADING_RE = re.compile(r"^(#{1,6})\s+")
 DETAIL_TITLE_MARKER_RE = re.compile(r"^!doxyfw-detail-title-bold!.+\s*$")
 STRUCTURE_TITLE_MARKER_RE = re.compile(r"^!doxyfw-structure-title!#{1,6}\s+.+\s*$")
 DETAILS_OPEN_RE = re.compile(r"^<!--details:-->\s*$")
+PAR_END_RE = re.compile(r"^\s*<!--par-end-->\s*$")
 
 
 def blockquote_lines(lines: list[str], admonition_type: str) -> list[str]:
@@ -59,6 +60,8 @@ def convert_text(text: str) -> str:
             if STRUCTURE_TITLE_MARKER_RE.match(lines[index].rstrip("\n")):
                 break
             if DETAILS_OPEN_RE.match(lines[index].rstrip("\n")):
+                break
+            if PAR_END_RE.match(lines[index].rstrip("\n")):
                 break
             content.append(lines[index])
             index += 1

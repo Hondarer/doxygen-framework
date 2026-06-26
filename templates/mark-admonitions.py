@@ -14,6 +14,7 @@ ADMONITION_TYPES = {
     "important": "IMPORTANT",
     "warning": "WARNING",
     "attention": "CAUTION",
+    "deprecated": "DEPRECATED",
 }
 
 MARKER_PREFIX = "!doxyfw-admonition"

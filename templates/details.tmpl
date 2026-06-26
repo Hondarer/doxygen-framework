@@ -37,7 +37,7 @@
 {% endif -%}
 
 {% if exists("deprecated") %}
- **非推奨**
+!doxyfw-detail-title!{% if kind in ["class", "struct"] %}##{% else %}####{% endif %} !doxyfw-admonition DEPRECATED
 
 {{deprecated}}
 {% endif -%}
@@ -202,6 +202,8 @@
 
 {% if exists("par") %}
 {% for item in par %}!doxyfw-detail-title!{% if kind in ["class", "struct"] %}##{% else %}####{% endif %} {{item}}
+
+<!--par-end-->
 
 {% endfor %}
 {% endif -%}

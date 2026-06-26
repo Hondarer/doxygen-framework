@@ -664,11 +664,11 @@ class Token {};  // @class を省略
 
 ## 注釈コマンド (タグ) 使い分けガイド
 
-`\note`、`\remark`、`\important`、`\warning`、`\attention` の 5 つの注釈コマンド (タグ) を適切に使い分けるためのガイドラインを示します。
+`\note`、`\remark`、`\important`、`\warning`、`\attention`、`\deprecated` の 6 つの注釈コマンド (タグ) を適切に使い分けるためのガイドラインを示します。
 
 ### Markdown admonition との対応
 
-この repo では、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION` の 5 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
+この repo では、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`、`DEPRECATED` の 6 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
 
 | Markdown admonition | Doxygen コマンド | 備考 |
 |---|---|---|
@@ -677,6 +677,7 @@ class Token {};  // @class を省略
 | `IMPORTANT` | `@important` | 見落とすと誤用や重大な判断ミスにつながる重要情報 |
 | `WARNING` | `@warning` | 重大なエラーや危険の回避 |
 | `CAUTION` | `@attention` | 必須の制約条件・使用条件 |
+| `DEPRECATED` | `@deprecated` | 非推奨 API、代替案、廃止予定 |
 
 `@remarks` は `@remark` と同等の別名ですが、この repo では非推奨です。新規作成・既存更新では `@remark` に統一してください。
 

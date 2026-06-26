@@ -870,6 +870,23 @@ done
 # Doxygen の注釈 marker セクションを docsfw の GitHub alert 形式へ変換する。
 python3 "$SCRIPT_DIR/convert-admonitions.py" "$MARKDOWN_DIR" || exit 1
 
+# details.tmpl の par ループが各項目末尾に出力する <!--par-end--> マーカー行を除去する。
+# このマーカーは convert-admonitions.py で alert ブロッククォートの終端判定に使うもので、
+# admonition でない通常の \par 項目では未消費のまま残るため、ここで一律に除去する。
+# 前後が空行の場合は連続空行を 1 行に詰めて出力する。
+find "$MARKDOWN_DIR" -name "*.md" -type f | while IFS= read -r file; do
+    awk '
+    BEGIN { prev_blank = 1 }
+    /^[[:space:]]*<!--par-end-->[[:space:]]*$/ { skip = 1; next }
+    {
+        if (skip && prev_blank && $0 ~ /^[[:space:]]*$/) { next }
+        skip = 0
+        print
+        prev_blank = ($0 ~ /^[[:space:]]*$/)
+    }
+    ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+done
+
 # alert 変換の終了判定に使った単位項目タイトル marker を最終 Markdown 表現へ変換する。
 find "$MARKDOWN_DIR" -name "*.md" -type f | while IFS= read -r file; do
     awk '
