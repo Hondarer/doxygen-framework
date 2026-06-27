@@ -6,6 +6,7 @@ WORKSPACE_DIR ?= $(abspath $(MAKEFILE_DIR)/../..)
 INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin/input-filter.py
 DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
 EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
+DEPENDENCY_REPORT_GENERATOR := $(MAKEFILE_DIR)/templates/generate-dependency-report.py
 
 # ドキュメント大分類オプション (デフォルトは空)
 CATEGORY ?=
@@ -228,6 +229,10 @@ default: clean
 			if [ $$DOXYGEN_EXIT -ne 0 ]; then exit $$DOXYGEN_EXIT; fi; \
 			exit $$FATAL_WARNING; \
 		fi; \
+	fi
+
+	@if [ -f "$(XML_DIR)/index.xml" ] && grep -q '<compound ' "$(XML_DIR)/index.xml"; then \
+		python3 "$(DEPENDENCY_REPORT_GENERATOR)" "$(XML_DIR)" "$(DOCS_DOXYGEN_DIR)/dependency" "$(CATEGORY_ID)" || exit 1; \
 	fi
 
     # doxybook2 コマンドが存在しない場合、または処理対象がない場合は前処理～doxybook2～後処理をスキップ
