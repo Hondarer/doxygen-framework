@@ -140,6 +140,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "dependency-data.js").is_file())
             self.assertTrue((output_dir / "dependency-functions.csv").is_file())
             self.assertTrue((output_dir / "dependency-files.csv").is_file())
+            self.assertTrue((output_dir / "cytoscape.min.js").is_file())
+            self.assertTrue((output_dir / "cytoscape.LICENSE.txt").is_file())
 
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))

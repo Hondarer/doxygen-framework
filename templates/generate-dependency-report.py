@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 import html
 import json
+import shutil
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -23,6 +24,10 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+GRAPH_ASSETS = ("cytoscape.min.js", "cytoscape.LICENSE.txt")
 
 
 @dataclass
@@ -515,17 +520,29 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
     for file_path, rows in sorted(file_groups.items()):
         level_counts: Dict[str, int] = defaultdict(int)
         class_counts: Dict[str, int] = defaultdict(int)
+        area_counts: Dict[str, int] = defaultdict(int)
+        dominant_class = ""
+        dominant_area = ""
         for row in rows:
             level_key = "cycle" if row["dependencyLevel"] is None else str(row["dependencyLevel"])
             level_counts[level_key] += 1
             class_counts[str(row["dependencyClass"])] += 1
+            area_counts[str(row["sourceArea"])] += 1
+        if class_counts:
+            dominant_class = max(sorted(class_counts), key=lambda key: (class_counts[key], key))
+        if area_counts:
+            dominant_area = max(sorted(area_counts), key=lambda key: (area_counts[key], key))
         file_rows.append(
             {
                 "path": file_path,
                 "functionCount": len(rows),
                 "staticCount": sum(1 for row in rows if row["isStatic"]),
+                "edgeCount": sum(int(row["inScopeCalleeCount"]) for row in rows),
+                "dominantClass": dominant_class,
+                "dominantArea": dominant_area,
                 "levels": dict(sorted(level_counts.items())),
                 "classes": dict(sorted(class_counts.items())),
+                "areas": dict(sorted(area_counts.items())),
             }
         )
 
@@ -590,7 +607,17 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         for row in data["functions"]:
             writer.writerow({field: row.get(field, "") for field in function_fields})
 
-    file_fields = ["path", "functionCount", "staticCount", "levels", "classes"]
+    file_fields = [
+        "path",
+        "functionCount",
+        "staticCount",
+        "edgeCount",
+        "dominantClass",
+        "dominantArea",
+        "levels",
+        "classes",
+        "areas",
+    ]
     with (output_dir / "dependency-files.csv").open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=file_fields)
         writer.writeheader()
@@ -600,8 +627,12 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
                     "path": row["path"],
                     "functionCount": row["functionCount"],
                     "staticCount": row["staticCount"],
+                    "edgeCount": row["edgeCount"],
+                    "dominantClass": row["dominantClass"],
+                    "dominantArea": row["dominantArea"],
                     "levels": json.dumps(row["levels"], ensure_ascii=False, sort_keys=True),
                     "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
+                    "areas": json.dumps(row["areas"], ensure_ascii=False, sort_keys=True),
                 }
             )
 
@@ -617,6 +648,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   <title>{title}</title>
   <link rel="stylesheet" href="../doxygen.css">
   <script src="dependency-data.js"></script>
+  <script src="cytoscape.min.js"></script>
   <style>
     :root {{
       color-scheme: light dark;
@@ -874,15 +906,95 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .dep-empty {{
       color: #596579;
     }}
+    .dep-tabs {{
+      display: flex;
+      gap: 6px;
+      margin: 0 0 12px;
+      border-bottom: 1px solid var(--dep-border);
+    }}
+    .dep-tab {{
+      min-height: 34px;
+      border: 1px solid transparent;
+      border-bottom: 0;
+      border-radius: 6px 6px 0 0;
+      padding: 6px 12px;
+      background: transparent;
+      color: var(--dep-input-text);
+      cursor: pointer;
+      font: inherit;
+    }}
+    .dep-tab.active {{
+      border-color: var(--dep-border);
+      background: var(--dep-bg);
+      color: var(--dep-accent);
+      font-weight: 600;
+    }}
+    .dep-panel {{
+      display: none;
+    }}
+    .dep-panel.active {{
+      display: block;
+    }}
+    .dep-graph-layout {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 14px;
+      align-items: start;
+    }}
+    .dep-graph-toolbar {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }}
+    .dep-graph-toolbar button {{
+      min-height: 30px;
+      border: 1px solid var(--dep-input-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      background: var(--dep-input-bg);
+      color: var(--dep-input-text);
+      cursor: pointer;
+      font: inherit;
+    }}
+    .dep-graph-toolbar button:hover {{
+      border-color: var(--dep-input-focus);
+      color: var(--dep-input-focus);
+    }}
+    .dep-graph {{
+      width: 100%;
+      height: calc(100vh - 260px);
+      min-height: 520px;
+      border: 1px solid var(--dep-border);
+      border-radius: 6px;
+      background: #ffffff;
+    }}
+    .dep-graph-note {{
+      color: #596579;
+      margin: 0 0 8px;
+    }}
+    .dep-graph-detail ul {{
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }}
+    .dep-graph-detail li {{
+      margin: 2px 0;
+      overflow-wrap: anywhere;
+    }}
     @media (max-width: 980px) {{
       main {{
         padding: 12px;
       }}
-      .dep-controls, .dep-layout {{
+      .dep-controls, .dep-layout, .dep-graph-layout {{
         grid-template-columns: 1fr;
       }}
       .dep-table-wrap {{
         max-height: none;
+      }}
+      .dep-graph {{
+        height: 70vh;
+        min-height: 420px;
       }}
     }}
   </style>
@@ -898,7 +1010,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <select id="classFilter"><option value="">分類すべて</option></select>
     <select id="fileFilter"><option value="">ファイルすべて</option></select>
   </section>
-  <section class="dep-layout">
+  <nav class="dep-tabs" aria-label="表示切り替え">
+    <button type="button" class="dep-tab active" data-tab-target="listPanel">一覧</button>
+    <button type="button" class="dep-tab" data-tab-target="overviewPanel">全体マップ</button>
+    <button type="button" class="dep-tab" data-tab-target="linkagePanel">リンケージ</button>
+  </nav>
+  <section class="dep-panel active" id="listPanel">
+  <div class="dep-layout">
     <div class="dep-table-panel">
       <div class="dep-filter-notice" id="filterNotice">
         <span>現在のフィルターでは選択行は非表示です。</span>
@@ -926,6 +1044,37 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <aside class="dep-detail" id="detail">
       <p class="dep-empty">関数を選択してください。</p>
     </aside>
+  </div>
+  </section>
+  <section class="dep-panel" id="overviewPanel">
+    <div class="dep-graph-toolbar">
+      <button type="button" id="overviewFit">Fit</button>
+      <button type="button" id="overviewRelayout">レイアウト再実行</button>
+    </div>
+    <div class="dep-graph-layout">
+      <div id="overviewGraph" class="dep-graph"></div>
+      <aside class="dep-detail dep-graph-detail" id="overviewDetail">
+        <p class="dep-empty">ファイル ノードを選択してください。</p>
+      </aside>
+    </div>
+  </section>
+  <section class="dep-panel" id="linkagePanel">
+    <p class="dep-graph-note">選択中の関数を中心に、呼び出し元 2 hop と呼び出し先 2 hop を表示します。</p>
+    <div class="dep-graph-toolbar">
+      <button type="button" id="linkageFit">Fit</button>
+      <button type="button" id="linkageCenter">中心へ移動</button>
+      <button type="button" id="linkageRelayout">レイアウト再実行</button>
+      <select id="linkageLayout">
+        <option value="breadthfirst">breadthfirst</option>
+        <option value="cose">cose</option>
+      </select>
+    </div>
+    <div class="dep-graph-layout">
+      <div id="linkageGraph" class="dep-graph"></div>
+      <aside class="dep-detail dep-graph-detail" id="linkageDetail">
+        <p class="dep-empty">一覧から関数を選択してください。</p>
+      </aside>
+    </div>
   </section>
 </main>
 <script>
@@ -934,10 +1083,17 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const data = window.DoxyfwDependencyData || {{ summary: {{}}, functions: [], edges: [] }};
   const functions = data.functions || [];
   const edges = data.edges || [];
+  const files = data.files || [];
   const byId = new Map(functions.map((fn) => [fn.id, fn]));
   const baseOrder = new Map(functions.map((fn, index) => [fn.id, index]));
+  const fileByPath = new Map(files.map((file) => [file.path, file]));
+  const functionsByFile = new Map();
   const callees = new Map();
   const callers = new Map();
+  for (const fn of functions) {{
+    if (!functionsByFile.has(fn.file)) functionsByFile.set(fn.file, []);
+    functionsByFile.get(fn.file).push(fn);
+  }}
   for (const edge of edges) {{
     if (!callees.has(edge.caller)) callees.set(edge.caller, []);
     if (!callers.has(edge.callee)) callers.set(edge.callee, []);
@@ -955,8 +1111,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const filterNotice = document.getElementById("filterNotice");
   const clearFilters = document.getElementById("clearFilters");
   const sortButtons = Array.from(document.querySelectorAll("[data-sort-key]"));
+  const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
+  const tabPanels = Array.from(document.querySelectorAll(".dep-panel"));
+  const overviewGraph = document.getElementById("overviewGraph");
+  const overviewDetail = document.getElementById("overviewDetail");
+  const overviewFit = document.getElementById("overviewFit");
+  const overviewRelayout = document.getElementById("overviewRelayout");
+  const linkageGraph = document.getElementById("linkageGraph");
+  const linkageDetail = document.getElementById("linkageDetail");
+  const linkageFit = document.getElementById("linkageFit");
+  const linkageCenter = document.getElementById("linkageCenter");
+  const linkageRelayout = document.getElementById("linkageRelayout");
+  const linkageLayout = document.getElementById("linkageLayout");
   let selectedId = "";
   let sortState = {{ key: "level", direction: "asc" }};
+  let activeTab = "listPanel";
+  let overviewCy = null;
+  let linkageCy = null;
 
   function text(value) {{
     return value === null || value === undefined ? "" : String(value);
@@ -1031,6 +1202,292 @@ def write_html(output_dir: Path, category_id: str) -> None:
     item.className = "dep-metric";
     item.innerHTML = "<strong>" + escapeHtml(value) + "</strong><span>" + escapeHtml(label) + "</span>";
     summary.appendChild(item);
+  }}
+
+  function shortPath(path) {{
+    const parts = text(path).split("/");
+    return parts[parts.length - 1] || text(path);
+  }}
+
+  function graphClassFor(klass) {{
+    if (klass === "cycle" || klass === "reverse-boundary-caller") return "dep-danger-node";
+    if (klass === "leaf-static" || klass === "leaf-global") return "dep-leaf-node";
+    if (klass === "file-local") return "dep-local-node";
+    return "dep-caller-node";
+  }}
+
+  function graphStyle() {{
+    return [
+      {{
+        selector: "node",
+        style: {{
+          "label": "data(label)",
+          "font-size": 11,
+          "text-wrap": "wrap",
+          "text-max-width": 120,
+          "text-valign": "center",
+          "text-halign": "center",
+          "background-color": "#dbeafe",
+          "border-color": "#2563eb",
+          "border-width": 1,
+          "color": "#111827",
+          "width": "mapData(weight, 1, 12, 42, 86)",
+          "height": "mapData(weight, 1, 12, 42, 86)"
+        }}
+      }},
+      {{
+        selector: "edge",
+        style: {{
+          "curve-style": "bezier",
+          "target-arrow-shape": "triangle",
+          "target-arrow-color": "#64748b",
+          "line-color": "#94a3b8",
+          "width": "mapData(weight, 1, 8, 1, 5)",
+          "label": "data(label)",
+          "font-size": 10,
+          "text-background-color": "#ffffff",
+          "text-background-opacity": 0.85,
+          "text-background-padding": 2
+        }}
+      }},
+      {{ selector: ".dep-leaf-node", style: {{ "background-color": "#dcfce7", "border-color": "#16a34a" }} }},
+      {{ selector: ".dep-local-node", style: {{ "background-color": "#e0f2fe", "border-color": "#0284c7" }} }},
+      {{ selector: ".dep-caller-node", style: {{ "background-color": "#fef3c7", "border-color": "#d97706" }} }},
+      {{ selector: ".dep-danger-node", style: {{ "background-color": "#fee2e2", "border-color": "#dc2626" }} }},
+      {{ selector: ".dep-center-node", style: {{ "background-color": "#ccfbf1", "border-color": "#0f766e", "border-width": 4 }} }},
+      {{ selector: ".dep-upstream-node", style: {{ "shape": "round-rectangle" }} }},
+      {{ selector: ".dep-downstream-node", style: {{ "shape": "ellipse" }} }},
+      {{ selector: ".dep-both-node", style: {{ "shape": "diamond" }} }},
+      {{ selector: ":selected", style: {{ "border-width": 5, "border-color": "#111827" }} }}
+    ];
+  }}
+
+  function graphLayout(name) {{
+    if (name === "cose") {{
+      return {{
+        name: "cose",
+        animate: false,
+        fit: true,
+        padding: 40,
+        nodeRepulsion: 9000,
+        idealEdgeLength: 150,
+        componentSpacing: 120
+      }};
+    }}
+    return {{
+      name: "breadthfirst",
+      directed: true,
+      fit: true,
+      padding: 40,
+      spacingFactor: 1.35,
+      avoidOverlap: true
+    }};
+  }}
+
+  function runLayout(cy, name) {{
+    if (!cy) return;
+    cy.layout(graphLayout(name || "breadthfirst")).run();
+  }}
+
+  function graphUnavailable(container, detailElement) {{
+    container.innerHTML = "<p class=\\"dep-empty\\">Cytoscape.js を読み込めませんでした。</p>";
+    detailElement.innerHTML = "<p class=\\"dep-empty\\">グラフ ライブラリを確認してください。</p>";
+  }}
+
+  function renderOverviewDetail(filePath) {{
+    const file = fileByPath.get(filePath) || {{}};
+    const rows = (functionsByFile.get(filePath) || []).slice().sort((a, b) => compareBaseOrder(a, b));
+    const items = rows
+      .map((fn) => "<li><button type=\\"button\\" class=\\"dep-neighbor-button\\" data-function-id=\\"" + escapeHtml(fn.id) + "\\">" + escapeHtml(fn.name) + "</button> <small>" + escapeHtml(fn.dependencyClass) + "</small></li>")
+      .join("");
+    overviewDetail.innerHTML =
+      "<h2>" + escapeHtml(shortPath(filePath)) + "</h2>" +
+      "<dl>" +
+      "<dt>パス</dt><dd>" + escapeHtml(filePath) + "</dd>" +
+      "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
+      "<dt>static</dt><dd>" + escapeHtml(file.staticCount || 0) + "</dd>" +
+      "<dt>分類</dt><dd>" + escapeHtml(file.dominantClass || "") + "</dd>" +
+      "<dt>領域</dt><dd>" + escapeHtml(file.dominantArea || "") + "</dd>" +
+      "</dl>" +
+      (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
+    bindOverviewActions();
+  }}
+
+  function bindOverviewActions() {{
+    for (const button of overviewDetail.querySelectorAll("[data-function-id]")) {{
+      button.addEventListener("click", () => selectFunction(button.getAttribute("data-function-id")));
+    }}
+  }}
+
+  function initOverviewGraph() {{
+    if (overviewCy || !overviewGraph) return;
+    if (typeof cytoscape !== "function") {{
+      graphUnavailable(overviewGraph, overviewDetail);
+      return;
+    }}
+    const edgeMap = new Map();
+    for (const edge of edges) {{
+      if (edge.callerFile === edge.calleeFile) continue;
+      const key = edge.callerFile + "\\n" + edge.calleeFile;
+      const current = edgeMap.get(key) || {{
+        data: {{
+          id: key,
+          source: edge.callerFile,
+          target: edge.calleeFile,
+          label: "",
+          weight: 0
+        }}
+      }};
+      current.data.weight += 1;
+      current.data.label = String(current.data.weight);
+      edgeMap.set(key, current);
+    }}
+    const elements = [];
+    for (const file of files) {{
+      elements.push({{
+        data: {{
+          id: file.path,
+          label: shortPath(file.path),
+          weight: Math.max(1, Number(file.functionCount || 1)),
+          path: file.path
+        }},
+        classes: graphClassFor(file.dominantClass)
+      }});
+    }}
+    for (const edge of edgeMap.values()) {{
+      elements.push(edge);
+    }}
+    overviewCy = cytoscape({{
+      container: overviewGraph,
+      elements,
+      style: graphStyle(),
+      wheelSensitivity: 0.18,
+      layout: graphLayout("cose")
+    }});
+    overviewCy.on("tap", "node", (event) => renderOverviewDetail(event.target.id()));
+  }}
+
+  function collectDepth(startIds, adjacency, maxDepth) {{
+    const depths = new Map();
+    const queue = [];
+    for (const id of startIds) {{
+      depths.set(id, 0);
+      queue.push(id);
+    }}
+    while (queue.length > 0) {{
+      const id = queue.shift();
+      const depth = depths.get(id);
+      if (depth >= maxDepth) continue;
+      for (const nextId of adjacency.get(id) || []) {{
+        if (!depths.has(nextId)) {{
+          depths.set(nextId, depth + 1);
+          queue.push(nextId);
+        }}
+      }}
+    }}
+    return depths;
+  }}
+
+  function renderLinkageDetail(fn) {{
+    if (!fn) {{
+      linkageDetail.innerHTML = "<p class=\\"dep-empty\\">一覧から関数を選択してください。</p>";
+      return;
+    }}
+    linkageDetail.innerHTML =
+      "<h2>" + escapeHtml(fn.name) + "</h2>" +
+      "<dl>" +
+      "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(fn.dependencyClass) + "\\">" + escapeHtml(fn.dependencyClass) + "</span></dd>" +
+      "<dt>level</dt><dd>" + escapeHtml(levelText(fn)) + "</dd>" +
+      "<dt>ファイル</dt><dd>" + escapeHtml(fn.file) + "</dd>" +
+      "<dt>呼び出し先</dt><dd>" + escapeHtml(fn.inScopeCalleeCount) + "</dd>" +
+      "<dt>呼び出し元</dt><dd>" + escapeHtml(fn.inScopeCallerCount) + "</dd>" +
+      "</dl>";
+  }}
+
+  function linkageElements(fn) {{
+    const upstream = collectDepth([fn.id], callers, 2);
+    const downstream = collectDepth([fn.id], callees, 2);
+    const ids = new Set([...upstream.keys(), ...downstream.keys()]);
+    const elements = [];
+    for (const id of ids) {{
+      const item = byId.get(id);
+      if (!item) continue;
+      const classes = [graphClassFor(item.dependencyClass)];
+      if (id === fn.id) classes.push("dep-center-node");
+      const isUpstream = upstream.has(id) && upstream.get(id) > 0;
+      const isDownstream = downstream.has(id) && downstream.get(id) > 0;
+      if (isUpstream && isDownstream) classes.push("dep-both-node");
+      else if (isUpstream) classes.push("dep-upstream-node");
+      else if (isDownstream) classes.push("dep-downstream-node");
+      elements.push({{
+        data: {{
+          id,
+          label: item.name,
+          weight: id === fn.id ? 8 : Math.max(2, 7 - Math.min(upstream.get(id) || downstream.get(id) || 1, 2) * 2),
+          file: item.file
+        }},
+        classes: classes.join(" ")
+      }});
+    }}
+    for (const edge of edges) {{
+      if (!ids.has(edge.caller) || !ids.has(edge.callee)) continue;
+      elements.push({{
+        data: {{
+          id: edge.caller + "->" + edge.callee,
+          source: edge.caller,
+          target: edge.callee,
+          label: "",
+          weight: 1
+        }}
+      }});
+    }}
+    return elements;
+  }}
+
+  function renderLinkageGraph() {{
+    if (!linkageGraph) return;
+    if (typeof cytoscape !== "function") {{
+      graphUnavailable(linkageGraph, linkageDetail);
+      return;
+    }}
+    const fn = byId.get(selectedId);
+    renderLinkageDetail(fn);
+    if (!fn) {{
+      if (linkageCy) linkageCy.elements().remove();
+      return;
+    }}
+    const elements = linkageElements(fn);
+    if (!linkageCy) {{
+      linkageCy = cytoscape({{
+        container: linkageGraph,
+        elements,
+        style: graphStyle(),
+        wheelSensitivity: 0.18,
+        layout: graphLayout(linkageLayout.value)
+      }});
+      linkageCy.on("tap", "node", (event) => selectFunction(event.target.id()));
+    }} else {{
+      linkageCy.elements().remove();
+      linkageCy.add(elements);
+      runLayout(linkageCy, linkageLayout.value);
+    }}
+  }}
+
+  function refreshActiveGraph() {{
+    if (activeTab === "overviewPanel") {{
+      initOverviewGraph();
+      if (overviewCy) {{
+        overviewCy.resize();
+        overviewCy.fit(undefined, 30);
+      }}
+    }}
+    if (activeTab === "linkagePanel") {{
+      renderLinkageGraph();
+      if (linkageCy) {{
+        linkageCy.resize();
+        linkageCy.fit(undefined, 30);
+      }}
+    }}
   }}
 
   function fillOptions() {{
@@ -1153,6 +1610,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedId = id;
     renderDetail(fn);
     renderRows();
+    if (activeTab === "linkagePanel") {{
+      renderLinkageGraph();
+    }}
   }}
 
   addMetric("関数", data.summary.functionCount || 0);
@@ -1178,6 +1638,38 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderRows();
     }});
   }}
+  for (const button of tabButtons) {{
+    button.addEventListener("click", () => {{
+      activeTab = button.getAttribute("data-tab-target");
+      for (const item of tabButtons) {{
+        item.classList.toggle("active", item === button);
+      }}
+      for (const panel of tabPanels) {{
+        panel.classList.toggle("active", panel.id === activeTab);
+      }}
+      refreshActiveGraph();
+    }});
+  }}
+  overviewFit.addEventListener("click", () => {{
+    if (overviewCy) overviewCy.fit(undefined, 30);
+  }});
+  overviewRelayout.addEventListener("click", () => {{
+    runLayout(overviewCy, "cose");
+  }});
+  linkageFit.addEventListener("click", () => {{
+    if (linkageCy) linkageCy.fit(undefined, 30);
+  }});
+  linkageCenter.addEventListener("click", () => {{
+    if (!linkageCy || !selectedId) return;
+    const node = linkageCy.getElementById(selectedId);
+    if (node && node.length > 0) linkageCy.center(node);
+  }});
+  linkageRelayout.addEventListener("click", () => {{
+    runLayout(linkageCy, linkageLayout.value);
+  }});
+  linkageLayout.addEventListener("change", () => {{
+    runLayout(linkageCy, linkageLayout.value);
+  }});
   clearFilters.addEventListener("click", () => {{
     search.value = "";
     levelFilter.value = "";
@@ -1193,12 +1685,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
     (output_dir / "index.html").write_text(html_text, encoding="utf-8")
 
 
+def copy_graph_assets(output_dir: Path) -> None:
+    for asset_name in GRAPH_ASSETS:
+        source = SCRIPT_DIR / asset_name
+        if not source.is_file():
+            raise FileNotFoundError(f"graph asset not found: {source}")
+        shutil.copyfile(source, output_dir / asset_name)
+
+
 def generate_report(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     data = build_report_data(xml_dir, output_dir, category_id)
     write_data_js(output_dir, data)
     write_csv(output_dir, data)
     write_html(output_dir, category_id)
+    copy_graph_assets(output_dir)
     return data
 
 
