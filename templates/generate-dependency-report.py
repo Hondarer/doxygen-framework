@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-generate-dependency-report.py - Doxygen XML から関数依存関係レポートを生成する
+generate-dependency-report.py - Doxygen XML から依存関係レポートを生成する
 
 使用方法:
     python3 generate-dependency-report.py <xml_directory> <output_directory> [category_id]
@@ -489,15 +489,27 @@ AREA_ORDER = {
 
 DEPENDENCY_RANKS = {
     "leaf-static": 0,
-    "leaf-global": 0,
-    "file-local": 1,
-    "include-callee": 1,
-    "libsrc-file-caller": 2,
-    "src-file-caller": 3,
-    "src-to-libsrc-caller": 4,
-    "cross-area-caller": 5,
-    "reverse-boundary-caller": 6,
+    "leaf-global": 1,
+    "file-local": 2,
+    "include-callee": 2,
+    "libsrc-file-caller": 3,
+    "src-file-caller": 4,
+    "src-to-libsrc-caller": 5,
+    "cross-area-caller": 6,
+    "reverse-boundary-caller": 7,
     "cycle": 999,
+}
+
+DEPENDENCY_LEVEL_BASES = {
+    "leaf-static": 0,
+    "leaf-global": 1,
+    "file-local": 2000,
+    "include-callee": 2000,
+    "libsrc-file-caller": 3000,
+    "src-file-caller": 4000,
+    "src-to-libsrc-caller": 5000,
+    "cross-area-caller": 6000,
+    "reverse-boundary-caller": 7000,
 }
 
 
@@ -611,7 +623,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         dependency_depth = depths[func_id]
         dependency_level = None
         if dependency_depth is not None:
-            dependency_level = dependency_rank * 1000 + dependency_depth
+            dependency_level = DEPENDENCY_LEVEL_BASES[dependency_class] + dependency_depth
         source_area = path_area(info.file)
         callee_areas = sorted({path_area(functions[callee_id].file) for callee_id in info.callees})
         max_callee_area = ""
@@ -682,15 +694,12 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         level_counts: Dict[str, int] = defaultdict(int)
         class_counts: Dict[str, int] = defaultdict(int)
         area_counts: Dict[str, int] = defaultdict(int)
-        dominant_class = ""
         dominant_area = ""
         for row in rows:
             level_key = "cycle" if row["dependencyLevel"] is None else str(row["dependencyLevel"])
             level_counts[level_key] += 1
             class_counts[str(row["dependencyClass"])] += 1
             area_counts[str(row["sourceArea"])] += 1
-        if class_counts:
-            dominant_class = max(sorted(class_counts), key=lambda key: (class_counts[key], key))
         if area_counts:
             dominant_area = max(sorted(area_counts), key=lambda key: (area_counts[key], key))
         file_rows.append(
@@ -699,7 +708,6 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
                 "functionCount": len(rows),
                 "staticCount": sum(1 for row in rows if row["isStatic"]),
                 "edgeCount": sum(int(row["inScopeCalleeCount"]) for row in rows),
-                "dominantClass": dominant_class,
                 "dominantArea": dominant_area,
                 "levels": dict(sorted(level_counts.items())),
                 "classes": dict(sorted(class_counts.items())),
@@ -782,7 +790,6 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "functionCount",
         "staticCount",
         "edgeCount",
-        "dominantClass",
         "dominantArea",
         "levels",
         "classes",
@@ -801,7 +808,6 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
                     "functionCount": row["functionCount"],
                     "staticCount": row["staticCount"],
                     "edgeCount": row["edgeCount"],
-                    "dominantClass": row["dominantClass"],
                     "dominantArea": row["dominantArea"],
                     "levels": json.dumps(row["levels"], ensure_ascii=False, sort_keys=True),
                     "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
@@ -814,7 +820,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
 
 
 def write_html(output_dir: Path, category_id: str) -> None:
-    title = "関数依存関係レポート"
+    title = "依存関係レポート"
     escaped_category = html.escape(category_id or "doxygen")
     html_text = f"""<!doctype html>
 <html lang="ja">
@@ -1044,23 +1050,32 @@ def write_html(output_dir: Path, category_id: str) -> None:
       padding: 2px 7px;
       border: 1px solid var(--dep-border);
       background: var(--dep-bg);
+      color: #111827;
       font-size: 0.78rem;
     }}
+    .badge.leaf-static,
+    .badge.leaf-global {{
+      background: #dcfce7;
+      border-color: #16a34a;
+    }}
+    .badge.file-local {{
+      background: #e0f2fe;
+      border-color: #0284c7;
+    }}
     .badge.cycle {{
-      border-color: var(--dep-danger);
-      color: var(--dep-danger);
+      background: #fee2e2;
+      border-color: #dc2626;
     }}
     .badge.libsrc-file-caller,
     .badge.src-file-caller,
     .badge.src-to-libsrc-caller,
-    .badge.cross-area-caller,
-    .badge.reverse-boundary-caller {{
-      border-color: var(--dep-warning);
-      color: var(--dep-warning);
+    .badge.cross-area-caller {{
+      background: #fef3c7;
+      border-color: #d97706;
     }}
     .badge.reverse-boundary-caller {{
-      border-color: var(--dep-danger);
-      color: var(--dep-danger);
+      background: #fee2e2;
+      border-color: #dc2626;
     }}
     .dep-detail {{
       border: 1px solid var(--dep-border);
@@ -1337,6 +1352,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let activeTab = "listPanel";
   let overviewCy = null;
   let overviewLayoutInitialized = false;
+  let overviewAnchorCorrection = null;
   let previousSelectedRowVisible = false;
   let pendingListScroll = false;
 
@@ -1427,6 +1443,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return "dep-caller-node";
   }}
 
+  function graphFileClassFor(area) {{
+    if (area === "include" || area === "include_internal" || area === "libsrc") return "dep-file-library-node";
+    if (area === "src") return "dep-file-source-node";
+    return "";
+  }}
+
   function graphStyle() {{
     return [
       {{
@@ -1465,7 +1487,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{ selector: ".dep-local-node", style: {{ "background-color": "#e0f2fe", "border-color": "#0284c7" }} }},
       {{ selector: ".dep-caller-node", style: {{ "background-color": "#fef3c7", "border-color": "#d97706" }} }},
       {{ selector: ".dep-danger-node", style: {{ "background-color": "#fee2e2", "border-color": "#dc2626" }} }},
-      {{ selector: ".dep-center-node", style: {{ "background-color": "#ccfbf1", "border-color": "#0f766e", "border-width": 2 }} }},
+      {{ selector: ".dep-file-node", style: {{ "background-color": "#f8fafc", "border-color": "#64748b" }} }},
+      {{ selector: ".dep-center-node", style: {{ "border-width": 2 }} }},
       {{ selector: ".dep-upstream-node", style: {{ "shape": "round-rectangle" }} }},
       {{ selector: ".dep-downstream-node", style: {{ "shape": "ellipse" }} }},
       {{ selector: ".dep-both-node", style: {{ "shape": "diamond" }} }},
@@ -1485,6 +1508,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "color": "#1f2937"
         }}
       }},
+      {{ selector: ".dep-file-library-node", style: {{ "background-color": "#eef2ff", "border-color": "#4f46e5" }} }},
+      {{ selector: ".dep-file-source-node", style: {{ "background-color": "#f3e8ff", "border-color": "#9333ea" }} }},
       {{
         selector: ".dep-base-edge-muted",
         style: {{
@@ -1506,11 +1531,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{
         selector: ".dep-selected-file",
         style: {{
-          "border-width": 2,
-          "border-color": "#0f766e"
+          "border-width": 2
         }}
       }},
-      {{ selector: ":selected", style: {{ "border-width": 2, "border-color": "#111827" }} }}
+      {{ selector: ":selected", style: {{ "border-width": 2 }} }}
     ];
   }}
 
@@ -1529,10 +1553,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<h2>" + escapeHtml(shortPath(filePath)) + "</h2>" +
       (file.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(file.brief) + "</p>" : "") +
       "<dl>" +
-      "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(file.dominantClass || "") + "\\">" + escapeHtml(file.dominantClass || "") + "</span></dd>" +
-      "<dt>level</dt><dd>" + escapeHtml(Object.keys(file.levels || {{}}).join(", ")) + "</dd>" +
       "<dt>領域</dt><dd>" + escapeHtml(file.dominantArea || "") + "</dd>" +
-      "<dt>static</dt><dd>" + escapeHtml(file.staticCount || 0) + "</dd>" +
       "<dt>ファイル</dt><dd>" + escapeHtml(filePath) + "</dd>" +
       "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
       "<dt>リンク</dt><dd>" + [linkFor(file, "Doxygen", false), linkFor(file, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
@@ -1588,7 +1609,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     const elements = [];
     for (const file of files) {{
-      const classes = [graphClassFor(file.dominantClass)];
+      const classes = ["dep-file-node"];
+      const areaClass = graphFileClassFor(file.dominantArea);
+      if (areaClass) classes.push(areaClass);
       if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
       elements.push({{
         data: {{
@@ -1702,10 +1725,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const animate = overviewLayoutInitialized;
     const fit = Boolean(opts && opts.fit);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
+    const anchorCenters = opts && opts.anchorCenters ? opts.anchorCenters : new Map();
     const lockedNodes = movingNodeIds ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
     overviewLayoutInitialized = true;
     if (typeof cytoscapeCola === "function") {{
       lockedNodes.lock();
+      startOverviewAnchorCorrection(anchorCenters);
       const layout = overviewCy.layout({{
         name: "cola",
         animate,
@@ -1713,24 +1738,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
         maxSimulationTime: fit ? 2000 : 900,
         fit,
         padding: 30,
-        randomize: fit,
+        randomize: false,
         avoidOverlap: true,
         handleDisconnected: true,
-        nodeSpacing: function (node) {{ return node.isParent() ? 18 : 12; }},
+        nodeSpacing: function (node) {{ return node.isParent() ? 22 : 14; }},
         centerGraph: fit,
-        edgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 40 : 110; }},
+        edgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 48 : 132; }},
         convergenceThreshold: fit ? 0.01 : 0.08,
         unconstrIter: fit ? undefined : 8,
         userConstIter: fit ? undefined : 8,
         allConstIter: fit ? undefined : 12
       }});
+      layout.one("layoutready", () => {{
+        restoreOverviewAnchorCenters(anchorCenters);
+      }});
       layout.one("layoutstop", () => {{
+        stopOverviewAnchorCorrection();
+        restoreOverviewAnchorCenters(anchorCenters);
         lockedNodes.unlock();
       }});
       layout.run();
+      restoreOverviewAnchorCenters(anchorCenters);
       return;
     }}
     lockedNodes.lock();
+    startOverviewAnchorCorrection(anchorCenters);
     const layout = overviewCy.layout({{
       name: "cose",
       animate,
@@ -1738,18 +1770,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
       animationEasing: "ease-in-out",
       fit,
       padding: 30,
-      nodeRepulsion: function (node) {{ return node.isParent() ? 12000 : 2500; }},
-      idealEdgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 40 : 100; }},
+      nodeRepulsion: function (node) {{ return node.isParent() ? 14400 : 3000; }},
+      idealEdgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 48 : 120; }},
       edgeElasticity: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 200 : 100; }},
       nestingFactor: 0.4,
       gravity: 120,
       numIter: 1500,
       randomize: false
     }});
+    layout.one("layoutready", () => {{
+      restoreOverviewAnchorCenters(anchorCenters);
+    }});
     layout.one("layoutstop", () => {{
+      stopOverviewAnchorCorrection();
+      restoreOverviewAnchorCenters(anchorCenters);
       lockedNodes.unlock();
     }});
     layout.run();
+    restoreOverviewAnchorCenters(anchorCenters);
   }}
 
   function overviewNodePositions() {{
@@ -1767,6 +1805,46 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const position = positions.get(node.id());
       if (position) node.position(position);
     }});
+  }}
+
+  function restoreOverviewAnchorCenters(anchorCenters) {{
+    if (!overviewCy || !anchorCenters || anchorCenters.size === 0) return;
+    for (const [id, anchor] of anchorCenters) {{
+      const node = overviewCy.getElementById(id);
+      if (!node || !node.length) continue;
+      const current = node.position();
+      const dx = anchor.x - current.x;
+      const dy = anchor.y - current.y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      const movable = node.descendants().nodes(":unlocked");
+      movable.positions((child) => {{
+        const position = child.position();
+        return {{ x: position.x + dx, y: position.y + dy }};
+      }});
+    }}
+  }}
+
+  function startOverviewAnchorCorrection(anchorCenters) {{
+    stopOverviewAnchorCorrection();
+    if (!anchorCenters || anchorCenters.size === 0) return;
+    let active = true;
+    const frame = () => {{
+      if (!active) return;
+      restoreOverviewAnchorCenters(anchorCenters);
+      const raf = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
+      overviewAnchorCorrection.frameId = raf(frame);
+    }};
+    overviewAnchorCorrection = {{
+      stop: () => {{ active = false; }},
+      frameId: null
+    }};
+    frame();
+  }}
+
+  function stopOverviewAnchorCorrection() {{
+    if (!overviewAnchorCorrection) return;
+    overviewAnchorCorrection.stop();
+    overviewAnchorCorrection = null;
   }}
 
   function isEdgeElement(element) {{
@@ -1792,6 +1870,76 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return classText(element.classes().join(" ")) !== classText(targetClasses || "");
   }}
 
+  function seedOverviewInitialPositions(elements) {{
+    const rootNodes = elements.filter((element) => (
+      !isEdgeElement(element) && element.data && !element.data.parent
+    ));
+    if (rootNodes.length === 0) return;
+    const columns = Math.ceil(Math.sqrt(rootNodes.length));
+    const rows = Math.ceil(rootNodes.length / columns);
+    const gap = 220;
+    const rootPositions = new Map();
+    for (let index = 0; index < rootNodes.length; index++) {{
+      const node = rootNodes[index];
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const position = {{
+        x: (column - (columns - 1) / 2) * gap,
+        y: (row - (rows - 1) / 2) * gap
+      }};
+      node.position = position;
+      rootPositions.set(node.data.id, position);
+    }}
+    const childCounts = new Map();
+    for (const element of elements) {{
+      if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+      childCounts.set(element.data.parent, (childCounts.get(element.data.parent) || 0) + 1);
+    }}
+    const childIndexes = new Map();
+    for (const element of elements) {{
+      if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+      const center = rootPositions.get(element.data.parent);
+      if (!center) continue;
+      const index = childIndexes.get(element.data.parent) || 0;
+      const count = childCounts.get(element.data.parent) || 1;
+      childIndexes.set(element.data.parent, index + 1);
+      const radius = 72 + Math.min(88, count * 5);
+      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / count;
+      element.position = {{
+        x: center.x + Math.cos(angle) * radius,
+        y: center.y + Math.sin(angle) * radius
+      }};
+    }}
+  }}
+
+  function anchorOverviewChildPositions(targetElements, anchorCenters) {{
+    if (!anchorCenters || anchorCenters.size === 0) return;
+    for (const [parentId, anchor] of anchorCenters) {{
+      const children = targetElements.filter((element) => (
+        !isEdgeElement(element) && element.data && element.data.parent === parentId
+      ));
+      if (children.length === 0) continue;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const child of children) {{
+        const position = child.position || anchor;
+        minX = Math.min(minX, position.x);
+        maxX = Math.max(maxX, position.x);
+        minY = Math.min(minY, position.y);
+        maxY = Math.max(maxY, position.y);
+      }}
+      const center = {{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }};
+      const dx = anchor.x - center.x;
+      const dy = anchor.y - center.y;
+      for (const child of children) {{
+        const position = child.position || anchor;
+        child.position = {{ x: position.x + dx, y: position.y + dy }};
+      }}
+    }}
+  }}
+
   function addMissingOverviewElements(targetElements, targetById, movingNodeIds) {{
     const missing = targetElements.filter((element) => !overviewCy.getElementById(element.data.id).length);
     const parentNodes = missing.filter((element) => !isEdgeElement(element) && !element.data.parent);
@@ -1809,8 +1957,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function syncOverviewElements(targetElements) {{
     if (!overviewCy) return;
     const previousPositions = overviewNodePositions();
-    const targetById = new Map(targetElements.map((element) => [element.data.id, element]));
     const movingNodeIds = new Set();
+    const anchorCenters = new Map();
+    if (selectedFilePath && previousPositions.has(selectedFilePath)) {{
+      anchorCenters.set(selectedFilePath, previousPositions.get(selectedFilePath));
+    }}
+    anchorOverviewChildPositions(targetElements, anchorCenters);
+    const targetById = new Map(targetElements.map((element) => [element.data.id, element]));
     let layoutNeeded = false;
     overviewCy.batch(() => {{
       const stale = overviewCy.elements().filter((element) => !targetById.has(element.id()));
@@ -1836,17 +1989,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
           element.classes(target.classes || "");
         }}
       }}
+      restoreOverviewAnchorCenters(anchorCenters);
     }});
     if (layoutNeeded) {{
       restoreOverviewNodePositions(previousPositions);
+      restoreOverviewAnchorCenters(anchorCenters);
       if (movingNodeIds.size > 0) {{
-        runOverviewLayout({{ movingNodeIds }});
+        runOverviewLayout({{ movingNodeIds, anchorCenters }});
       }}
     }}
   }}
 
   function renderOverviewGraph() {{
     if (!overviewCy) return;
+    if (overviewCy.elements().length === 0) {{
+      resetOverviewGraph();
+      return;
+    }}
     syncOverviewElements(buildOverviewElements());
   }}
 
@@ -1854,7 +2013,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewCy) return;
     overviewLayoutInitialized = false;
     overviewCy.elements().remove();
-    overviewCy.add(buildOverviewElements());
+    const elements = buildOverviewElements();
+    seedOverviewInitialPositions(elements);
+    overviewCy.add(elements);
     runOverviewLayout({{ fit: true }});
   }}
 

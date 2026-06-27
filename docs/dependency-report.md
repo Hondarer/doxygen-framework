@@ -1,10 +1,10 @@
-# 関数依存関係レポート
+# 依存関係レポート
 
 このドキュメントでは、Doxygen XML から関数間の呼び出し関係を解析し、依存度の低い関数から確認できるようにするレポート機能について説明します。
 
 ## 目的
 
-関数依存関係レポートは、リファクタリングやレビューで確認する関数の順序を決めるための補助データを生成します。
+依存関係レポートは、リファクタリングやレビューで確認する関数の順序を決めるための補助データを生成します。
 
 対象範囲は、1 回の Doxygen 実行で生成された XML に含まれる関数です。  
 対象範囲内の他関数を呼び出さない関数を依存度の低い関数として扱い、その関数を呼ぶ側へ向かって依存 level を上げます。
@@ -77,14 +77,14 @@ HTML リンクは、代表として採用した Doxygen `memberdef` のページ
 
 ## 依存 level
 
-`dependencyLevel` は、依存種別の重みである `dependencyRank` と、対象範囲内の呼び出し深さである `dependencyDepth` から算出します。  
-算出式は `dependencyRank * 1000 + dependencyDepth` です。
+`dependencyLevel` は、依存種別に対応する基準値と、対象範囲内の呼び出し深さである `dependencyDepth` から算出します。  
+`leaf-static` は `0`、`leaf-global` は `1` になり、呼び出し先を持つ分類は分類ごとの基準値に `dependencyDepth` を加えた値になります。
 
 `dependencyDepth` は、対象範囲内の呼び出し先を持たない関数を `0` とします。  
 呼び出し先を持つ関数は、呼び出し先の最大 `dependencyDepth` に `1` を加えた値になります。
 
-`dependencyRank` は分類に対応する重みです。  
-この重みを先に反映することで、`libsrc` 内のファイル間コール、`src` 内のファイル間コール、`src -> libsrc` のカテゴリまたぎコールが、この順に大きな level になります。
+`dependencyRank` は分類に対応する並び順の重みです。  
+この重みを先に反映することで、`leaf-static`、`leaf-global`、`file-local`、`libsrc` 内のファイル間コール、`src` 内のファイル間コール、`src -> libsrc` のカテゴリまたぎコールが、この順に大きな level になります。
 
 循環依存に属する関数は、数値 level を持ちません。  
 HTML と CSV では `cycle` として扱います。
@@ -100,13 +100,13 @@ HTML と CSV では `cycle` として扱います。
 | 分類 | rank | 条件 |
 |---|---:|---|
 | `leaf-static` | 0 | `static` 関数で、対象範囲内の呼び出し先がない |
-| `leaf-global` | 0 | 非 `static` 関数で、対象範囲内の呼び出し先がない |
-| `file-local` | 1 | 呼び出し先があり、すべて同一ファイル内の対象範囲内関数である |
-| `libsrc-file-caller` | 2 | `libsrc` 内で別ファイルの対象範囲内関数を呼び出す |
-| `src-file-caller` | 3 | `src` 内で別ファイルの対象範囲内関数を呼び出す |
-| `src-to-libsrc-caller` | 4 | `src` から `libsrc` の対象範囲内関数を呼び出す |
-| `cross-area-caller` | 5 | 上記以外のカテゴリをまたいで対象範囲内関数を呼び出す |
-| `reverse-boundary-caller` | 6 | `libsrc` から `src` の対象範囲内関数を呼び出す |
+| `leaf-global` | 1 | 非 `static` 関数で、対象範囲内の呼び出し先がない |
+| `file-local` | 2 | 呼び出し先があり、すべて同一ファイル内の対象範囲内関数である |
+| `libsrc-file-caller` | 3 | `libsrc` 内で別ファイルの対象範囲内関数を呼び出す |
+| `src-file-caller` | 4 | `src` 内で別ファイルの対象範囲内関数を呼び出す |
+| `src-to-libsrc-caller` | 5 | `src` から `libsrc` の対象範囲内関数を呼び出す |
+| `cross-area-caller` | 6 | 上記以外のカテゴリをまたいで対象範囲内関数を呼び出す |
+| `reverse-boundary-caller` | 7 | `libsrc` から `src` の対象範囲内関数を呼び出す |
 | `cycle` | - | 循環依存グループに属する |
 
 `static` 関数は C ファイル内に限定される場合が多いため、`leaf-static` は局所的に確認しやすい候補として扱えます。  
@@ -209,7 +209,6 @@ edge の向きは `caller -> callee` です。
 | `functionCount` | ファイル内の関数数 |
 | `staticCount` | ファイル内の static 関数数 |
 | `edgeCount` | ファイル内関数から対象範囲内関数への呼び出し数 |
-| `dominantClass` | ファイル内で最も多い分類 |
 | `dominantArea` | ファイル内で最も多い領域 |
 | `levels` | level ごとの関数数を JSON 文字列で表した値 |
 | `classes` | 分類ごとの関数数を JSON 文字列で表した値 |

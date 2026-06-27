@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import csv
 import importlib.util
 import json
 import sys
@@ -121,16 +122,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
             self.assertEqual(by_id["a_leaf"]["dependencyLevel"], 0)
             self.assertEqual(by_id["a_leaf"]["dependencyClass"], "leaf-static")
+            self.assertEqual(by_id["b_leaf"]["dependencyLevel"], 1)
+            self.assertEqual(by_id["b_leaf"]["dependencyRank"], 1)
             self.assertEqual(by_id["b_leaf"]["dependencyClass"], "leaf-global")
-            self.assertEqual(by_id["a_local"]["dependencyLevel"], 1001)
-            self.assertEqual(by_id["a_local"]["dependencyRank"], 1)
+            self.assertEqual(by_id["a_local"]["dependencyLevel"], 2001)
+            self.assertEqual(by_id["a_local"]["dependencyRank"], 2)
             self.assertEqual(by_id["a_local"]["dependencyDepth"], 1)
             self.assertEqual(by_id["a_local"]["dependencyClass"], "file-local")
-            self.assertEqual(by_id["c_user"]["dependencyLevel"], 2001)
+            self.assertEqual(by_id["c_user"]["dependencyLevel"], 3001)
             self.assertEqual(by_id["c_user"]["dependencyClass"], "libsrc-file-caller")
-            self.assertEqual(by_id["a_cross"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["a_cross"]["dependencyLevel"], 4001)
             self.assertEqual(by_id["a_cross"]["dependencyClass"], "src-file-caller")
-            self.assertEqual(by_id["a_to_lib"]["dependencyLevel"], 4001)
+            self.assertEqual(by_id["a_to_lib"]["dependencyLevel"], 5001)
             self.assertEqual(by_id["a_to_lib"]["dependencyClass"], "src-to-libsrc-caller")
             self.assertEqual(by_id["a_to_lib"]["sourceArea"], "src")
             self.assertEqual(by_id["a_to_lib"]["maxCalleeArea"], "libsrc")
@@ -146,6 +149,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "webcola.LICENSE.txt").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.js").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.LICENSE.txt").is_file())
+            for file_row in data["files"]:
+                self.assertNotIn("dominantClass", file_row)
+                self.assertIn("classes", file_row)
+            with (output_dir / "dependency-files.csv").open(encoding="utf-8", newline="") as f:
+                fieldnames = csv.DictReader(f).fieldnames
+            self.assertNotIn("dominantClass", fieldnames)
+            self.assertIn("classes", fieldnames)
 
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
