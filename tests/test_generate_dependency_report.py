@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import contextlib
+import io
 import importlib.util
 import json
 import sys
@@ -101,6 +103,46 @@ class GenerateDependencyReportTest(unittest.TestCase):
             )
             write_xml(
                 xml_dir,
+                "api_8h.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="api_8h" kind="file">
+    <compoundname>api.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="api_export" static="no">
+        <name>api_export</name>
+        <location file="include/api.h" line="10" bodyfile="include/api.h" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="api_to_lib" static="no">
+        <name>api_to_lib</name>
+        <references refid="c_leaf" compoundref="file__c_8c">lib_leaf</references>
+        <location file="include/api.h" line="20" bodyfile="include/api.h" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "internal_8h.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="internal_8h" kind="file">
+    <compoundname>internal.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="internal_to_lib" static="no">
+        <name>internal_to_lib</name>
+        <references refid="c_leaf" compoundref="file__c_8c">lib_leaf</references>
+        <location file="include_internal/internal.h" line="10" bodyfile="include_internal/internal.h" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
                 "file_d.xml",
                 """<?xml version="1.0" encoding="UTF-8"?>
 <doxygen>
@@ -134,11 +176,25 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["a_cross"]["dependencyLevel"], 4001)
             self.assertEqual(by_id["a_cross"]["dependencyClass"], "src-file-caller")
             self.assertEqual(by_id["a_to_lib"]["dependencyLevel"], 5001)
-            self.assertEqual(by_id["a_to_lib"]["dependencyClass"], "src-to-libsrc-caller")
+            self.assertEqual(by_id["a_to_lib"]["dependencyClass"], "other-to-libsrc-caller")
             self.assertEqual(by_id["a_to_lib"]["sourceArea"], "src")
             self.assertEqual(by_id["a_to_lib"]["maxCalleeArea"], "libsrc")
-            self.assertEqual(by_id["a_to_lib"]["dominantCallKind"], "src-to-libsrc-caller")
+            self.assertEqual(by_id["a_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["api_to_lib"]["dependencyClass"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["api_to_lib"]["sourceArea"], "include")
+            self.assertEqual(by_id["api_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
+            self.assertTrue(by_id["api_to_lib"]["isExported"])
+            self.assertEqual(by_id["internal_to_lib"]["dependencyClass"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["internal_to_lib"]["sourceArea"], "include_internal")
+            self.assertEqual(by_id["internal_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
+            self.assertFalse(by_id["internal_to_lib"]["isExported"])
             self.assertEqual(by_id["a_cross"]["crossFileCalleeCount"], 1)
+            self.assertTrue(by_id["api_export"]["isExported"])
+            self.assertFalse(by_id["d_leaf"]["isExported"])
+            self.assertEqual(data["summary"]["exportCount"], 2)
+            file_by_path = {row["path"]: row for row in data["files"]}
+            self.assertEqual(file_by_path["include/api.h"]["exportCount"], 2)
+            self.assertEqual(file_by_path["include_internal/internal.h"]["exportCount"], 0)
             self.assertTrue((output_dir / "index.html").is_file())
             self.assertTrue((output_dir / "dependency-data.js").is_file())
             self.assertTrue((output_dir / "dependency-functions.csv").is_file())
@@ -156,11 +212,15 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 fieldnames = csv.DictReader(f).fieldnames
             self.assertNotIn("dominantClass", fieldnames)
             self.assertIn("classes", fieldnames)
+            self.assertIn("exportCount", fieldnames)
+            with (output_dir / "dependency-functions.csv").open(encoding="utf-8", newline="") as f:
+                fieldnames = csv.DictReader(f).fieldnames
+            self.assertIn("isExported", fieldnames)
 
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
             payload = data_js.removeprefix("window.DoxyfwDependencyData = ").rstrip(";\n")
-            self.assertEqual(json.loads(payload)["summary"]["functionCount"], 8)
+            self.assertEqual(json.loads(payload)["summary"]["functionCount"], 11)
 
     def test_cycle_detection(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -200,6 +260,196 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["cycle_a"]["dependencyClass"], "cycle")
             self.assertIsNone(by_id["cycle_b"]["dependencyLevel"])
             self.assertEqual(by_id["cycle_b"]["dependencyClass"], "cycle")
+
+    def test_include_definition_prefers_libsrc_and_ignores_src_call(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "api.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="api_8h" kind="file">
+    <compoundname>api.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="api_decl" static="no">
+        <name>api_func</name>
+        <location file="include/api.h" line="10" bodyfile="include/api.h" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "api_linux.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="api__linux_8c" kind="file">
+    <compoundname>api_linux.c</compoundname>
+    <location file="libsrc/api_linux.c"/>
+    <programlisting>
+      <codeline lineno="80"><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/></highlight><ref refid="api_decl">api_func</ref><highlight class="normal">(void)</highlight></codeline>
+    </programlisting>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "api_windows.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="api__windows_8c" kind="file">
+    <compoundname>api_windows.c</compoundname>
+    <location file="libsrc/api_windows.c"/>
+    <programlisting>
+      <codeline lineno="40"><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/></highlight><ref refid="api_decl">api_func</ref><highlight class="normal">(void)</highlight></codeline>
+    </programlisting>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "tool.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="tool_8c" kind="file">
+    <compoundname>tool.c</compoundname>
+    <location file="src/tool.c"/>
+    <sectiondef>
+      <memberdef kind="function" id="tool_user" static="no">
+        <name>tool_user</name>
+        <references refid="api_decl" compoundref="api_8h">api_func</references>
+        <location file="src/tool.c" line="20" bodyfile="src/tool.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+    <programlisting>
+      <codeline lineno="20"><highlight class="normal">if (</highlight><ref refid="api_decl">api_func</ref><highlight class="normal">() == 0)</highlight></codeline>
+    </programlisting>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+            edges = {(row["caller"], row["callee"]): row for row in data["edges"]}
+
+            self.assertEqual(by_id["api_decl"]["file"], "libsrc/api_linux.c")
+            self.assertEqual(by_id["api_decl"]["line"], 80)
+            self.assertTrue(by_id["api_decl"]["isExported"])
+            self.assertEqual(edges[("tool_user", "api_decl")]["calleeFile"], "libsrc/api_linux.c")
+            self.assertNotIn("include function definition fallback to src", stderr.getvalue())
+
+    def test_include_definition_src_fallback_warns(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "api.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="api_8h" kind="file">
+    <compoundname>api.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="tool_api" static="no">
+        <name>tool_api</name>
+        <location file="include/api.h" line="10" bodyfile="include/api.h" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "tool.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="tool_8c" kind="file">
+    <compoundname>tool.c</compoundname>
+    <location file="src/tool.c"/>
+    <programlisting>
+      <codeline lineno="30"><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/></highlight><ref refid="tool_api">tool_api</ref><highlight class="normal">(void)</highlight></codeline>
+    </programlisting>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertEqual(by_id["tool_api"]["file"], "src/tool.c")
+            self.assertEqual(by_id["tool_api"]["line"], 30)
+            self.assertIn("Warning: include function definition fallback to src", stderr.getvalue())
+            self.assertIn("tool_api", stderr.getvalue())
+
+    def test_reverse_boundary_call_warns_and_uses_cross_area(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "lib.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="lib_8c" kind="file">
+    <compoundname>lib.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="lib_to_src" static="no">
+        <name>lib_to_src</name>
+        <references refid="src_leaf" compoundref="src_8c">src_leaf</references>
+        <location file="libsrc/lib.c" line="10" bodyfile="libsrc/lib.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "src.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="src_8c" kind="file">
+    <compoundname>src.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="src_leaf" static="no">
+        <name>src_leaf</name>
+        <location file="src/src.c" line="20" bodyfile="src/src.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertEqual(by_id["lib_to_src"]["dependencyClass"], "cross-area-caller")
+            self.assertEqual(by_id["lib_to_src"]["dominantCallKind"], "cross-area-caller")
+            self.assertIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
+            self.assertIn("lib_to_src", stderr.getvalue())
+            self.assertIn("src_leaf", stderr.getvalue())
 
 
 if __name__ == "__main__":

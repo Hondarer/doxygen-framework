@@ -84,7 +84,7 @@ HTML リンクは、代表として採用した Doxygen `memberdef` のページ
 呼び出し先を持つ関数は、呼び出し先の最大 `dependencyDepth` に `1` を加えた値になります。
 
 `dependencyRank` は分類に対応する並び順の重みです。  
-この重みを先に反映することで、`leaf-static`、`leaf-global`、`file-local`、`libsrc` 内のファイル間コール、`src` 内のファイル間コール、`src -> libsrc` のカテゴリまたぎコールが、この順に大きな level になります。
+この重みを先に反映することで、`leaf-static`、`leaf-global`、`file-local`、`libsrc` 内のファイル間コール、`src` 内のファイル間コール、`libsrc` 以外から `libsrc` へのカテゴリまたぎコールが、この順に大きな level になります。
 
 循環依存に属する関数は、数値 level を持ちません。  
 HTML と CSV では `cycle` として扱います。
@@ -104,13 +104,15 @@ HTML と CSV では `cycle` として扱います。
 | `file-local` | 2 | 呼び出し先があり、すべて同一ファイル内の対象範囲内関数である |
 | `libsrc-file-caller` | 3 | `libsrc` 内で別ファイルの対象範囲内関数を呼び出す |
 | `src-file-caller` | 4 | `src` 内で別ファイルの対象範囲内関数を呼び出す |
-| `src-to-libsrc-caller` | 5 | `src` から `libsrc` の対象範囲内関数を呼び出す |
+| `other-to-libsrc-caller` | 5 | `libsrc` 以外から `libsrc` の対象範囲内関数を呼び出す |
 | `cross-area-caller` | 6 | 上記以外のカテゴリをまたいで対象範囲内関数を呼び出す |
-| `reverse-boundary-caller` | 7 | `libsrc` から `src` の対象範囲内関数を呼び出す |
 | `cycle` | - | 循環依存グループに属する |
 
 `static` 関数は C ファイル内に限定される場合が多いため、`leaf-static` は局所的に確認しやすい候補として扱えます。  
 ただし、`static` であっても他関数を呼ぶ場合は、呼び出し関係に応じて `file-local` やファイル間コールの分類になります。
+
+`libsrc` から `src` の対象範囲内関数を呼び出す関係は仕様上想定しません。  
+この関係を検出した場合、分類は `cross-area-caller` として扱い、レポート生成時に `Warning: reverse-boundary-caller detected` で始まる警告を出力します。
 
 ファイルのカテゴリは、パスのセグメントで判定します。  
 `libsrc` を含むパスは `libsrc`、`src` を含むパスは `src`、`include` を含むパスは `include`、それ以外は `other` です。
@@ -131,7 +133,7 @@ CSV では各関数の `sccId` に循環グループ ID が入ります。
 グラフ表示には、生成先へ同梱する Cytoscape.js を使います。  
 外部 CDN には依存していません。
 
-画面上部には、関数数、呼び出し関係数、ファイル数、`static` 関数数、leaf 関数数、循環グループ数を表示します。
+画面上部には、関数数、呼び出し関係数、ファイル数、`export` 関数数、`static` 関数数、leaf 関数数、循環グループ数を表示します。
 
 画面は `一覧`、`全体マップ`、`リンケージ` の 3 タブで構成します。
 
@@ -141,6 +143,7 @@ CSV では各関数の `sccId` に循環グループ ID が入ります。
 |---|---|
 | `level` | 依存 level または `cycle` |
 | `分類` | `dependencyClass` |
+| `export` | 公開 `include` 配下のヘッダーにある関数なら `yes` |
 | `static` | static 関数なら `yes` |
 | `領域` | 関数の実体ファイルのカテゴリ |
 | `関数` | 関数名 |
@@ -157,7 +160,7 @@ level、分類、ファイルのフィルターも利用できます。
 初期表示では `level` の昇順を選択します。  
 同じ値を持つ行は、レポート生成時の決定論的な基本順序で並びます。
 
-関数行を選択すると、詳細領域に基本情報、`rank`、`depth`、領域、呼び出し種別、Doxygen ページへのリンク、ソース ページへのリンク、1 hop の呼び出し先、1 hop の呼び出し元を表示します。  
+関数行を選択すると、詳細領域に基本情報、`rank`、`depth`、領域、呼び出し種別、`export`、Doxygen ページへのリンク、ソース ページへのリンク、1 hop の呼び出し先、1 hop の呼び出し元を表示します。  
 Doxygen ページへのリンクは `doxyfw-dependency-doxygen`、ソース ページへのリンクは `doxyfw-dependency-source` を `target` に指定し、それぞれ用途別の別タブまたは別ウィンドウを再利用します。  
 呼び出し先と呼び出し元の関数名は、Doxygen ページへのリンクではなく、同じ表の関数選択として動作します。
 
@@ -188,6 +191,7 @@ edge の向きは `caller -> callee` です。
 | `sourceArea` | 関数の実体ファイルのカテゴリ |
 | `maxCalleeArea` | 最も rank が大きい呼び出し先のカテゴリ |
 | `dominantCallKind` | 分類に採用した呼び出し種別 |
+| `isExported` | 公開 `include` 配下のヘッダーにある関数かどうか |
 | `isStatic` | static 関数かどうか |
 | `name` | 関数名 |
 | `file` | 実体ファイル |
@@ -207,6 +211,7 @@ edge の向きは `caller -> callee` です。
 |---|---|
 | `path` | ファイル パス |
 | `functionCount` | ファイル内の関数数 |
+| `exportCount` | ファイル内の export 関数数 |
 | `staticCount` | ファイル内の static 関数数 |
 | `edgeCount` | ファイル内関数から対象範囲内関数への呼び出し数 |
 | `dominantArea` | ファイル内で最も多い領域 |
