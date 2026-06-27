@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-generate-dependency-report.py - Doxygen XML から関数依存度レポートを生成する
+generate-dependency-report.py - Doxygen XML から関数依存関係レポートを生成する
 
 使用方法:
     python3 generate-dependency-report.py <xml_directory> <output_directory> [category_id]
@@ -27,7 +27,14 @@ sys.stderr.reconfigure(encoding="utf-8")
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-GRAPH_ASSETS = ("cytoscape.min.js", "cytoscape.LICENSE.txt")
+GRAPH_ASSETS = (
+    "cytoscape.min.js",
+    "cytoscape.LICENSE.txt",
+    "webcola.min.js",
+    "webcola.LICENSE.txt",
+    "cytoscape-cola.js",
+    "cytoscape-cola.LICENSE.txt",
+)
 
 
 @dataclass
@@ -175,6 +182,18 @@ def build_source_url(compound_id: str, line: Optional[int]) -> str:
     if compound_id == "" or line is None:
         return ""
     return f"../{compound_id}_source.html#l{line:05d}"
+
+
+def build_file_html_url(compound_id: str) -> str:
+    if compound_id == "":
+        return ""
+    return f"../{compound_id}.html"
+
+
+def build_file_source_url(compound_id: str) -> str:
+    if compound_id == "":
+        return ""
+    return f"../{compound_id}_source.html"
 
 
 def collect_raw_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
@@ -580,6 +599,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
     cycle_map, sccs = detect_cycle_groups(functions)
     depths = compute_dependency_depths(functions, cycle_map)
     file_briefs = collect_file_briefs(xml_dir)
+    file_compound_ids = collect_file_compound_ids(xml_dir)
 
     function_rows: List[Dict[str, object]] = []
     edges: List[Dict[str, object]] = []
@@ -685,6 +705,8 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
                 "classes": dict(sorted(class_counts.items())),
                 "areas": dict(sorted(area_counts.items())),
                 "brief": file_briefs.get(file_path, ""),
+                "htmlUrl": build_file_html_url(file_compound_ids.get(file_path, "")),
+                "sourceUrl": build_file_source_url(file_compound_ids.get(file_path, "")),
             }
         )
 
@@ -766,6 +788,8 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "classes",
         "areas",
         "brief",
+        "htmlUrl",
+        "sourceUrl",
     ]
     with (output_dir / "dependency-files.csv").open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=file_fields)
@@ -783,12 +807,14 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
                     "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
                     "areas": json.dumps(row["areas"], ensure_ascii=False, sort_keys=True),
                     "brief": row.get("brief", ""),
+                    "htmlUrl": row.get("htmlUrl", ""),
+                    "sourceUrl": row.get("sourceUrl", ""),
                 }
             )
 
 
 def write_html(output_dir: Path, category_id: str) -> None:
-    title = "関数依存度レポート"
+    title = "関数依存関係レポート"
     escaped_category = html.escape(category_id or "doxygen")
     html_text = f"""<!doctype html>
 <html lang="ja">
@@ -799,6 +825,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   <link rel="stylesheet" href="../doxygen.css">
   <script src="dependency-data.js"></script>
   <script src="cytoscape.min.js"></script>
+  <script src="webcola.min.js"></script>
+  <script src="cytoscape-cola.js"></script>
   <style>
     :root {{
       color-scheme: light dark;
@@ -1264,6 +1292,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
 <script>
 (function () {{
   "use strict";
+  // 表示はページ読み込み時の dependency-data.js を断面として固定する。
   const data = window.DoxyfwDependencyData || {{ summary: {{}}, functions: [], edges: [] }};
   const functions = data.functions || [];
   const edges = data.edges || [];
@@ -1308,7 +1337,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let activeTab = "listPanel";
   let overviewCy = null;
   let overviewLayoutInitialized = false;
-  let overviewRenderedState = null;
   let previousSelectedRowVisible = false;
   let pendingListScroll = false;
 
@@ -1501,11 +1529,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<h2>" + escapeHtml(shortPath(filePath)) + "</h2>" +
       (file.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(file.brief) + "</p>" : "") +
       "<dl>" +
-      "<dt>パス</dt><dd>" + escapeHtml(filePath) + "</dd>" +
-      "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
-      "<dt>static</dt><dd>" + escapeHtml(file.staticCount || 0) + "</dd>" +
-      "<dt>分類</dt><dd>" + escapeHtml(file.dominantClass || "") + "</dd>" +
+      "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(file.dominantClass || "") + "\\">" + escapeHtml(file.dominantClass || "") + "</span></dd>" +
+      "<dt>level</dt><dd>" + escapeHtml(Object.keys(file.levels || {{}}).join(", ")) + "</dd>" +
       "<dt>領域</dt><dd>" + escapeHtml(file.dominantArea || "") + "</dd>" +
+      "<dt>static</dt><dd>" + escapeHtml(file.staticCount || 0) + "</dd>" +
+      "<dt>ファイル</dt><dd>" + escapeHtml(filePath) + "</dd>" +
+      "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
+      "<dt>リンク</dt><dd>" + [linkFor(file, "Doxygen", false), linkFor(file, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
     bindOverviewActions();
@@ -1595,23 +1625,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function buildOverviewElements() {{
     const elements = overviewBaseElements();
     const visibleFnIds = visibleFunctionIdsForOverview();
+    const visibleFns = Array.from(visibleFnIds)
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .sort((a, b) => {{
+        if (a.id === selectedId) return -1;
+        if (b.id === selectedId) return 1;
+        return compareBaseOrder(a, b);
+      }});
     const childrenByFile = new Map();
-    for (const id of visibleFnIds) {{
-      const fn = byId.get(id);
-      if (!fn) continue;
+    for (let index = 0; index < visibleFns.length; index++) {{
+      const fn = visibleFns[index];
       const classes = [graphClassFor(fn.dependencyClass)];
-      if (id === selectedId) classes.push("dep-center-node");
+      if (fn.id === selectedId) classes.push("dep-center-node");
       elements.push({{
         data: {{
-          id,
+          id: fn.id,
           label: fn.name,
           parent: fn.file,
-          weight: id === selectedId ? 8 : 3
+          weight: fn.id === selectedId ? 8 : 3
         }},
+        position: overviewFunctionPosition(fn, index, visibleFns.length),
         classes: classes.join(" ")
       }});
       if (!childrenByFile.has(fn.file)) childrenByFile.set(fn.file, []);
-      childrenByFile.get(fn.file).push(id);
+      childrenByFile.get(fn.file).push(fn.id);
     }}
     if (selectedId) {{
       for (const edge of edges) {{
@@ -1644,16 +1682,61 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return elements;
   }}
 
-  function runOverviewLayout() {{
+  function overviewFunctionPosition(fn, index, count) {{
+    if (!overviewCy) return {{ x: 0, y: 0 }};
+    const parent = overviewCy.getElementById(fn.file);
+    const center = parent && parent.length > 0 ? parent.position() : {{ x: 0, y: 0 }};
+    if (fn.id === selectedId) return {{ x: center.x, y: center.y }};
+    const ringIndex = selectedId ? Math.max(0, index - 1) : index;
+    const ringCount = selectedId ? Math.max(1, count - 1) : Math.max(1, count);
+    const radius = 56 + Math.min(72, ringCount * 4);
+    const angle = -Math.PI / 2 + (Math.PI * 2 * ringIndex) / ringCount;
+    return {{
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius
+    }};
+  }}
+
+  function runOverviewLayout(opts) {{
     if (!overviewCy) return;
     const animate = overviewLayoutInitialized;
+    const fit = Boolean(opts && opts.fit);
+    const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
+    const lockedNodes = movingNodeIds ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
     overviewLayoutInitialized = true;
-    overviewCy.layout({{
+    if (typeof cytoscapeCola === "function") {{
+      lockedNodes.lock();
+      const layout = overviewCy.layout({{
+        name: "cola",
+        animate,
+        refresh: 1,
+        maxSimulationTime: fit ? 2000 : 900,
+        fit,
+        padding: 30,
+        randomize: fit,
+        avoidOverlap: true,
+        handleDisconnected: true,
+        nodeSpacing: function (node) {{ return node.isParent() ? 18 : 12; }},
+        centerGraph: fit,
+        edgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 40 : 110; }},
+        convergenceThreshold: fit ? 0.01 : 0.08,
+        unconstrIter: fit ? undefined : 8,
+        userConstIter: fit ? undefined : 8,
+        allConstIter: fit ? undefined : 12
+      }});
+      layout.one("layoutstop", () => {{
+        lockedNodes.unlock();
+      }});
+      layout.run();
+      return;
+    }}
+    lockedNodes.lock();
+    const layout = overviewCy.layout({{
       name: "cose",
       animate,
       animationDuration: 600,
       animationEasing: "ease-in-out",
-      fit: true,
+      fit,
       padding: 30,
       nodeRepulsion: function (node) {{ return node.isParent() ? 12000 : 2500; }},
       idealEdgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 40 : 100; }},
@@ -1662,17 +1745,117 @@ def write_html(output_dir: Path, category_id: str) -> None:
       gravity: 120,
       numIter: 1500,
       randomize: false
-    }}).run();
+    }});
+    layout.one("layoutstop", () => {{
+      lockedNodes.unlock();
+    }});
+    layout.run();
+  }}
+
+  function overviewNodePositions() {{
+    const positions = new Map();
+    if (!overviewCy) return positions;
+    overviewCy.nodes().forEach((node) => {{
+      positions.set(node.id(), {{ x: node.position("x"), y: node.position("y") }});
+    }});
+    return positions;
+  }}
+
+  function restoreOverviewNodePositions(positions) {{
+    if (!overviewCy) return;
+    overviewCy.nodes().forEach((node) => {{
+      const position = positions.get(node.id());
+      if (position) node.position(position);
+    }});
+  }}
+
+  function isEdgeElement(element) {{
+    return element.data && element.data.source && element.data.target;
+  }}
+
+  function currentDataDiffers(element, targetData) {{
+    for (const key of Object.keys(targetData || {{}})) {{
+      if (element.data(key) !== targetData[key]) return true;
+    }}
+    return false;
+  }}
+
+  function classText(classes) {{
+    return text(classes)
+      .split(/\\s+/)
+      .filter(Boolean)
+      .sort()
+      .join(" ");
+  }}
+
+  function currentClassesDiffer(element, targetClasses) {{
+    return classText(element.classes().join(" ")) !== classText(targetClasses || "");
+  }}
+
+  function addMissingOverviewElements(targetElements, targetById, movingNodeIds) {{
+    const missing = targetElements.filter((element) => !overviewCy.getElementById(element.data.id).length);
+    const parentNodes = missing.filter((element) => !isEdgeElement(element) && !element.data.parent);
+    const childNodes = missing.filter((element) => !isEdgeElement(element) && element.data.parent);
+    const edgeElements = missing.filter(isEdgeElement);
+    const ordered = parentNodes.concat(childNodes, edgeElements);
+    if (ordered.length === 0) return false;
+    for (const element of parentNodes.concat(childNodes)) {{
+      movingNodeIds.add(element.data.id);
+    }}
+    overviewCy.add(ordered.map((element) => targetById.get(element.data.id)));
+    return true;
+  }}
+
+  function syncOverviewElements(targetElements) {{
+    if (!overviewCy) return;
+    const previousPositions = overviewNodePositions();
+    const targetById = new Map(targetElements.map((element) => [element.data.id, element]));
+    const movingNodeIds = new Set();
+    let layoutNeeded = false;
+    overviewCy.batch(() => {{
+      const stale = overviewCy.elements().filter((element) => !targetById.has(element.id()));
+      if (stale.length > 0) {{
+        if (stale.nodes().length > 0) layoutNeeded = true;
+        overviewCy.remove(stale);
+      }}
+      if (addMissingOverviewElements(targetElements, targetById, movingNodeIds)) {{
+        layoutNeeded = true;
+      }}
+      for (const target of targetElements) {{
+        const element = overviewCy.getElementById(target.data.id);
+        if (!element.length) continue;
+        if (target.data.parent && element.data("parent") !== target.data.parent) {{
+          element.move({{ parent: target.data.parent }});
+          movingNodeIds.add(target.data.id);
+          layoutNeeded = true;
+        }}
+        if (currentDataDiffers(element, target.data)) {{
+          element.data(target.data);
+        }}
+        if (currentClassesDiffer(element, target.classes)) {{
+          element.classes(target.classes || "");
+        }}
+      }}
+    }});
+    if (layoutNeeded) {{
+      restoreOverviewNodePositions(previousPositions);
+      if (movingNodeIds.size > 0) {{
+        runOverviewLayout({{ movingNodeIds }});
+      }}
+    }}
   }}
 
   function renderOverviewGraph() {{
     if (!overviewCy) return;
-    const state = selectedId + "\\u0001" + selectedFilePath;
-    if (state === overviewRenderedState) return;
-    overviewRenderedState = state;
+    syncOverviewElements(buildOverviewElements());
+  }}
+
+  function resetOverviewGraph() {{
+    if (!overviewCy) return;
+    overviewLayoutInitialized = false;
     overviewCy.elements().remove();
     overviewCy.add(buildOverviewElements());
-    runOverviewLayout();
+    runOverviewLayout({{ fit: true }});
   }}
 
   function initOverviewGraph() {{
@@ -1889,7 +2072,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewDetail.innerHTML = "<p class=\\"dep-empty\\">ファイルまたは関数を選択してください。</p>";
     renderRows({{ forceScroll: false }});
     if (activeTab === "overviewPanel") {{
-      renderOverviewGraph();
+      resetOverviewGraph();
     }}
   }}
 
@@ -1954,7 +2137,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (!href) return;
       const name = link.getAttribute("data-download-name") || href.split("/").pop();
       ev.preventDefault();
-      fetch(href)
+      fetch(href, {{ cache: "no-store" }})
         .then((res) => {{
           if (!res.ok) throw new Error("HTTP " + res.status);
           return res.blob();
