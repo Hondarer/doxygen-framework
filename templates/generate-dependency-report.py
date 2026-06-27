@@ -42,6 +42,7 @@ class FunctionInfo:
     is_static: bool
     html_url: str = ""
     source_url: str = ""
+    brief: str = ""
     callees: Set[str] = field(default_factory=set)
     callers: Set[str] = field(default_factory=set)
 
@@ -71,6 +72,12 @@ def find_text(element: ET.Element, name: str) -> str:
     if child is None or child.text is None:
         return ""
     return child.text.strip()
+
+
+def xml_inner_text(element: Optional[ET.Element]) -> str:
+    if element is None:
+        return ""
+    return "".join(element.itertext()).strip()
 
 
 def collect_file_compound_ids(xml_dir: Path) -> Dict[str, str]:
@@ -103,6 +110,34 @@ def collect_file_compound_ids(xml_dir: Path) -> Dict[str, str]:
             file_compounds[name] = compound_id
 
     return file_compounds
+
+
+def collect_file_briefs(xml_dir: Path) -> Dict[str, str]:
+    file_briefs: Dict[str, str] = {}
+    for path in xml_files(xml_dir):
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+
+        compound = root.find("compounddef")
+        if compound is None or compound.get("kind") != "file":
+            continue
+
+        brief = xml_inner_text(compound.find("briefdescription"))
+        if not brief:
+            continue
+
+        compound_name = find_text(compound, "compoundname")
+        if compound_name:
+            file_briefs.setdefault(normalize_path(compound_name), brief)
+        location = compound.find("location")
+        if location is not None:
+            file_name = normalize_path(location.get("file", ""))
+            if file_name:
+                file_briefs.setdefault(file_name, brief)
+
+    return file_briefs
 
 
 def score_function_info(info: FunctionInfo) -> Tuple[int, int, int]:
@@ -185,6 +220,7 @@ def collect_raw_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
             info.html_url = build_html_url(compound_id, func_id)
             source_compound_id = file_compound_ids.get(effective_file, "")
             info.source_url = build_source_url(source_compound_id, effective_line)
+            info.brief = xml_inner_text(member.find("briefdescription"))
             info.callees = {
                 ref.get("refid", "")
                 for ref in member.findall("references")
@@ -220,6 +256,10 @@ def canonicalize_functions(raw_functions: Dict[str, FunctionInfo]) -> Dict[str, 
 
     for candidates in grouped.values():
         canonical = max(candidates, key=canonical_priority)
+        merged_brief = canonical.brief or next(
+            (candidate.brief for candidate in candidates if candidate.brief),
+            "",
+        )
         merged = FunctionInfo(
             id=canonical.id,
             name=canonical.name,
@@ -231,6 +271,7 @@ def canonicalize_functions(raw_functions: Dict[str, FunctionInfo]) -> Dict[str, 
             is_static=any(candidate.is_static for candidate in candidates),
             html_url=canonical.html_url,
             source_url=canonical.source_url,
+            brief=merged_brief,
         )
         for candidate in candidates:
             alias_to_canonical[candidate.id] = canonical.id
@@ -331,17 +372,19 @@ def detect_cycle_groups(functions: Dict[str, FunctionInfo]) -> Tuple[Dict[str, s
 
 AREA_ORDER = {
     "same-file": 1,
-    "libsrc-file-caller": 2,
-    "src-file-caller": 3,
-    "src-to-libsrc-caller": 4,
-    "cross-area-caller": 5,
-    "reverse-boundary-caller": 6,
+    "include-callee": 2,
+    "libsrc-file-caller": 3,
+    "src-file-caller": 4,
+    "src-to-libsrc-caller": 5,
+    "cross-area-caller": 6,
+    "reverse-boundary-caller": 7,
 }
 
 DEPENDENCY_RANKS = {
     "leaf-static": 0,
     "leaf-global": 0,
     "file-local": 1,
+    "include-callee": 1,
     "libsrc-file-caller": 2,
     "src-file-caller": 3,
     "src-to-libsrc-caller": 4,
@@ -357,6 +400,8 @@ def path_area(file_path: str) -> str:
         return "libsrc"
     if "src" in parts:
         return "src"
+    if "include_internal" in parts:
+        return "include_internal"
     if "include" in parts:
         return "include"
     return "other"
@@ -368,6 +413,12 @@ def classify_call_kind(caller: FunctionInfo, callee: FunctionInfo) -> str:
 
     caller_area = path_area(caller.file)
     callee_area = path_area(callee.file)
+
+    if callee_area == "include" and caller_area in {"libsrc", "src", "include_internal"}:
+        return "include-callee"
+    if callee_area == "include_internal" and caller_area == "libsrc":
+        return "include-callee"
+
     if caller_area == "libsrc" and callee_area == "libsrc":
         return "libsrc-file-caller"
     if caller_area == "src" and callee_area == "src":
@@ -440,6 +491,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
     functions = collect_functions(xml_dir)
     cycle_map, sccs = detect_cycle_groups(functions)
     depths = compute_dependency_depths(functions, cycle_map)
+    file_briefs = collect_file_briefs(xml_dir)
 
     function_rows: List[Dict[str, object]] = []
     edges: List[Dict[str, object]] = []
@@ -486,6 +538,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
             "sccId": cycle_map.get(func_id),
             "htmlUrl": info.html_url,
             "sourceUrl": info.source_url,
+            "brief": info.brief,
         }
         function_rows.append(row)
         file_groups[info.file].append(row)
@@ -543,6 +596,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
                 "levels": dict(sorted(level_counts.items())),
                 "classes": dict(sorted(class_counts.items())),
                 "areas": dict(sorted(area_counts.items())),
+                "brief": file_briefs.get(file_path, ""),
             }
         )
 
@@ -579,6 +633,11 @@ def write_data_js(output_dir: Path, data: Dict[str, object]) -> None:
     )
 
 
+def write_data_json(output_dir: Path, data: Dict[str, object]) -> None:
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    (output_dir / "dependency-data.json").write_text(text + "\n", encoding="utf-8")
+
+
 def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
     function_fields = [
         "dependencyLevel",
@@ -600,6 +659,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "id",
         "htmlUrl",
         "sourceUrl",
+        "brief",
     ]
     with (output_dir / "dependency-functions.csv").open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=function_fields)
@@ -617,6 +677,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "levels",
         "classes",
         "areas",
+        "brief",
     ]
     with (output_dir / "dependency-files.csv").open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=file_fields)
@@ -633,6 +694,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
                     "levels": json.dumps(row["levels"], ensure_ascii=False, sort_keys=True),
                     "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
                     "areas": json.dumps(row["areas"], ensure_ascii=False, sort_keys=True),
+                    "brief": row.get("brief", ""),
                 }
             )
 
@@ -667,7 +729,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }}
     main {{
-      max-width: 1600px;
+      max-width: min(2000px, 96vw);
       margin: 0 auto;
       padding: 20px;
     }}
@@ -700,6 +762,27 @@ def write_html(output_dir: Path, category_id: str) -> None:
       grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(140px, 220px));
       gap: 8px;
       margin-bottom: 12px;
+    }}
+    .dep-downloads {{
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }}
+    .dep-download {{
+      display: inline-block;
+      padding: 4px 10px;
+      border: 1px solid var(--dep-border);
+      border-radius: 4px;
+      background: var(--dep-bg);
+      color: var(--dep-input-text);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }}
+    .dep-download:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
+      border-color: var(--dep-accent);
+      color: var(--dep-accent);
     }}
     input, select {{
       width: 100%;
@@ -821,8 +904,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     tr {{
       cursor: pointer;
     }}
-    tr:hover, tr.selected {{
-      background: color-mix(in srgb, var(--dep-accent) 12%, transparent);
+    tr:hover {{
+      background: color-mix(in srgb, var(--dep-border) 30%, transparent);
+    }}
+    tr.selected, tr.selected:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 18%, transparent);
     }}
     .dep-file {{
       max-width: 420px;
@@ -863,6 +949,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .dep-detail h2 {{
       margin: 0 0 8px;
       font-size: 1.05rem;
+    }}
+    .dep-detail .dep-brief {{
+      margin: 0 0 12px;
+      color: #333;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
     }}
     .dep-detail dl {{
       display: grid;
@@ -1010,6 +1103,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <select id="classFilter"><option value="">分類すべて</option></select>
     <select id="fileFilter"><option value="">ファイルすべて</option></select>
   </section>
+  <section class="dep-downloads" role="group" aria-label="ダウンロード">
+    <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
+    <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
+    <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
+  </section>
   <nav class="dep-tabs" aria-label="表示切り替え">
     <button type="button" class="dep-tab active" data-tab-target="listPanel">一覧</button>
     <button type="button" class="dep-tab" data-tab-target="overviewPanel">全体マップ</button>
@@ -1128,6 +1226,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let activeTab = "listPanel";
   let overviewCy = null;
   let linkageCy = null;
+  let previousSelectedRowVisible = false;
+  let pendingListScroll = false;
 
   function text(value) {{
     return value === null || value === undefined ? "" : String(value);
@@ -1535,7 +1635,34 @@ def write_html(output_dir: Path, category_id: str) -> None:
     filterNotice.classList.toggle("visible", !selectedVisible());
   }}
 
-  function renderRows() {{
+  function centerSelectedRow(selectedRow) {{
+    const wrap = selectedRow.closest(".dep-table-wrap");
+    if (!wrap || wrap.clientHeight === 0) return false;
+    const wrapRect = wrap.getBoundingClientRect();
+    const rowRect = selectedRow.getBoundingClientRect();
+    const currentRowCenter = rowRect.top + rowRect.height / 2;
+    const targetCenter = wrapRect.top + wrap.clientHeight / 2;
+    wrap.scrollTop += currentRowCenter - targetCenter;
+    return true;
+  }}
+
+  function syncSelectedRowScroll(forceScroll) {{
+    const selectedRow = rows.querySelector("tr.selected");
+    if (!selectedRow) {{
+      previousSelectedRowVisible = false;
+      return;
+    }}
+    if (forceScroll || !previousSelectedRowVisible) {{
+      if (!centerSelectedRow(selectedRow)) {{
+        pendingListScroll = true;
+        return;
+      }}
+      pendingListScroll = false;
+    }}
+    previousSelectedRowVisible = true;
+  }}
+
+  function renderRows(opts) {{
     rows.replaceChildren();
     for (const fn of sortedFunctions(functions.filter(matches))) {{
       const tr = document.createElement("tr");
@@ -1551,12 +1678,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         "<td class=\\"dep-num\\">" + escapeHtml(fn.inScopeCallerCount) + "</td>" +
         "<td class=\\"dep-num\\">" + escapeHtml(fn.crossFileCalleeCount) + "</td>";
       tr.addEventListener("click", () => {{
-        selectFunction(fn.id);
+        selectFunction(fn.id, {{ fromTableRow: true }});
       }});
       rows.appendChild(tr);
     }}
     renderNotice();
     renderSortMarks();
+    syncSelectedRowScroll(Boolean(opts && opts.forceScroll));
   }}
 
   function linkFor(fn, label, source) {{
@@ -1585,6 +1713,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function renderDetail(fn) {{
     detail.innerHTML =
       "<h2>" + escapeHtml(fn.name) + "</h2>" +
+      (fn.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(fn.brief) + "</p>" : "") +
       "<dl>" +
       "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(fn.dependencyClass) + "\\">" + escapeHtml(fn.dependencyClass) + "</span></dd>" +
       "<dt>level</dt><dd>" + escapeHtml(levelText(fn)) + "</dd>" +
@@ -1604,12 +1733,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     bindDetailActions();
   }}
 
-  function selectFunction(id) {{
+  function selectFunction(id, opts) {{
     const fn = byId.get(id);
     if (!fn) return;
     selectedId = id;
     renderDetail(fn);
-    renderRows();
+    const fromTableRow = Boolean(opts && opts.fromTableRow);
+    renderRows({{ forceScroll: !fromTableRow }});
     if (activeTab === "linkagePanel") {{
       renderLinkageGraph();
     }}
@@ -1624,8 +1754,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   fillOptions();
   renderRows();
   for (const control of [search, levelFilter, classFilter, fileFilter]) {{
-    control.addEventListener("input", renderRows);
-    control.addEventListener("change", renderRows);
+    control.addEventListener("input", () => renderRows());
+    control.addEventListener("change", () => renderRows());
   }}
   for (const button of sortButtons) {{
     button.addEventListener("click", () => {{
@@ -1648,6 +1778,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
         panel.classList.toggle("active", panel.id === activeTab);
       }}
       refreshActiveGraph();
+      if (activeTab === "listPanel" && pendingListScroll) {{
+        syncSelectedRowScroll(true);
+      }}
     }});
   }}
   overviewFit.addEventListener("click", () => {{
@@ -1677,6 +1810,33 @@ def write_html(output_dir: Path, category_id: str) -> None:
     fileFilter.value = "";
     renderRows();
   }});
+  for (const link of document.querySelectorAll(".dep-download")) {{
+    link.addEventListener("click", (ev) => {{
+      if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return;
+      const href = link.getAttribute("href");
+      if (!href) return;
+      const name = link.getAttribute("data-download-name") || href.split("/").pop();
+      ev.preventDefault();
+      fetch(href)
+        .then((res) => {{
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.blob();
+        }})
+        .then((blob) => {{
+          const url = URL.createObjectURL(new Blob([blob], {{ type: "application/octet-stream" }}));
+          const tmp = document.createElement("a");
+          tmp.href = url;
+          tmp.setAttribute("download", name);
+          document.body.appendChild(tmp);
+          tmp.click();
+          document.body.removeChild(tmp);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }})
+        .catch(() => {{
+          window.location.href = href;
+        }});
+    }});
+  }}
 }}());
 </script>
 </body>
@@ -1697,6 +1857,7 @@ def generate_report(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[s
     output_dir.mkdir(parents=True, exist_ok=True)
     data = build_report_data(xml_dir, output_dir, category_id)
     write_data_js(output_dir, data)
+    write_data_json(output_dir, data)
     write_csv(output_dir, data)
     write_html(output_dir, category_id)
     copy_graph_assets(output_dir)
