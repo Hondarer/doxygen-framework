@@ -161,9 +161,14 @@ def dedupe_key(info: FunctionInfo) -> Tuple[str, ...]:
 
 
 def build_html_url(compound_id: str, func_id: str) -> str:
-    if compound_id == "":
+    if compound_id == "" or func_id == "":
         return ""
-    return f"../{compound_id}.html#{func_id}"
+    prefix = compound_id + "_1"
+    if func_id.startswith(prefix):
+        anchor = func_id[len(prefix):]
+    else:
+        anchor = func_id
+    return f"../{compound_id}.html#{anchor}"
 
 
 def build_source_url(compound_id: str, line: Optional[int]) -> str:
@@ -300,8 +305,91 @@ def canonicalize_functions(raw_functions: Dict[str, FunctionInfo]) -> Dict[str, 
     return canonical_functions
 
 
+HEADER_EXTENSIONS = (".h", ".hpp", ".hxx", ".hh")
+SOURCE_EXTENSIONS = (".c", ".cpp", ".cxx", ".cc", ".cs")
+
+
+def is_header_path(path: str) -> bool:
+    return path.lower().endswith(HEADER_EXTENSIONS)
+
+
+def is_source_path(path: str) -> bool:
+    return path.lower().endswith(SOURCE_EXTENSIONS)
+
+
+def find_definition_locations(
+    xml_dir: Path,
+    needed_ids: Set[str],
+    canonical_alias_map: Dict[str, str],
+) -> Dict[str, Tuple[str, int]]:
+    if not needed_ids:
+        return {}
+    results: Dict[str, Tuple[str, int]] = {}
+    for path in xml_files(xml_dir):
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+        compound = root.find("compounddef")
+        if compound is None or compound.get("kind") != "file":
+            continue
+        location = compound.find("location")
+        if location is None:
+            continue
+        compound_file = normalize_path(location.get("file", ""))
+        if not compound_file or not is_source_path(compound_file):
+            continue
+        programlisting = compound.find("programlisting")
+        if programlisting is None:
+            continue
+        for codeline in programlisting.findall("codeline"):
+            lineno = parse_int(codeline.get("lineno"))
+            if lineno is None:
+                continue
+            text = "".join(codeline.itertext())
+            if ";" in text:
+                continue
+            for ref in codeline.findall(".//ref"):
+                refid = ref.get("refid", "")
+                if refid == "":
+                    continue
+                target = canonical_alias_map.get(refid, refid)
+                if target not in needed_ids:
+                    continue
+                current = results.get(target)
+                if current is None or lineno < current[1]:
+                    results[target] = (compound_file, lineno)
+    return results
+
+
+def apply_definition_locations(
+    xml_dir: Path,
+    functions: Dict[str, FunctionInfo],
+) -> None:
+    needed = {fid for fid, info in functions.items() if is_header_path(info.file)}
+    if not needed:
+        return
+    alias_map: Dict[str, str] = {}
+    for fid in functions:
+        alias_map[fid] = fid
+    definitions = find_definition_locations(xml_dir, needed, alias_map)
+    if not definitions:
+        return
+    file_compound_ids = collect_file_compound_ids(xml_dir)
+    for fid, (def_file, def_line) in definitions.items():
+        info = functions[fid]
+        info.file = def_file
+        info.line = def_line
+        info.body_file = def_file
+        info.body_line = def_line
+        source_compound_id = file_compound_ids.get(def_file, "")
+        info.source_url = build_source_url(source_compound_id, def_line)
+
+
 def collect_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
-    return canonicalize_functions(collect_raw_functions(xml_dir))
+    functions = canonicalize_functions(collect_raw_functions(xml_dir))
+    apply_definition_locations(xml_dir, functions)
+    return functions
 
 
 def tarjan_scc(nodes: Iterable[str], edges: Dict[str, Set[str]]) -> List[List[str]]:
@@ -735,6 +823,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     h1 {{
       font-size: 1.6rem;
+      margin: 0;
+    }}
+    .dep-title-row {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
       margin: 0 0 4px;
     }}
     .dep-meta {{
@@ -766,8 +861,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .dep-downloads {{
       display: flex;
       gap: 8px;
-      margin-bottom: 12px;
       flex-wrap: wrap;
+      justify-content: flex-end;
     }}
     .dep-download {{
       display: inline-block;
@@ -1079,6 +1174,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       main {{
         padding: 12px;
       }}
+      .dep-title-row {{
+        flex-direction: column;
+        align-items: stretch;
+      }}
+      .dep-downloads {{
+        justify-content: flex-start;
+      }}
       .dep-controls, .dep-layout, .dep-graph-layout {{
         grid-template-columns: 1fr;
       }}
@@ -1094,27 +1196,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
 </head>
 <body>
 <main>
-  <h1>{title}</h1>
+  <div class="dep-title-row">
+    <h1>{title}</h1>
+    <section class="dep-downloads" role="group" aria-label="ダウンロード">
+      <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
+      <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
+      <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
+    </section>
+  </div>
   <p class="dep-meta">対象: {escaped_category}</p>
   <section class="dep-summary" id="summary"></section>
-  <section class="dep-controls" aria-label="フィルター">
-    <input id="search" type="search" placeholder="関数名またはファイル名で検索">
-    <select id="levelFilter"><option value="">level すべて</option></select>
-    <select id="classFilter"><option value="">分類すべて</option></select>
-    <select id="fileFilter"><option value="">ファイルすべて</option></select>
-  </section>
-  <section class="dep-downloads" role="group" aria-label="ダウンロード">
-    <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
-    <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
-    <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
-  </section>
   <nav class="dep-tabs" aria-label="表示切り替え">
     <button type="button" class="dep-tab active" data-tab-target="listPanel">一覧</button>
     <button type="button" class="dep-tab" data-tab-target="overviewPanel">全体マップ</button>
-    <button type="button" class="dep-tab" data-tab-target="linkagePanel">リンケージ</button>
   </nav>
   <section class="dep-panel active" id="listPanel">
-  <div class="dep-layout">
+    <section class="dep-controls" aria-label="フィルター">
+      <input id="search" type="search" placeholder="関数名またはファイル名で検索">
+      <select id="levelFilter"><option value="">level すべて</option></select>
+      <select id="classFilter"><option value="">分類すべて</option></select>
+      <select id="fileFilter"><option value="">ファイルすべて</option></select>
+    </section>
+    <div class="dep-layout">
     <div class="dep-table-panel">
       <div class="dep-filter-notice" id="filterNotice">
         <span>現在のフィルターでは選択行は非表示です。</span>
@@ -1148,29 +1251,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <div class="dep-graph-toolbar">
       <button type="button" id="overviewFit">Fit</button>
       <button type="button" id="overviewRelayout">レイアウト再実行</button>
+      <button type="button" id="overviewReset">初期化</button>
     </div>
     <div class="dep-graph-layout">
       <div id="overviewGraph" class="dep-graph"></div>
       <aside class="dep-detail dep-graph-detail" id="overviewDetail">
-        <p class="dep-empty">ファイル ノードを選択してください。</p>
-      </aside>
-    </div>
-  </section>
-  <section class="dep-panel" id="linkagePanel">
-    <p class="dep-graph-note">選択中の関数を中心に、呼び出し元 2 hop と呼び出し先 2 hop を表示します。</p>
-    <div class="dep-graph-toolbar">
-      <button type="button" id="linkageFit">Fit</button>
-      <button type="button" id="linkageCenter">中心へ移動</button>
-      <button type="button" id="linkageRelayout">レイアウト再実行</button>
-      <select id="linkageLayout">
-        <option value="breadthfirst">breadthfirst</option>
-        <option value="cose">cose</option>
-      </select>
-    </div>
-    <div class="dep-graph-layout">
-      <div id="linkageGraph" class="dep-graph"></div>
-      <aside class="dep-detail dep-graph-detail" id="linkageDetail">
-        <p class="dep-empty">一覧から関数を選択してください。</p>
+        <p class="dep-empty">ファイルまたは関数を選択してください。</p>
       </aside>
     </div>
   </section>
@@ -1215,17 +1301,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const overviewDetail = document.getElementById("overviewDetail");
   const overviewFit = document.getElementById("overviewFit");
   const overviewRelayout = document.getElementById("overviewRelayout");
-  const linkageGraph = document.getElementById("linkageGraph");
-  const linkageDetail = document.getElementById("linkageDetail");
-  const linkageFit = document.getElementById("linkageFit");
-  const linkageCenter = document.getElementById("linkageCenter");
-  const linkageRelayout = document.getElementById("linkageRelayout");
-  const linkageLayout = document.getElementById("linkageLayout");
+  const overviewReset = document.getElementById("overviewReset");
   let selectedId = "";
+  let selectedFilePath = "";
   let sortState = {{ key: "level", direction: "asc" }};
   let activeTab = "listPanel";
   let overviewCy = null;
-  let linkageCy = null;
+  let overviewLayoutInitialized = false;
+  let overviewRenderedState = null;
   let previousSelectedRowVisible = false;
   let pendingListScroll = false;
 
@@ -1354,39 +1437,53 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{ selector: ".dep-local-node", style: {{ "background-color": "#e0f2fe", "border-color": "#0284c7" }} }},
       {{ selector: ".dep-caller-node", style: {{ "background-color": "#fef3c7", "border-color": "#d97706" }} }},
       {{ selector: ".dep-danger-node", style: {{ "background-color": "#fee2e2", "border-color": "#dc2626" }} }},
-      {{ selector: ".dep-center-node", style: {{ "background-color": "#ccfbf1", "border-color": "#0f766e", "border-width": 4 }} }},
+      {{ selector: ".dep-center-node", style: {{ "background-color": "#ccfbf1", "border-color": "#0f766e", "border-width": 2 }} }},
       {{ selector: ".dep-upstream-node", style: {{ "shape": "round-rectangle" }} }},
       {{ selector: ".dep-downstream-node", style: {{ "shape": "ellipse" }} }},
       {{ selector: ".dep-both-node", style: {{ "shape": "diamond" }} }},
-      {{ selector: ":selected", style: {{ "border-width": 5, "border-color": "#111827" }} }}
+      {{
+        selector: "$node > node",
+        style: {{
+          "shape": "round-rectangle",
+          "background-color": "#f1f5f9",
+          "background-opacity": 0.5,
+          "border-color": "#64748b",
+          "border-width": 1,
+          "label": "data(label)",
+          "text-valign": "top",
+          "text-halign": "center",
+          "font-size": 12,
+          "padding": 16,
+          "color": "#1f2937"
+        }}
+      }},
+      {{
+        selector: ".dep-base-edge-muted",
+        style: {{
+          "line-color": "#cbd5e1",
+          "target-arrow-color": "#cbd5e1",
+          "opacity": 0.4
+        }}
+      }},
+      {{
+        selector: ".dep-pull-edge",
+        style: {{
+          "opacity": 0,
+          "events": "no",
+          "width": 1,
+          "target-arrow-shape": "none",
+          "curve-style": "straight"
+        }}
+      }},
+      {{
+        selector: ".dep-selected-file",
+        style: {{
+          "border-width": 2,
+          "border-color": "#0f766e"
+        }}
+      }},
+      {{ selector: ":selected", style: {{ "border-width": 2, "border-color": "#111827" }} }}
     ];
-  }}
-
-  function graphLayout(name) {{
-    if (name === "cose") {{
-      return {{
-        name: "cose",
-        animate: false,
-        fit: true,
-        padding: 40,
-        nodeRepulsion: 9000,
-        idealEdgeLength: 150,
-        componentSpacing: 120
-      }};
-    }}
-    return {{
-      name: "breadthfirst",
-      directed: true,
-      fit: true,
-      padding: 40,
-      spacingFactor: 1.35,
-      avoidOverlap: true
-    }};
-  }}
-
-  function runLayout(cy, name) {{
-    if (!cy) return;
-    cy.layout(graphLayout(name || "breadthfirst")).run();
   }}
 
   function graphUnavailable(container, detailElement) {{
@@ -1402,6 +1499,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .join("");
     overviewDetail.innerHTML =
       "<h2>" + escapeHtml(shortPath(filePath)) + "</h2>" +
+      (file.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(file.brief) + "</p>" : "") +
       "<dl>" +
       "<dt>パス</dt><dd>" + escapeHtml(filePath) + "</dd>" +
       "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
@@ -1413,18 +1511,34 @@ def write_html(output_dir: Path, category_id: str) -> None:
     bindOverviewActions();
   }}
 
+  function renderOverviewFunctionDetail(fn) {{
+    overviewDetail.innerHTML =
+      "<h2>" + escapeHtml(fn.name) + "</h2>" +
+      (fn.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(fn.brief) + "</p>" : "") +
+      "<dl>" +
+      "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(fn.dependencyClass) + "\\">" + escapeHtml(fn.dependencyClass) + "</span></dd>" +
+      "<dt>level</dt><dd>" + escapeHtml(levelText(fn)) + "</dd>" +
+      "<dt>領域</dt><dd>" + escapeHtml(fn.sourceArea) + "</dd>" +
+      "<dt>呼び出し種別</dt><dd>" + escapeHtml(fn.dominantCallKind) + "</dd>" +
+      "<dt>static</dt><dd>" + (fn.isStatic ? "yes" : "no") + "</dd>" +
+      "<dt>ファイル</dt><dd>" + escapeHtml(fn.file) + "</dd>" +
+      "<dt>行</dt><dd>" + escapeHtml(fn.line) + "</dd>" +
+      "<dt>リンク</dt><dd>" + [linkFor(fn, "Doxygen", false), linkFor(fn, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "</dl>" +
+      "<div class=\\"dep-neighbors\\">" +
+      "<section><strong>呼び出し先</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
+      "<section><strong>呼び出し元</strong>" + neighborList(callers.get(fn.id), "対象範囲内の呼び出し元はありません。") + "</section>" +
+      "</div>";
+    bindOverviewActions();
+  }}
+
   function bindOverviewActions() {{
     for (const button of overviewDetail.querySelectorAll("[data-function-id]")) {{
       button.addEventListener("click", () => selectFunction(button.getAttribute("data-function-id")));
     }}
   }}
 
-  function initOverviewGraph() {{
-    if (overviewCy || !overviewGraph) return;
-    if (typeof cytoscape !== "function") {{
-      graphUnavailable(overviewGraph, overviewDetail);
-      return;
-    }}
+  function overviewBaseElements() {{
     const edgeMap = new Map();
     for (const edge of edges) {{
       if (edge.callerFile === edge.calleeFile) continue;
@@ -1444,6 +1558,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     const elements = [];
     for (const file of files) {{
+      const classes = [graphClassFor(file.dominantClass)];
+      if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
       elements.push({{
         data: {{
           id: file.path,
@@ -1451,141 +1567,143 @@ def write_html(output_dir: Path, category_id: str) -> None:
           weight: Math.max(1, Number(file.functionCount || 1)),
           path: file.path
         }},
-        classes: graphClassFor(file.dominantClass)
-      }});
-    }}
-    for (const edge of edgeMap.values()) {{
-      elements.push(edge);
-    }}
-    overviewCy = cytoscape({{
-      container: overviewGraph,
-      elements,
-      style: graphStyle(),
-      wheelSensitivity: 0.18,
-      layout: graphLayout("cose")
-    }});
-    overviewCy.on("tap", "node", (event) => renderOverviewDetail(event.target.id()));
-  }}
-
-  function collectDepth(startIds, adjacency, maxDepth) {{
-    const depths = new Map();
-    const queue = [];
-    for (const id of startIds) {{
-      depths.set(id, 0);
-      queue.push(id);
-    }}
-    while (queue.length > 0) {{
-      const id = queue.shift();
-      const depth = depths.get(id);
-      if (depth >= maxDepth) continue;
-      for (const nextId of adjacency.get(id) || []) {{
-        if (!depths.has(nextId)) {{
-          depths.set(nextId, depth + 1);
-          queue.push(nextId);
-        }}
-      }}
-    }}
-    return depths;
-  }}
-
-  function renderLinkageDetail(fn) {{
-    if (!fn) {{
-      linkageDetail.innerHTML = "<p class=\\"dep-empty\\">一覧から関数を選択してください。</p>";
-      return;
-    }}
-    linkageDetail.innerHTML =
-      "<h2>" + escapeHtml(fn.name) + "</h2>" +
-      "<dl>" +
-      "<dt>分類</dt><dd><span class=\\"badge " + escapeHtml(fn.dependencyClass) + "\\">" + escapeHtml(fn.dependencyClass) + "</span></dd>" +
-      "<dt>level</dt><dd>" + escapeHtml(levelText(fn)) + "</dd>" +
-      "<dt>ファイル</dt><dd>" + escapeHtml(fn.file) + "</dd>" +
-      "<dt>呼び出し先</dt><dd>" + escapeHtml(fn.inScopeCalleeCount) + "</dd>" +
-      "<dt>呼び出し元</dt><dd>" + escapeHtml(fn.inScopeCallerCount) + "</dd>" +
-      "</dl>";
-  }}
-
-  function linkageElements(fn) {{
-    const upstream = collectDepth([fn.id], callers, 2);
-    const downstream = collectDepth([fn.id], callees, 2);
-    const ids = new Set([...upstream.keys(), ...downstream.keys()]);
-    const elements = [];
-    for (const id of ids) {{
-      const item = byId.get(id);
-      if (!item) continue;
-      const classes = [graphClassFor(item.dependencyClass)];
-      if (id === fn.id) classes.push("dep-center-node");
-      const isUpstream = upstream.has(id) && upstream.get(id) > 0;
-      const isDownstream = downstream.has(id) && downstream.get(id) > 0;
-      if (isUpstream && isDownstream) classes.push("dep-both-node");
-      else if (isUpstream) classes.push("dep-upstream-node");
-      else if (isDownstream) classes.push("dep-downstream-node");
-      elements.push({{
-        data: {{
-          id,
-          label: item.name,
-          weight: id === fn.id ? 8 : Math.max(2, 7 - Math.min(upstream.get(id) || downstream.get(id) || 1, 2) * 2),
-          file: item.file
-        }},
         classes: classes.join(" ")
       }});
     }}
-    for (const edge of edges) {{
-      if (!ids.has(edge.caller) || !ids.has(edge.callee)) continue;
-      elements.push({{
-        data: {{
-          id: edge.caller + "->" + edge.callee,
-          source: edge.caller,
-          target: edge.callee,
-          label: "",
-          weight: 1
-        }}
-      }});
+    for (const edge of edgeMap.values()) {{
+      if (selectedId) edge.classes = "dep-base-edge-muted";
+      elements.push(edge);
     }}
     return elements;
   }}
 
-  function renderLinkageGraph() {{
-    if (!linkageGraph) return;
-    if (typeof cytoscape !== "function") {{
-      graphUnavailable(linkageGraph, linkageDetail);
-      return;
+  function visibleFunctionIdsForOverview() {{
+    if (selectedId) {{
+      const ids = new Set([selectedId]);
+      for (const c of (callers.get(selectedId) || [])) ids.add(c);
+      for (const c of (callees.get(selectedId) || [])) ids.add(c);
+      return ids;
     }}
-    const fn = byId.get(selectedId);
-    renderLinkageDetail(fn);
-    if (!fn) {{
-      if (linkageCy) linkageCy.elements().remove();
-      return;
+    if (selectedFilePath) {{
+      const ids = new Set();
+      for (const fn of (functionsByFile.get(selectedFilePath) || [])) ids.add(fn.id);
+      return ids;
     }}
-    const elements = linkageElements(fn);
-    if (!linkageCy) {{
-      linkageCy = cytoscape({{
-        container: linkageGraph,
-        elements,
-        style: graphStyle(),
-        wheelSensitivity: 0.18,
-        layout: graphLayout(linkageLayout.value)
+    return new Set();
+  }}
+
+  function buildOverviewElements() {{
+    const elements = overviewBaseElements();
+    const visibleFnIds = visibleFunctionIdsForOverview();
+    const childrenByFile = new Map();
+    for (const id of visibleFnIds) {{
+      const fn = byId.get(id);
+      if (!fn) continue;
+      const classes = [graphClassFor(fn.dependencyClass)];
+      if (id === selectedId) classes.push("dep-center-node");
+      elements.push({{
+        data: {{
+          id,
+          label: fn.name,
+          parent: fn.file,
+          weight: id === selectedId ? 8 : 3
+        }},
+        classes: classes.join(" ")
       }});
-      linkageCy.on("tap", "node", (event) => selectFunction(event.target.id()));
-    }} else {{
-      linkageCy.elements().remove();
-      linkageCy.add(elements);
-      runLayout(linkageCy, linkageLayout.value);
+      if (!childrenByFile.has(fn.file)) childrenByFile.set(fn.file, []);
+      childrenByFile.get(fn.file).push(id);
     }}
+    if (selectedId) {{
+      for (const edge of edges) {{
+        if (!visibleFnIds.has(edge.caller) || !visibleFnIds.has(edge.callee)) continue;
+        elements.push({{
+          data: {{
+            id: edge.caller + "->" + edge.callee,
+            source: edge.caller,
+            target: edge.callee,
+            weight: 1
+          }}
+        }});
+      }}
+    }} else if (selectedFilePath) {{
+      for (const [filePath, ids] of childrenByFile) {{
+        if (ids.length < 2) continue;
+        const hub = ids[0];
+        for (let i = 1; i < ids.length; i++) {{
+          elements.push({{
+            data: {{
+              id: "pull-" + filePath + "-" + ids[i],
+              source: hub,
+              target: ids[i]
+            }},
+            classes: "dep-pull-edge"
+          }});
+        }}
+      }}
+    }}
+    return elements;
+  }}
+
+  function runOverviewLayout() {{
+    if (!overviewCy) return;
+    const animate = overviewLayoutInitialized;
+    overviewLayoutInitialized = true;
+    overviewCy.layout({{
+      name: "cose",
+      animate,
+      animationDuration: 600,
+      animationEasing: "ease-in-out",
+      fit: true,
+      padding: 30,
+      nodeRepulsion: function (node) {{ return node.isParent() ? 12000 : 2500; }},
+      idealEdgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 40 : 100; }},
+      edgeElasticity: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 200 : 100; }},
+      nestingFactor: 0.4,
+      gravity: 120,
+      numIter: 1500,
+      randomize: false
+    }}).run();
+  }}
+
+  function renderOverviewGraph() {{
+    if (!overviewCy) return;
+    const state = selectedId + "\\u0001" + selectedFilePath;
+    if (state === overviewRenderedState) return;
+    overviewRenderedState = state;
+    overviewCy.elements().remove();
+    overviewCy.add(buildOverviewElements());
+    runOverviewLayout();
+  }}
+
+  function initOverviewGraph() {{
+    if (overviewCy || !overviewGraph) return;
+    if (typeof cytoscape !== "function") {{
+      graphUnavailable(overviewGraph, overviewDetail);
+      return;
+    }}
+    overviewCy = cytoscape({{
+      container: overviewGraph,
+      elements: [],
+      style: graphStyle(),
+      wheelSensitivity: 0.18
+    }});
+    overviewCy.on("tap", "node", (event) => {{
+      const id = event.target.id();
+      if (functionsByFile.has(id)) {{
+        selectFile(id);
+      }} else {{
+        selectFunction(id);
+      }}
+    }});
   }}
 
   function refreshActiveGraph() {{
     if (activeTab === "overviewPanel") {{
       initOverviewGraph();
+      renderOverviewGraph();
       if (overviewCy) {{
         overviewCy.resize();
         overviewCy.fit(undefined, 30);
-      }}
-    }}
-    if (activeTab === "linkagePanel") {{
-      renderLinkageGraph();
-      if (linkageCy) {{
-        linkageCy.resize();
-        linkageCy.fit(undefined, 30);
       }}
     }}
   }}
@@ -1711,6 +1829,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function renderDetail(fn) {{
+    if (!fn) {{
+      detail.innerHTML = "<p class=\\"dep-empty\\">関数を選択してください。</p>";
+      return;
+    }}
     detail.innerHTML =
       "<h2>" + escapeHtml(fn.name) + "</h2>" +
       (fn.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(fn.brief) + "</p>" : "") +
@@ -1736,12 +1858,38 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function selectFunction(id, opts) {{
     const fn = byId.get(id);
     if (!fn) return;
+    if (id === selectedId) return;
     selectedId = id;
+    selectedFilePath = fn.file;
     renderDetail(fn);
+    renderOverviewFunctionDetail(fn);
     const fromTableRow = Boolean(opts && opts.fromTableRow);
     renderRows({{ forceScroll: !fromTableRow }});
-    if (activeTab === "linkagePanel") {{
-      renderLinkageGraph();
+    if (activeTab === "overviewPanel") {{
+      renderOverviewGraph();
+    }}
+  }}
+
+  function selectFile(path) {{
+    if (path === selectedFilePath && selectedId === "") return;
+    selectedFilePath = path;
+    selectedId = "";
+    renderDetail(null);
+    renderOverviewDetail(path);
+    renderRows({{ forceScroll: false }});
+    if (activeTab === "overviewPanel") {{
+      renderOverviewGraph();
+    }}
+  }}
+
+  function clearSelection() {{
+    selectedId = "";
+    selectedFilePath = "";
+    renderDetail(null);
+    overviewDetail.innerHTML = "<p class=\\"dep-empty\\">ファイルまたは関数を選択してください。</p>";
+    renderRows({{ forceScroll: false }});
+    if (activeTab === "overviewPanel") {{
+      renderOverviewGraph();
     }}
   }}
 
@@ -1787,21 +1935,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (overviewCy) overviewCy.fit(undefined, 30);
   }});
   overviewRelayout.addEventListener("click", () => {{
-    runLayout(overviewCy, "cose");
+    runOverviewLayout();
   }});
-  linkageFit.addEventListener("click", () => {{
-    if (linkageCy) linkageCy.fit(undefined, 30);
-  }});
-  linkageCenter.addEventListener("click", () => {{
-    if (!linkageCy || !selectedId) return;
-    const node = linkageCy.getElementById(selectedId);
-    if (node && node.length > 0) linkageCy.center(node);
-  }});
-  linkageRelayout.addEventListener("click", () => {{
-    runLayout(linkageCy, linkageLayout.value);
-  }});
-  linkageLayout.addEventListener("change", () => {{
-    runLayout(linkageCy, linkageLayout.value);
+  overviewReset.addEventListener("click", () => {{
+    clearSelection();
   }});
   clearFilters.addEventListener("click", () => {{
     search.value = "";
