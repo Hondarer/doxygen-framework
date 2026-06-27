@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-inject-doxygen-url.py - Files/ 配下の各 md に対応 Doxygen HTML の URL を埋め込む
+inject-doxygen-url.py - Doxybook2 出力 md に対応 Doxygen HTML の URL を埋め込む
 
-Doxygen tag file の compound 情報から、Doxybook2 が生成した Files/ 配下 Markdown と
-Doxygen HTML の単一ページを対応づける。
+Doxygen tag file の compound 情報から、Doxybook2 が生成した Files/、Modules/、
+Classes/、Namespaces/ 配下 Markdown と Doxygen HTML の単一ページを対応づける。
 解決した URL は workspace ルート相対パスとして front matter キー doxygen-page-url に書き込む。
 
 使用方法:
@@ -49,11 +49,16 @@ def add_path_suffixes(mapping, path, value):
 
 
 def parse_tagfile(tagfile_path):
-    """Doxygen tag file から file/page の対応マップを構築する。"""
+    """Doxygen tag file から file/page/compound の対応マップを構築する。"""
     tree = ET.parse(tagfile_path)
     root = tree.getroot()
     file_map = {}
     page_map = {}
+    # Modules/Classes/Namespaces などは md ファイル名 = HTML ファイル名なので
+    # basename 集合だけ持てば解決できる。
+    compound_html_set = set()
+
+    compound_kinds = {"group", "class", "struct", "namespace", "union", "interface"}
 
     for compound in root.findall("compound"):
         kind = compound.get("kind")
@@ -68,8 +73,10 @@ def parse_tagfile(tagfile_path):
             add_unique(file_map, name, filename)
         elif kind == "page":
             add_unique(page_map, name, filename)
+        elif kind in compound_kinds:
+            compound_html_set.add(os.path.basename(filename))
 
-    return file_map, page_map
+    return file_map, page_map, compound_html_set
 
 
 def inject_frontmatter(md_path, key, value):
@@ -129,39 +136,69 @@ def resolve_doxygen_filename(rel_under_files, file_map, page_map):
 
 
 def inject_doxygen_urls(markdown_dir, tagfile_path, doxygen_html_root, workspace_dir):
-    """Files/ 配下の各 md に doxygen-page-url front matter を埋め込む。"""
-    files_dir = Path(markdown_dir) / "Files"
-    if not files_dir.is_dir():
-        print("Files/ が無いため doxygen-page-url 注入をスキップします: {0}".format(files_dir))
+    """Doxybook2 出力 md に doxygen-page-url front matter を埋め込む。"""
+    markdown_dir_path = Path(markdown_dir)
+    files_dir = markdown_dir_path / "Files"
+    has_files = files_dir.is_dir()
+
+    # basename = HTML ファイル名そのもの。
+    # 例: Modules/group__CALC__PUBLIC__API.md → group__CALC__PUBLIC__API.html
+    compound_dirs = ["Modules", "Classes", "Namespaces"]
+    compound_dir_paths = [(name, markdown_dir_path / name) for name in compound_dirs]
+    has_compound = any(p.is_dir() for _, p in compound_dir_paths)
+
+    if not has_files and not has_compound:
+        print("対象ディレクトリが無いため doxygen-page-url 注入をスキップします: {0}".format(markdown_dir))
         return
 
     if not os.path.isfile(tagfile_path):
         print("Doxygen tag file が無いため doxygen-page-url 注入をスキップします: {0}".format(tagfile_path))
         return
 
-    file_map, page_map = parse_tagfile(tagfile_path)
+    file_map, page_map, compound_html_set = parse_tagfile(tagfile_path)
     workspace_dir = os.path.abspath(workspace_dir)
     doxygen_html_root = os.path.abspath(doxygen_html_root)
 
     count = 0
-    for md_path in sorted(files_dir.rglob("*.md")):
-        rel_under_files = md_path.relative_to(files_dir).as_posix()
 
-        # トップレベル Files/README.md はファイル一覧の索引であり、対応ソースではない。
-        if rel_under_files == "README.md":
+    if has_files:
+        for md_path in sorted(files_dir.rglob("*.md")):
+            rel_under_files = md_path.relative_to(files_dir).as_posix()
+
+            # トップレベル Files/README.md はファイル一覧の索引であり、対応ソースではない。
+            if rel_under_files == "README.md":
+                continue
+
+            filename = resolve_doxygen_filename(rel_under_files, file_map, page_map)
+            if filename is None:
+                continue
+
+            html_path = os.path.join(doxygen_html_root, filename)
+            ws_rel = os.path.relpath(html_path, workspace_dir).replace("\\", "/")
+            inject_frontmatter(str(md_path), "doxygen-page-url", ws_rel)
+            count += 1
+            print("  doxygen-page-url: Files/{0} -> {1}".format(rel_under_files, ws_rel))
+
+    for dir_name, dir_path in compound_dir_paths:
+        if not dir_path.is_dir():
             continue
+        for md_path in sorted(dir_path.rglob("*.md")):
+            rel_under_dir = md_path.relative_to(dir_path).as_posix()
+            # 各ディレクトリの README.md は索引であり、対応 HTML を持たない。
+            if rel_under_dir == "README.md":
+                continue
 
-        filename = resolve_doxygen_filename(rel_under_files, file_map, page_map)
-        if filename is None:
-            continue
+            html_basename = md_path.stem + ".html"
+            if html_basename not in compound_html_set:
+                continue
 
-        html_path = os.path.join(doxygen_html_root, filename)
-        ws_rel = os.path.relpath(html_path, workspace_dir).replace("\\", "/")
-        inject_frontmatter(str(md_path), "doxygen-page-url", ws_rel)
-        count += 1
-        print("  doxygen-page-url: Files/{0} -> {1}".format(rel_under_files, ws_rel))
+            html_path = os.path.join(doxygen_html_root, html_basename)
+            ws_rel = os.path.relpath(html_path, workspace_dir).replace("\\", "/")
+            inject_frontmatter(str(md_path), "doxygen-page-url", ws_rel)
+            count += 1
+            print("  doxygen-page-url: {0}/{1} -> {2}".format(dir_name, rel_under_dir, ws_rel))
 
-    print("doxygen-page-url を {0} 件の Files md に注入しました。".format(count))
+    print("doxygen-page-url を {0} 件の md に注入しました。".format(count))
 
 
 def main():
