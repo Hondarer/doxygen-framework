@@ -1111,6 +1111,16 @@ mapfile -t md_files < <(find "$MARKDOWN_DIR/Files" -name "*.md" -type f 2>/dev/n
 # docsfw 側はこのヒントを使い、gitignore 対象の生成 md でも元ソースへの Git リンクを表示する。
 python3 "$SCRIPT_DIR/inject-source-origin.py" "$MARKDOWN_DIR" "$DOXYGEN_RUNDIR" "$WORKSPACE_ROOT" || exit 1
 
+# Files/ 配下の各 md に対応 Doxygen HTML の URL (doxygen-page-url) を埋め込む
+if [ -n "$CATEGORY_ID" ]; then
+    DOXYFW_TAGFILE="$WORKSPACE_ROOT/xml/$CATEGORY_ID/doxyfw.tag"
+    DOXYFW_HTML_ROOT="$WORKSPACE_ROOT/pages/doxygen/$CATEGORY_ID"
+else
+    DOXYFW_TAGFILE="$WORKSPACE_ROOT/xml/doxyfw.tag"
+    DOXYFW_HTML_ROOT="$WORKSPACE_ROOT/pages/doxygen"
+fi
+python3 "$SCRIPT_DIR/inject-doxygen-url.py" "$MARKDOWN_DIR" "$DOXYFW_TAGFILE" "$DOXYFW_HTML_ROOT" "$WORKSPACE_ROOT" || exit 1
+
 # サブディレクトリ内 Markdown の画像を分散配置
 # Doxybook2 がルート images/ に出力した画像を各 md と同階層の images/ へ移動する。
 # Pages→Files 統合後に実施することで、Pages 由来 md の参照画像も対象にできる。

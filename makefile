@@ -69,6 +69,7 @@ else
 endif
 export DOXYGEN_WORKDIR
 export DOXYGEN_RUNDIR
+export CATEGORY_ID
 
 ifneq ($(wildcard $(DOXYFILE_PART)),)
     DOXYFILE_PART_PATH := $(DOXYFILE_PART)
@@ -147,11 +148,13 @@ default: clean
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY_ID)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY_ID)|' \
+			    -e 's|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $(XML_DIR)/doxyfw.tag|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e 's|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $(XML_DIR)/doxyfw.tag|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    $$TEMP_DOXYFILE > $$TEMP_DOXYFILE_MODIFIED || exit 1; \
 		fi; \
@@ -185,6 +188,7 @@ default: clean
 		if [ -n "$(CATEGORY)" ]; then \
 			sed -e 's|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/pages/doxygen/$(CATEGORY_ID)/|' \
 			    -e 's|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $(WORKSPACE_DIR)/xml/$(CATEGORY_ID)|' \
+			    -e 's|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $(XML_DIR)/doxyfw.tag|' \
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
@@ -205,6 +209,7 @@ default: clean
 			exit $$FATAL_WARNING; \
 		else \
 			sed -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
+			    -e 's|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $(XML_DIR)/doxyfw.tag|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
 			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
@@ -278,14 +283,14 @@ markdown-generation:
 	python3 templates/inject-cs-enums.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # グループ (@defgroup) を Files ドキュメントに挿入
 	python3 templates/inject-groups.py $(XML_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
+    # ポストプロセッシング
+	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
     # 正常に変換できたら xml は不要なため削除
 	rm -rf $(XML_DIR)
 #	rm -rf $(XML_ORG_DIR)
     # rmdir コマンドは空のディレクトリのみを削除する
 	@rmdir "$(WORKSPACE_DIR)/xml" 2>/dev/null || true
 	@rmdir "$(WORKSPACE_DIR)/xml_org" 2>/dev/null || true
-    # ポストプロセッシング
-	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
 
 .PHONY: clean
 clean:
