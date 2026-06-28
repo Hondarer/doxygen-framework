@@ -1169,6 +1169,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
       gap: 8px;
       margin-bottom: 12px;
     }}
+    .dep-file-controls {{
+      grid-template-columns: minmax(220px, 1fr) repeat(5, minmax(110px, 170px)) auto;
+    }}
     .dep-downloads {{
       display: flex;
       gap: 8px;
@@ -1518,19 +1521,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       background: var(--dep-graph-bg);
     }}
     .dep-graph.layout-pending::after {{
-      content: "マップを初期化しています...";
+      content: "マップをレイアウトしています...";
       position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       color: var(--dep-muted);
       font-size: 0.95rem;
+      padding: 8px 12px;
+      border: 1px solid var(--dep-border);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--dep-bg) 82%, transparent);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
       pointer-events: none;
-      z-index: 2;
-    }}
-    .dep-graph.layout-pending canvas {{
-      opacity: 0;
+      z-index: 20;
     }}
     .dep-graph-note {{
       color: var(--dep-muted);
@@ -1686,10 +1690,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   <p class="dep-meta">対象: {escaped_category}</p>
   <section class="dep-summary" id="summary"></section>
   <nav class="dep-tabs" aria-label="表示切り替え">
-    <button type="button" class="dep-tab active" data-tab-target="listPanel">一覧</button>
+    <button type="button" class="dep-tab active" data-tab-target="functionListPanel">関数一覧</button>
+    <button type="button" class="dep-tab" data-tab-target="fileListPanel">ファイル一覧</button>
     <button type="button" class="dep-tab" data-tab-target="overviewPanel">全体マップ</button>
   </nav>
-  <section class="dep-panel active" id="listPanel">
+  <section class="dep-panel active" id="functionListPanel">
     <section class="dep-controls" aria-label="フィルター">
       <input id="search" type="search" placeholder="関数名またはファイル名で検索">
       <select id="levelFilter"><option value="">level すべて</option></select>
@@ -1704,6 +1709,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <div class="dep-table-panel">
       <div class="dep-filter-notice" id="filterNotice">
         <span>現在のフィルターでは選択行は非表示です。</span>
+        <button type="button" id="clearHiddenFunctionFilters" class="dep-filter-clear">クリア</button>
       </div>
       <div class="dep-table-wrap">
         <table>
@@ -1727,6 +1733,46 @@ def write_html(output_dir: Path, category_id: str) -> None:
     </div>
     <aside class="dep-detail" id="detail">
       <p class="dep-empty">関数を選択してください。</p>
+    </aside>
+  </div>
+  </section>
+  <section class="dep-panel" id="fileListPanel">
+    <section class="dep-controls dep-file-controls" aria-label="ファイル フィルター">
+      <input id="fileSearch" type="search" placeholder="ファイル名または分類で検索">
+      <select id="fileLevelFilter"><option value="">level すべて</option></select>
+      <select id="fileClassFilter"><option value="">分類すべて</option></select>
+      <select id="fileExportFilter"><option value="">export すべて</option><option value="yes">export yes</option><option value="no">export no</option></select>
+      <select id="fileStaticFilter"><option value="">static すべて</option><option value="yes">static yes</option><option value="no">static no</option></select>
+      <select id="fileAreaFilter"><option value="">領域すべて</option></select>
+      <button type="button" id="clearFileFilters" class="dep-filter-clear">クリア</button>
+    </section>
+    <div class="dep-layout">
+    <div class="dep-table-panel">
+      <div class="dep-filter-notice" id="fileFilterNotice">
+        <span>現在のフィルターでは選択行は非表示です。</span>
+        <button type="button" id="clearHiddenFileFilters" class="dep-filter-clear">クリア</button>
+      </div>
+      <div class="dep-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><button type="button" class="dep-sort-button" data-file-sort-key="area">領域 <span class="dep-sort-mark"></span></button></th>
+              <th><button type="button" class="dep-sort-button" data-file-sort-key="path">ファイル <span class="dep-sort-mark"></span></button></th>
+              <th class="dep-num"><button type="button" class="dep-sort-button" data-file-sort-key="functionCount">関数 <span class="dep-sort-mark"></span></button></th>
+              <th class="dep-num"><button type="button" class="dep-sort-button" data-file-sort-key="exportCount">export <span class="dep-sort-mark"></span></button></th>
+              <th class="dep-num"><button type="button" class="dep-sort-button" data-file-sort-key="staticCount">static <span class="dep-sort-mark"></span></button></th>
+              <th class="dep-num"><button type="button" class="dep-sort-button" data-file-sort-key="edgeCount">呼び出し <span class="dep-sort-mark"></span></button></th>
+              <th><button type="button" class="dep-sort-button" data-file-sort-key="level">level <span class="dep-sort-mark"></span></button></th>
+              <th><button type="button" class="dep-sort-button" data-file-sort-key="class">分類 <span class="dep-sort-mark"></span></button></th>
+              <th><button type="button" class="dep-sort-button" data-file-sort-key="areas">領域内訳 <span class="dep-sort-mark"></span></button></th>
+            </tr>
+          </thead>
+          <tbody id="fileRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <aside class="dep-detail" id="fileDetail">
+      <p class="dep-empty">ファイルを選択してください。</p>
     </aside>
   </div>
   </section>
@@ -1781,7 +1827,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   const summary = document.getElementById("summary");
   const rows = document.getElementById("functionRows");
+  const fileRows = document.getElementById("fileRows");
   const detail = document.getElementById("detail");
+  const fileDetail = document.getElementById("fileDetail");
   const search = document.getElementById("search");
   const levelFilter = document.getElementById("levelFilter");
   const classFilter = document.getElementById("classFilter");
@@ -1791,7 +1839,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const fileFilter = document.getElementById("fileFilter");
   const filterNotice = document.getElementById("filterNotice");
   const clearFilters = document.getElementById("clearFilters");
+  const clearHiddenFunctionFilters = document.getElementById("clearHiddenFunctionFilters");
+  const fileSearch = document.getElementById("fileSearch");
+  const fileLevelFilter = document.getElementById("fileLevelFilter");
+  const fileClassFilter = document.getElementById("fileClassFilter");
+  const fileExportFilter = document.getElementById("fileExportFilter");
+  const fileStaticFilter = document.getElementById("fileStaticFilter");
+  const fileAreaFilter = document.getElementById("fileAreaFilter");
+  const fileFilterNotice = document.getElementById("fileFilterNotice");
+  const clearFileFilters = document.getElementById("clearFileFilters");
+  const clearHiddenFileFilters = document.getElementById("clearHiddenFileFilters");
   const sortButtons = Array.from(document.querySelectorAll("[data-sort-key]"));
+  const fileSortButtons = Array.from(document.querySelectorAll("[data-file-sort-key]"));
   const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
   const tabPanels = Array.from(document.querySelectorAll(".dep-panel"));
   const overviewGraph = document.getElementById("overviewGraph");
@@ -1807,13 +1866,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let selectedFilePath = "";
   let selectedEdgeKey = "";
   let sortState = {{ key: "level", direction: "asc" }};
-  let activeTab = "listPanel";
+  let fileSortState = {{ key: "path", direction: "asc" }};
+  let activeTab = "functionListPanel";
   let currentTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   let overviewCy = null;
   let overviewLayoutInitialized = false;
   let overviewPositionAnimation = null;
+  let overviewLayoutRunning = false;
+  let overviewLayoutToken = 0;
+  let overviewLayoutWatchdog = null;
   let previousSelectedRowVisible = false;
-  let pendingListScroll = false;
+  let previousSelectedFileRowVisible = false;
+  let pendingFunctionListScroll = false;
+  let pendingFileListScroll = false;
 
   function text(value) {{
     return value === null || value === undefined ? "" : String(value);
@@ -1908,6 +1973,44 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return Number(fn.dependencyLevel);
   }}
 
+  function mapKeys(value) {{
+    if (!value || typeof value !== "object") return [];
+    return Object.keys(value).sort((a, b) => compareText(a, b));
+  }}
+
+  function countMapText(value) {{
+    return mapKeys(value).map((key) => key + ": " + value[key]).join(", ");
+  }}
+
+  function fileLevelText(file) {{
+    const keys = mapKeys(file.levels);
+    return keys.length === 0 ? "" : keys.join(", ");
+  }}
+
+  function fileClassText(file) {{
+    return countMapText(file.classes);
+  }}
+
+  function fileAreasText(file) {{
+    return countMapText(file.areas);
+  }}
+
+  function fileLevelSortValue(file) {{
+    let best = Number.POSITIVE_INFINITY;
+    for (const key of mapKeys(file.levels)) {{
+      const value = key === "cycle" ? Number.POSITIVE_INFINITY : Number(key);
+      if (Number.isFinite(value)) best = Math.min(best, value);
+    }}
+    return best;
+  }}
+
+  function dominantFileClass(file) {{
+    const classes = file.classes || {{}};
+    const keys = mapKeys(classes);
+    if (keys.length === 0) return "";
+    return keys.sort((a, b) => Number(classes[b] || 0) - Number(classes[a] || 0) || compareText(a, b))[0];
+  }}
+
   function compareText(a, b) {{
     return text(a).localeCompare(text(b), "ja");
   }}
@@ -1930,6 +2033,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return 0;
   }}
 
+  function compareFileByKey(a, b, key) {{
+    if (key === "area") return compareText(a.dominantArea, b.dominantArea);
+    if (key === "path") return compareText(a.path, b.path);
+    if (key === "functionCount") return compareNumbers(a.functionCount, b.functionCount);
+    if (key === "exportCount") return compareNumbers(a.exportCount, b.exportCount);
+    if (key === "staticCount") return compareNumbers(a.staticCount, b.staticCount);
+    if (key === "edgeCount") return compareNumbers(a.edgeCount, b.edgeCount);
+    if (key === "level") return fileLevelSortValue(a) - fileLevelSortValue(b);
+    if (key === "class") return compareText(dominantFileClass(a), dominantFileClass(b));
+    if (key === "areas") return compareText(fileAreasText(a), fileAreasText(b));
+    return 0;
+  }}
+
   function compareBaseOrder(a, b) {{
     return (baseOrder.get(a.id) || 0) - (baseOrder.get(b.id) || 0);
   }}
@@ -1943,6 +2059,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
 
+  function sortedFiles(items) {{
+    return items.slice().sort((a, b) => {{
+      let result = compareFileByKey(a, b, fileSortState.key);
+      if (fileSortState.direction === "desc") result = -result;
+      if (result !== 0) return result;
+      return compareText(a.path, b.path);
+    }});
+  }}
+
   function renderSortMarks() {{
     for (const button of sortButtons) {{
       const mark = button.querySelector(".dep-sort-mark");
@@ -1952,6 +2077,35 @@ def write_html(output_dir: Path, category_id: str) -> None:
       }} else {{
         mark.textContent = "";
       }}
+    }}
+  }}
+
+  function renderFileSortMarks() {{
+    for (const button of fileSortButtons) {{
+      const mark = button.querySelector(".dep-sort-mark");
+      if (!mark) continue;
+      if (button.getAttribute("data-file-sort-key") === fileSortState.key) {{
+        mark.textContent = fileSortState.direction === "asc" ? "▲" : "▼";
+      }} else {{
+        mark.textContent = "";
+      }}
+    }}
+  }}
+
+  function activateTab(tabId) {{
+    activeTab = tabId;
+    for (const item of tabButtons) {{
+      item.classList.toggle("active", item.getAttribute("data-tab-target") === activeTab);
+    }}
+    for (const panel of tabPanels) {{
+      panel.classList.toggle("active", panel.id === activeTab);
+    }}
+    refreshActiveGraph();
+    if (activeTab === "functionListPanel" && pendingFunctionListScroll) {{
+      syncSelectedRowScroll(true);
+    }}
+    if (activeTab === "fileListPanel" && pendingFileListScroll) {{
+      syncSelectedFileRowScroll(true);
     }}
   }}
 
@@ -2175,8 +2329,53 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (overviewCy) overviewCy.fit(undefined, 30);
   }}
 
+  function requestOverviewFrame(callback) {{
+    const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((fn) => window.setTimeout(() => fn(Date.now()), 16));
+    requestFrame(callback);
+  }}
+
+  function setOverviewLayoutRunning(running) {{
+    overviewLayoutRunning = running;
+    if (overviewRelayout) overviewRelayout.disabled = running;
+    if (overviewGraphMenu) {{
+      for (const button of overviewGraphMenu.querySelectorAll('[data-action="relayout"]')) {{
+        button.disabled = running;
+      }}
+    }}
+    if (overviewGraph) overviewGraph.classList.toggle("layout-pending", running);
+    if (!running && overviewLayoutWatchdog !== null) {{
+      window.clearTimeout(overviewLayoutWatchdog);
+      overviewLayoutWatchdog = null;
+    }}
+  }}
+
+  function clearOverviewLayoutPendingLabel() {{
+    if (overviewGraph) overviewGraph.classList.remove("layout-pending");
+  }}
+
   function relayoutOverviewGraph() {{
-    runOverviewLayout();
+    if (!overviewCy || overviewLayoutRunning) return;
+    const layoutToken = ++overviewLayoutToken;
+    setOverviewLayoutRunning(true);
+    requestOverviewFrame(() => {{
+      requestOverviewFrame(() => {{
+        if (!overviewCy || layoutToken !== overviewLayoutToken) {{
+          setOverviewLayoutRunning(false);
+          return;
+        }}
+        overviewLayoutWatchdog = window.setTimeout(() => {{
+          if (layoutToken === overviewLayoutToken) setOverviewLayoutRunning(false);
+        }}, 8000);
+        runOverviewLayout({{
+          manual: true,
+          layoutToken: layoutToken,
+          onBeforeAnimation: clearOverviewLayoutPendingLabel,
+          onComplete: () => {{
+            if (layoutToken === overviewLayoutToken) setOverviewLayoutRunning(false);
+          }}
+        }});
+      }});
+    }});
   }}
 
   function resetOverviewGraphState() {{
@@ -2383,6 +2582,47 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "</dl>" +
       (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
     bindOverviewActions();
+  }}
+
+  function bindFileDetailActions() {{
+    for (const button of fileDetail.querySelectorAll("[data-function-id]")) {{
+      button.addEventListener("click", () => selectFunction(button.getAttribute("data-function-id"), {{ activateFunctionList: true }}));
+    }}
+    for (const link of fileDetail.querySelectorAll("[data-file-path]")) {{
+      link.addEventListener("click", (event) => {{
+        event.preventDefault();
+        selectFile(link.getAttribute("data-file-path"));
+      }});
+    }}
+  }}
+
+  function renderFileDetail(filePath) {{
+    const file = fileByPath.get(filePath);
+    if (!file) {{
+      fileDetail.innerHTML = "<p class=\\"dep-empty\\">ファイルを選択してください。</p>";
+      return;
+    }}
+    const rows = (functionsByFile.get(filePath) || []).slice().sort((a, b) => compareBaseOrder(a, b));
+    const items = rows
+      .map((fn) => "<li><button type=\\"button\\" class=\\"dep-neighbor-button\\" data-function-id=\\"" + escapeHtml(fn.id) + "\\">" + escapeHtml(fn.name) + "</button> <small>" + escapeHtml(fn.dependencyClass) + "</small></li>")
+      .join("");
+    fileDetail.innerHTML =
+      "<h2>" + escapeHtml(shortPath(filePath)) + "</h2>" +
+      (file.brief ? "<p class=\\"dep-brief\\">" + escapeHtml(file.brief) + "</p>" : "") +
+      "<dl>" +
+      "<dt>領域</dt><dd>" + areaBadge(file.dominantArea || "") + "</dd>" +
+      "<dt>ファイル</dt><dd>" + escapeHtml(filePath) + "</dd>" +
+      "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
+      "<dt>export</dt><dd>" + escapeHtml(file.exportCount || 0) + "</dd>" +
+      "<dt>static</dt><dd>" + escapeHtml(file.staticCount || 0) + "</dd>" +
+      "<dt>呼び出し</dt><dd>" + escapeHtml(file.edgeCount || 0) + "</dd>" +
+      "<dt>level</dt><dd>" + escapeHtml(fileLevelText(file)) + "</dd>" +
+      "<dt>分類</dt><dd>" + escapeHtml(fileClassText(file)) + "</dd>" +
+      "<dt>領域内訳</dt><dd>" + escapeHtml(fileAreasText(file)) + "</dd>" +
+      "<dt>リンク</dt><dd>" + [linkFor(file, "Doxygen", false), linkFor(file, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "</dl>" +
+      (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
+    bindFileDetailActions();
   }}
 
   function renderOverviewFunctionDetail(fn) {{
@@ -2657,17 +2897,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function runOverviewLayout(opts) {{
     if (!overviewCy) return;
     const fit = Boolean(opts && opts.fit);
+    const manual = Boolean(opts && opts.manual);
     const fullConvergence = Boolean(opts && opts.fullConvergence);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
     const anchorCenters = opts && opts.anchorCenters ? opts.anchorCenters : new Map();
     const immediate = Boolean(opts && opts.immediate) || !overviewLayoutInitialized;
     const layoutPasses = Math.max(1, Number((opts && opts.layoutPasses) || 1));
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
+    const onBeforeAnimation = opts && typeof opts.onBeforeAnimation === "function" ? opts.onBeforeAnimation : null;
+    const layoutToken = opts && opts.layoutToken ? opts.layoutToken : ++overviewLayoutToken;
     const startPositions = overviewNodePositions();
     const lockedNodes = movingNodeIds ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
     overviewLayoutInitialized = true;
     stopOverviewPositionAnimation();
     const finishLayout = () => {{
+      if (layoutToken !== overviewLayoutToken) {{
+        lockedNodes.unlock();
+        return;
+      }}
       if (immediate && layoutPasses > 1) {{
         lockedNodes.unlock();
         const nextOpts = Object.assign({{}}, opts || {{}});
@@ -2687,6 +2934,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         if (onComplete) onComplete();
         return;
       }}
+      if (onBeforeAnimation) onBeforeAnimation();
       animateOverviewPositions(startPositions, targetPositions, {{ fit, onComplete }});
     }};
     if (typeof cytoscapeCola === "function") {{
@@ -2695,7 +2943,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         name: "cola",
         animate: false,
         refresh: 1,
-        maxSimulationTime: fullConvergence ? 2000 : 900,
+        maxSimulationTime: manual ? 450 : (fullConvergence ? 2000 : 900),
         fit: false,
         padding: 30,
         randomize: false,
@@ -2704,10 +2952,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
         nodeSpacing: function (node) {{ return node.isParent() ? 22 : 14; }},
         centerGraph: fullConvergence,
         edgeLength: function (edge) {{ return overviewFileEdgeLength(edge, 140, 128); }},
-        convergenceThreshold: fullConvergence ? 0.01 : 0.08,
-        unconstrIter: fullConvergence ? undefined : 8,
-        userConstIter: fullConvergence ? undefined : 8,
-        allConstIter: fullConvergence ? undefined : 12
+        convergenceThreshold: manual ? 0.12 : (fullConvergence ? 0.01 : 0.08),
+        unconstrIter: fullConvergence ? undefined : (manual ? 4 : 8),
+        userConstIter: fullConvergence ? undefined : (manual ? 4 : 8),
+        allConstIter: fullConvergence ? undefined : (manual ? 6 : 12)
       }});
       layout.one("layoutstop", () => {{
         finishLayout();
@@ -2726,7 +2974,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       edgeElasticity: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 200 : 100; }},
       nestingFactor: 0.4,
       gravity: 120,
-      numIter: 1500,
+      numIter: manual ? 500 : 1500,
       randomize: false
     }});
     layout.one("layoutstop", () => {{
@@ -3146,18 +3394,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
       option.value = level;
       option.textContent = "level " + level;
       levelFilter.appendChild(option);
+      fileLevelFilter.appendChild(option.cloneNode(true));
     }}
     for (const klass of Array.from(new Set(functions.map((fn) => fn.dependencyClass))).sort()) {{
       const option = document.createElement("option");
       option.value = klass;
       option.textContent = klass;
       classFilter.appendChild(option);
+      fileClassFilter.appendChild(option.cloneNode(true));
     }}
     for (const area of Array.from(new Set(functions.map((fn) => fn.sourceArea))).sort()) {{
       const option = document.createElement("option");
       option.value = area;
       option.textContent = area;
       areaFilter.appendChild(option);
+      fileAreaFilter.appendChild(option.cloneNode(true));
     }}
     for (const file of Array.from(new Set(functions.map((fn) => fn.file))).sort()) {{
       const option = document.createElement("option");
@@ -3179,14 +3430,43 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return true;
   }}
 
+  function matchesFile(file) {{
+    const query = fileSearch.value.trim().toLowerCase();
+    const searchable = [
+      file.path,
+      file.brief,
+      file.dominantArea,
+      fileLevelText(file),
+      fileClassText(file),
+      fileAreasText(file)
+    ].join(" ").toLowerCase();
+    if (query && !searchable.includes(query)) return false;
+    if (fileLevelFilter.value && !mapKeys(file.levels).includes(fileLevelFilter.value)) return false;
+    if (fileClassFilter.value && !mapKeys(file.classes).includes(fileClassFilter.value)) return false;
+    if (fileExportFilter.value && (Number(file.exportCount || 0) > 0 ? "yes" : "no") !== fileExportFilter.value) return false;
+    if (fileStaticFilter.value && (Number(file.staticCount || 0) > 0 ? "yes" : "no") !== fileStaticFilter.value) return false;
+    if (fileAreaFilter.value && !mapKeys(file.areas).includes(fileAreaFilter.value)) return false;
+    return true;
+  }}
+
   function selectedVisible() {{
     if (!selectedId) return true;
     const fn = byId.get(selectedId);
     return !fn || matches(fn);
   }}
 
+  function selectedFileVisible() {{
+    if (!selectedFilePath) return true;
+    const file = fileByPath.get(selectedFilePath);
+    return !file || matchesFile(file);
+  }}
+
   function renderNotice() {{
     filterNotice.classList.toggle("visible", !selectedVisible());
+  }}
+
+  function renderFileNotice() {{
+    fileFilterNotice.classList.toggle("visible", !selectedFileVisible());
   }}
 
   function centerSelectedRow(selectedRow) {{
@@ -3208,12 +3488,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     if (forceScroll || !previousSelectedRowVisible) {{
       if (!centerSelectedRow(selectedRow)) {{
-        pendingListScroll = true;
+        pendingFunctionListScroll = true;
         return;
       }}
-      pendingListScroll = false;
+      pendingFunctionListScroll = false;
     }}
     previousSelectedRowVisible = true;
+  }}
+
+  function syncSelectedFileRowScroll(forceScroll) {{
+    const selectedRow = fileRows.querySelector("tr.selected");
+    if (!selectedRow) {{
+      previousSelectedFileRowVisible = false;
+      return;
+    }}
+    if (forceScroll || !previousSelectedFileRowVisible) {{
+      if (!centerSelectedRow(selectedRow)) {{
+        pendingFileListScroll = true;
+        return;
+      }}
+      pendingFileListScroll = false;
+    }}
+    previousSelectedFileRowVisible = true;
   }}
 
   function renderRows(opts) {{
@@ -3242,6 +3538,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
     syncSelectedRowScroll(Boolean(opts && opts.forceScroll));
   }}
 
+  function renderFileRows(opts) {{
+    fileRows.replaceChildren();
+    for (const file of sortedFiles(files.filter(matchesFile))) {{
+      const tr = document.createElement("tr");
+      if (file.path === selectedFilePath) tr.className = "selected";
+      tr.innerHTML =
+        "<td>" + areaBadge(file.dominantArea || "") + "</td>" +
+        "<td class=\\"dep-file\\" title=\\"" + escapeHtml(file.path) + "\\">" + escapeHtml(file.path) + "</td>" +
+        "<td class=\\"dep-num\\">" + escapeHtml(file.functionCount || 0) + "</td>" +
+        "<td class=\\"dep-num\\">" + escapeHtml(file.exportCount || 0) + "</td>" +
+        "<td class=\\"dep-num\\">" + escapeHtml(file.staticCount || 0) + "</td>" +
+        "<td class=\\"dep-num\\">" + escapeHtml(file.edgeCount || 0) + "</td>" +
+        "<td>" + escapeHtml(fileLevelText(file)) + "</td>" +
+        "<td>" + escapeHtml(fileClassText(file)) + "</td>" +
+        "<td>" + escapeHtml(fileAreasText(file)) + "</td>";
+      tr.addEventListener("click", () => {{
+        selectFile(file.path, {{ fromFileRow: true }});
+      }});
+      fileRows.appendChild(tr);
+    }}
+    renderFileNotice();
+    renderFileSortMarks();
+    syncSelectedFileRowScroll(Boolean(opts && opts.forceScroll));
+  }}
+
   function linkFor(fn, label, source) {{
     const url = source ? fn.sourceUrl : fn.htmlUrl;
     if (!url) return "";
@@ -3266,7 +3587,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const link of detail.querySelectorAll("[data-file-path]")) {{
       link.addEventListener("click", (event) => {{
         event.preventDefault();
-        selectFile(link.getAttribute("data-file-path"));
+        selectFile(link.getAttribute("data-file-path"), {{ activateFileList: true }});
       }});
     }}
   }}
@@ -3302,27 +3623,52 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function selectFunction(id, opts) {{
     const fn = byId.get(id);
     if (!fn) return;
-    if (id === selectedId && !selectedEdgeKey) return;
+    if (id === selectedId && !selectedEdgeKey) {{
+      if (opts && opts.activateFunctionList) {{
+        pendingFunctionListScroll = true;
+        activateTab("functionListPanel");
+      }}
+      return;
+    }}
+    const fromTableRow = Boolean(opts && opts.fromTableRow);
+    if (fromTableRow) previousSelectedRowVisible = true;
     selectedId = id;
     selectedFilePath = fn.file;
     selectedEdgeKey = "";
     renderDetail(fn);
+    renderFileDetail(fn.file);
     renderOverviewFunctionDetail(fn);
-    const fromTableRow = Boolean(opts && opts.fromTableRow);
     renderRows({{ forceScroll: !fromTableRow }});
+    renderFileRows({{ forceScroll: true }});
+    if (opts && opts.activateFunctionList) {{
+      activateTab("functionListPanel");
+    }}
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
   }}
 
-  function selectFile(path) {{
-    if (path === selectedFilePath && selectedId === "" && selectedEdgeKey === "") return;
+  function selectFile(path, opts) {{
+    if (path === selectedFilePath && selectedId === "" && selectedEdgeKey === "") {{
+      if (opts && opts.activateFileList) {{
+        pendingFileListScroll = true;
+        activateTab("fileListPanel");
+      }}
+      return;
+    }}
+    const fromFileRow = Boolean(opts && opts.fromFileRow);
+    if (fromFileRow) previousSelectedFileRowVisible = true;
     selectedFilePath = path;
     selectedId = "";
     selectedEdgeKey = "";
     renderDetail(null);
+    renderFileDetail(path);
     renderOverviewDetail(path);
     renderRows({{ forceScroll: false }});
+    renderFileRows({{ forceScroll: !fromFileRow }});
+    if (opts && opts.activateFileList) {{
+      activateTab("fileListPanel");
+    }}
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
@@ -3334,8 +3680,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedFilePath = "";
     selectedEdgeKey = edgeKey;
     renderDetail(null);
+    renderFileDetail("");
     renderOverviewEdgeDetail(edgeKey);
     renderRows({{ forceScroll: false }});
+    renderFileRows({{ forceScroll: false }});
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
@@ -3346,8 +3694,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedFilePath = "";
     selectedEdgeKey = "";
     renderDetail(null);
+    renderFileDetail("");
     overviewDetail.innerHTML = "<p class=\\"dep-empty\\">ファイルまたは関数を選択してください。</p>";
     renderRows({{ forceScroll: false }});
+    renderFileRows({{ forceScroll: false }});
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
@@ -3358,8 +3708,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedFilePath = "";
     selectedEdgeKey = "";
     renderDetail(null);
+    renderFileDetail("");
     overviewDetail.innerHTML = "<p class=\\"dep-empty\\">ファイルまたは関数を選択してください。</p>";
     renderRows({{ forceScroll: false }});
+    renderFileRows({{ forceScroll: false }});
     if (activeTab === "overviewPanel") {{
       resetOverviewGraph();
     }}
@@ -3374,9 +3726,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
   addMetric("循環グループ", data.summary.cycleGroupCount || 0);
   fillOptions();
   renderRows();
+  renderFileRows();
   for (const control of [search, levelFilter, classFilter, exportFilter, staticFilter, areaFilter, fileFilter]) {{
     control.addEventListener("input", () => renderRows());
     control.addEventListener("change", () => renderRows());
+  }}
+  for (const control of [fileSearch, fileLevelFilter, fileClassFilter, fileExportFilter, fileStaticFilter, fileAreaFilter]) {{
+    control.addEventListener("input", () => renderFileRows());
+    control.addEventListener("change", () => renderFileRows());
   }}
   for (const button of sortButtons) {{
     button.addEventListener("click", () => {{
@@ -3389,19 +3746,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderRows();
     }});
   }}
+  for (const button of fileSortButtons) {{
+    button.addEventListener("click", () => {{
+      const key = button.getAttribute("data-file-sort-key");
+      if (fileSortState.key === key) {{
+        fileSortState = {{ key, direction: fileSortState.direction === "asc" ? "desc" : "asc" }};
+      }} else {{
+        fileSortState = {{ key, direction: "asc" }};
+      }}
+      renderFileRows();
+    }});
+  }}
   for (const button of tabButtons) {{
     button.addEventListener("click", () => {{
-      activeTab = button.getAttribute("data-tab-target");
-      for (const item of tabButtons) {{
-        item.classList.toggle("active", item === button);
-      }}
-      for (const panel of tabPanels) {{
-        panel.classList.toggle("active", panel.id === activeTab);
-      }}
-      refreshActiveGraph();
-      if (activeTab === "listPanel" && pendingListScroll) {{
-        syncSelectedRowScroll(true);
-      }}
+      activateTab(button.getAttribute("data-tab-target"));
     }});
   }}
   overviewFit.addEventListener("click", () => {{
@@ -3440,7 +3798,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     window.addEventListener("resize", hideOverviewGraphMenu);
     window.addEventListener("scroll", hideOverviewGraphMenu, true);
   }}
-  clearFilters.addEventListener("click", () => {{
+  function clearFunctionFilters() {{
     search.value = "";
     levelFilter.value = "";
     classFilter.value = "";
@@ -3449,7 +3807,22 @@ def write_html(output_dir: Path, category_id: str) -> None:
     areaFilter.value = "";
     fileFilter.value = "";
     renderRows();
-  }});
+  }}
+
+  function clearFileListFilters() {{
+    fileSearch.value = "";
+    fileLevelFilter.value = "";
+    fileClassFilter.value = "";
+    fileExportFilter.value = "";
+    fileStaticFilter.value = "";
+    fileAreaFilter.value = "";
+    renderFileRows();
+  }}
+
+  clearFilters.addEventListener("click", clearFunctionFilters);
+  clearHiddenFunctionFilters.addEventListener("click", clearFunctionFilters);
+  clearFileFilters.addEventListener("click", clearFileListFilters);
+  clearHiddenFileFilters.addEventListener("click", clearFileListFilters);
   for (const link of document.querySelectorAll(".dep-download")) {{
     link.addEventListener("click", (ev) => {{
       if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return;
