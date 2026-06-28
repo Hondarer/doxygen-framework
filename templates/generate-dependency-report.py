@@ -1344,7 +1344,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .badge {{
       display: inline-block;
       border-radius: 999px;
-      padding: 1px 6px;
+      padding: 2px 6px;
       border: 1px solid var(--dep-border);
       background: var(--dep-bg);
       color: var(--dep-badge-text);

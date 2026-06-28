@@ -263,6 +263,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('role="separator"', index_html)
             self.assertIn("function buildOverviewSvg(scope)", index_html)
             self.assertIn("function downloadOverviewSvg(scope)", index_html)
+            self.assertIn("padding: 2px 6px;", index_html)
             self.assertIn('"text-margin-y": -2', index_html)
             self.assertIn("Math.max(14, fontSize - 2)", index_html)
             self.assertIn("function fitOverviewGraph()", index_html)
