@@ -190,7 +190,7 @@ markdown-generation:
     # グループ (@defgroup) を Files ドキュメントに挿入
 	python3 templates/inject-groups.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # ポストプロセッシング
-	templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
+	DOXYFW_TAGFILE=$(DOXYFW_XML_WORK_DIR)/doxyfw.tag templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
     # 正常に変換できたら xml は不要なため削除
 	rm -rf $(DOXYFW_XML_WORK_DIR)
 

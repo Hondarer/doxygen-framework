@@ -1112,11 +1112,10 @@ mapfile -t md_files < <(find "$MARKDOWN_DIR/Files" -name "*.md" -type f 2>/dev/n
 python3 "$SCRIPT_DIR/inject-source-origin.py" "$MARKDOWN_DIR" "$DOXYGEN_RUNDIR" "$WORKSPACE_ROOT" || exit 1
 
 # Files/ 配下の各 md に対応 Doxygen HTML の URL (doxygen-page-url) を埋め込む
+DOXYFW_TAGFILE="${DOXYFW_TAGFILE:-}"
 if [ -n "$CATEGORY_ID" ]; then
-    DOXYFW_TAGFILE="$WORKSPACE_ROOT/xml/$CATEGORY_ID/doxyfw.tag"
     DOXYFW_HTML_ROOT="$WORKSPACE_ROOT/pages/doxygen/$CATEGORY_ID"
 else
-    DOXYFW_TAGFILE="$WORKSPACE_ROOT/xml/doxyfw.tag"
     DOXYFW_HTML_ROOT="$WORKSPACE_ROOT/pages/doxygen"
 fi
 python3 "$SCRIPT_DIR/inject-doxygen-url.py" "$MARKDOWN_DIR" "$DOXYFW_TAGFILE" "$DOXYFW_HTML_ROOT" "$WORKSPACE_ROOT" || exit 1

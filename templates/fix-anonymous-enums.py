@@ -19,7 +19,7 @@ Doxybook2 のクラッシュを防ぐ。
 使用方法:
     python3 fix-anonymous-enums.py <xml_directory>
 例:
-    python3 fix-anonymous-enums.py ../../xml/com_internal
+    python3 fix-anonymous-enums.py /tmp/doxyfw-tmp/com_internal/run.XXXXXX/xml
 """
 
 import sys

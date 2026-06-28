@@ -132,7 +132,7 @@ main-project/
 +-- app/
 |   +-- calc/
 |   |   +-- prod/
-|   |       +-- Doxyfile.part          # 従来通り (任意)
+|   |       +-- Doxyfile.part          # 任意
 |   |       +-- Doxyfile.part.public   # 公開 API (任意)
 |   |       +-- Doxyfile.part.internal # 内部仕様 (任意)
 |   +-- api/
@@ -222,7 +222,6 @@ XML 中間ファイルは `/tmp/doxyfw-tmp/{CATEGORY_ID}/run.XXXXXX/xml/` に作
 `CATEGORY` 未指定時の `{CATEGORY_ID}` は `root` です。
 Doxygen 実行ごとに `mktemp` で実行単位のディレクトリを作成するため、異なる app の `make doxy` が同時に実行されても XML 中間ファイルは共有されません。
 
-`xml/` と `xml_org/` は使用しません。
 前処理前の XML を保存したい場合は、該当 run ディレクトリを削除する前に個別に退避してください。
 
 #### クリーンアップ時
