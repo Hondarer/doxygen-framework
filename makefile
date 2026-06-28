@@ -161,11 +161,9 @@ default: clean
 		fi; \
 		rm -f $$TEMP_DOXYFILE; \
 		TEMP_DOXYFILE=$$TEMP_DOXYFILE_MODIFIED; \
-		( cd "$(DOXYGEN_RUNDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
-		DOXYGEN_PID=$$!; \
-		tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
-		wait $$DOXYGEN_PID; \
+		( cd "$(DOXYGEN_RUNDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ); \
 		DOXYGEN_EXIT=$$?; \
+		"$(DOXY_WARNING_COLORIZE)" < "$$WARN_LOGFILE" || true; \
 		if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 			"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
 		fi; \
@@ -193,11 +191,9 @@ default: clean
 			    -e 's|^\(INPUT_FILTER[[:space:]]*=\).*|\1 "python3 $(INPUT_FILTER_ABS)"|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
-			DOXYGEN_PID=$$!; \
-			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
-			wait $$DOXYGEN_PID; \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ); \
 			DOXYGEN_EXIT=$$?; \
+			"$(DOXY_WARNING_COLORIZE)" < "$$WARN_LOGFILE" || true; \
 			if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 				"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
 			fi; \
@@ -213,11 +209,9 @@ default: clean
 			    -e 's|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $(XML_DIR)/doxyfw.tag|' \
 			    -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $$WARN_LOGFILE_DOXY|" \
 			    "$(MAKEFILE_DIR)/Doxyfile" > $$TEMP_DOXYFILE || exit 1; \
-			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ) & \
-			DOXYGEN_PID=$$!; \
-			tail --pid=$$DOXYGEN_PID -n +1 -f "$$WARN_LOGFILE" 2>/dev/null | "$(DOXY_WARNING_COLORIZE)" || true; \
-			wait $$DOXYGEN_PID; \
+			( cd "$(DOXYGEN_WORKDIR)" && doxygen $$TEMP_DOXYFILE > >("$(MAKEFILE_DIR)/bin/doxygen-colorize-output.sh") ); \
 			DOXYGEN_EXIT=$$?; \
+			"$(DOXY_WARNING_COLORIZE)" < "$$WARN_LOGFILE" || true; \
 			if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 				"$(EXTRACT_DOXY_WARNINGS)" "$$WARN_LOGFILE" "$(DOXY_WARN_OUTPUT)"; \
 			fi; \
