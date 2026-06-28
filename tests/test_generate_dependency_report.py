@@ -227,8 +227,21 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('id="overviewGraphMenu"', index_html)
             self.assertIn('data-svg-scope="viewport"', index_html)
             self.assertIn('data-svg-scope="full"', index_html)
+            self.assertIn('data-action="fit"', index_html)
+            self.assertIn('data-action="relayout"', index_html)
+            self.assertIn('data-action="reset"', index_html)
+            self.assertIn('role="separator"', index_html)
             self.assertIn("function buildOverviewSvg(scope)", index_html)
             self.assertIn("function downloadOverviewSvg(scope)", index_html)
+            self.assertIn("function fitOverviewGraph()", index_html)
+            self.assertIn("function handleOverviewGraphMenuAction(action)", index_html)
+            self.assertIn("function overviewFileEdgeLength(edge, maxLength, minLength)", index_html)
+            self.assertIn('edgeLength: function (edge) { return overviewFileEdgeLength(edge, 140, 128); }', index_html)
+            self.assertIn('idealEdgeLength: function (edge) { return overviewFileEdgeLength(edge, 128, 116); }', index_html)
+            self.assertIn("function overviewSelectionState(edgeMap)", index_html)
+            self.assertIn("dep-file-node-muted", index_html)
+            self.assertIn("scrollbar-color:", index_html)
+            self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
             self.assertIn('id="themeToggle"', index_html)
             self.assertIn("function applyTheme(theme, persist)", index_html)
 
@@ -407,6 +420,76 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["tool_api"]["line"], 30)
             self.assertIn("Warning: include function definition fallback to src", stderr.getvalue())
             self.assertIn("tool_api", stderr.getvalue())
+
+    def test_src_header_definition_src_fallback_does_not_warn(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "svc_8h.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="svc_8h" kind="file">
+    <compoundname>svc.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="svc_api" static="no">
+        <name>svc_api</name>
+        <location file="src/svc.h" line="10" bodyfile="src/svc.h" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "svc.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="svc_8c" kind="file">
+    <compoundname>svc.c</compoundname>
+    <location file="src/svc.c"/>
+    <programlisting>
+      <codeline lineno="30"><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/></highlight><ref refid="svc_api">svc_api</ref><highlight class="normal">(void)</highlight></codeline>
+    </programlisting>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "tool.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="tool_8c" kind="file">
+    <compoundname>tool.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="tool_user" static="no">
+        <name>tool_user</name>
+        <references refid="svc_api" compoundref="svc_8h">svc_api</references>
+        <location file="src/tool.c" line="20" bodyfile="src/tool.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+            edges = {(row["caller"], row["callee"]): row for row in data["edges"]}
+
+            self.assertEqual(by_id["svc_api"]["file"], "src/svc.c")
+            self.assertEqual(by_id["svc_api"]["line"], 30)
+            self.assertEqual(by_id["tool_user"]["dependencyClass"], "src-file-caller")
+            self.assertEqual(by_id["tool_user"]["dominantCallKind"], "src-file-caller")
+            self.assertEqual(edges[("tool_user", "svc_api")]["calleeFile"], "src/svc.c")
+            self.assertNotIn("include function definition fallback to src", stderr.getvalue())
 
     def test_reverse_boundary_call_warns_and_uses_cross_area(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:

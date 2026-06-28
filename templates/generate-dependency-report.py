@@ -476,6 +476,8 @@ def find_definition_locations(
 def warn_include_definition_src_fallback(info: FunctionInfo, location: DefinitionLocation) -> None:
     if path_area(location.file) != "src":
         return
+    if path_area(info.file) not in {"include", "include_internal"}:
+        return
     print(
         "Warning: include function definition fallback to src: {} ({}:{})".format(
             info.name,
@@ -1097,6 +1099,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--dep-page-bg);
       color: var(--dep-text);
+      scrollbar-color: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border)) var(--dep-input-bg);
+      scrollbar-width: auto;
+    }}
+    body::-webkit-scrollbar,
+    .dep-table-wrap::-webkit-scrollbar,
+    .dep-detail::-webkit-scrollbar {{
+      width: 14px;
+      height: 14px;
+    }}
+    body::-webkit-scrollbar-track,
+    .dep-table-wrap::-webkit-scrollbar-track,
+    .dep-detail::-webkit-scrollbar-track {{
+      background: var(--dep-input-bg);
+    }}
+    body::-webkit-scrollbar-thumb,
+    .dep-table-wrap::-webkit-scrollbar-thumb,
+    .dep-detail::-webkit-scrollbar-thumb {{
+      border: 2px solid var(--dep-input-bg);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border));
+    }}
+    body::-webkit-scrollbar-thumb:hover,
+    .dep-table-wrap::-webkit-scrollbar-thumb:hover,
+    .dep-detail::-webkit-scrollbar-thumb:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 75%, var(--dep-input-border));
     }}
     main {{
       max-width: min(2000px, 96vw);
@@ -1246,6 +1273,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border: 1px solid var(--dep-border);
       border-radius: 6px;
       max-height: calc(100vh - 310px);
+      scrollbar-color: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border)) var(--dep-input-bg);
+      scrollbar-width: auto;
     }}
     table {{
       width: 100%;
@@ -1546,6 +1575,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
       background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-input-bg));
       color: var(--dep-accent);
     }}
+    .dep-graph-context-menu-separator {{
+      height: 0;
+      margin: 4px 4px;
+      border-top: 1px solid var(--dep-border);
+    }}
     @media (min-width: 981px) {{
       html, body {{
         height: 100%;
@@ -1594,6 +1628,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .dep-detail {{
         max-height: 100%;
         overflow: auto;
+        scrollbar-color: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border)) var(--dep-input-bg);
+        scrollbar-width: auto;
       }}
       .dep-table-wrap {{
         flex: 1 1 auto;
@@ -1703,9 +1739,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" id="overviewReset">初期化</button>
         </div>
         <div id="overviewGraph" class="dep-graph"></div>
-        <div id="overviewGraphMenu" class="dep-graph-context-menu" role="menu" aria-label="マップ ダウンロード">
+        <div id="overviewGraphMenu" class="dep-graph-context-menu" role="menu" aria-label="マップ操作">
           <button type="button" role="menuitem" data-svg-scope="full">マップ全体を SVG で保存</button>
           <button type="button" role="menuitem" data-svg-scope="viewport">表示範囲を SVG で保存</button>
+          <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true"></div>
+          <button type="button" role="menuitem" data-action="fit">Fit</button>
+          <button type="button" role="menuitem" data-action="relayout">レイアウト再実行</button>
+          <button type="button" role="menuitem" data-action="reset">初期化</button>
         </div>
       </div>
       <aside class="dep-detail dep-graph-detail" id="overviewDetail">
@@ -2045,6 +2085,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{ selector: ".dep-file-library-node", style: {{ "background-color": colors.libraryBackground, "border-color": colors.libraryBorder }} }},
       {{ selector: ".dep-file-source-node", style: {{ "background-color": colors.sourceBackground, "border-color": colors.sourceBorder }} }},
       {{
+        selector: ".dep-file-node-muted",
+        style: {{
+          "opacity": 0.45
+        }}
+      }},
+      {{
         selector: ".dep-base-edge-muted",
         style: {{
           "line-color": colors.mutedEdge,
@@ -2123,6 +2169,34 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const top = Math.min(Math.max(margin, clientY), Math.max(margin, window.innerHeight - rect.height - margin));
     overviewGraphMenu.style.left = left + "px";
     overviewGraphMenu.style.top = top + "px";
+  }}
+
+  function fitOverviewGraph() {{
+    if (overviewCy) overviewCy.fit(undefined, 30);
+  }}
+
+  function relayoutOverviewGraph() {{
+    runOverviewLayout();
+  }}
+
+  function resetOverviewGraphState() {{
+    clearSelection();
+  }}
+
+  function handleOverviewGraphMenuAction(action) {{
+    if (action === "fit") {{
+      fitOverviewGraph();
+      return true;
+    }}
+    if (action === "relayout") {{
+      relayoutOverviewGraph();
+      return true;
+    }}
+    if (action === "reset") {{
+      resetOverviewGraphState();
+      return true;
+    }}
+    return false;
   }}
 
   function downloadTextFile(fileName, textContent, mimeType) {{
@@ -2391,6 +2465,44 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
+  function overviewSelectionState(edgeMap) {{
+    const activeFiles = new Set();
+    const activeFileEdges = new Set();
+    if (selectedId) {{
+      const visibleFnIds = visibleFunctionIdsForOverview();
+      for (const fnId of visibleFnIds) {{
+        const fn = byId.get(fnId);
+        if (fn) activeFiles.add(fn.file);
+      }}
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+    }}
+    if (selectedEdgeKey) {{
+      const edge = edgeMap.get(selectedEdgeKey);
+      if (edge) {{
+        activeFiles.add(edge.data.fromFile);
+        activeFiles.add(edge.data.toFile);
+        activeFileEdges.add(selectedEdgeKey);
+      }}
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+    }}
+    if (selectedFilePath) {{
+      activeFiles.add(selectedFilePath);
+      for (const edge of edgeMap.values()) {{
+        if (edge.data.fromFile === selectedFilePath || edge.data.toFile === selectedFilePath) {{
+          activeFiles.add(edge.data.fromFile);
+          activeFiles.add(edge.data.toFile);
+        }}
+      }}
+      for (const edge of edgeMap.values()) {{
+        if (activeFiles.has(edge.data.fromFile) && activeFiles.has(edge.data.toFile)) {{
+          activeFileEdges.add(edge.data.id);
+        }}
+      }}
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+    }}
+    return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: false }};
+  }}
+
   function overviewBaseElements() {{
     const edgeMap = new Map();
     for (const edge of edges) {{
@@ -2412,12 +2524,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
       current.data.label = String(current.data.weight);
       edgeMap.set(key, current);
     }}
+    const selectionState = overviewSelectionState(edgeMap);
     const elements = [];
     for (const file of files) {{
       const classes = ["dep-file-node"];
       const areaClass = graphFileClassFor(file.dominantArea);
       if (areaClass) classes.push(areaClass);
       if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
+      if (selectionState.hasSelection && !selectionState.activeFiles.has(file.path)) {{
+        classes.push("dep-file-node-muted");
+      }}
       elements.push({{
         data: {{
           id: file.path,
@@ -2430,9 +2546,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     for (const edge of edgeMap.values()) {{
       const classes = [];
-      if (selectedId) edge.classes = "dep-base-edge-muted";
       if (selectedEdgeKey && edge.data.id === selectedEdgeKey) classes.push("dep-selected-edge");
-      if (selectedEdgeKey && edge.data.id !== selectedEdgeKey) classes.push("dep-base-edge-muted");
+      if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.data.id)) {{
+        classes.push("dep-base-edge-muted");
+      }}
       if (classes.length > 0) edge.classes = classes.join(" ");
       elements.push(edge);
     }}
@@ -2530,6 +2647,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }};
   }}
 
+  function overviewFileEdgeLength(edge, maxLength, minLength) {{
+    if (edge.hasClass("dep-pull-edge")) return 48;
+    const weight = Math.max(1, Number(edge.data("weight") || 1));
+    const normalized = Math.min(1, Math.log2(weight) / 4);
+    return maxLength - (maxLength - minLength) * normalized;
+  }}
+
   function runOverviewLayout(opts) {{
     if (!overviewCy) return;
     const fit = Boolean(opts && opts.fit);
@@ -2579,7 +2703,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         handleDisconnected: true,
         nodeSpacing: function (node) {{ return node.isParent() ? 22 : 14; }},
         centerGraph: fullConvergence,
-        edgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 48 : 132; }},
+        edgeLength: function (edge) {{ return overviewFileEdgeLength(edge, 140, 128); }},
         convergenceThreshold: fullConvergence ? 0.01 : 0.08,
         unconstrIter: fullConvergence ? undefined : 8,
         userConstIter: fullConvergence ? undefined : 8,
@@ -2598,7 +2722,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       fit: false,
       padding: 30,
       nodeRepulsion: function (node) {{ return node.isParent() ? 14400 : 3000; }},
-      idealEdgeLength: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 48 : 120; }},
+      idealEdgeLength: function (edge) {{ return overviewFileEdgeLength(edge, 128, 116); }},
       edgeElasticity: function (edge) {{ return edge.hasClass("dep-pull-edge") ? 200 : 100; }},
       nestingFactor: 0.4,
       gravity: 120,
@@ -2985,6 +3109,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewGraph.addEventListener("contextmenu", (event) => {{
       event.preventDefault();
     }});
+    overviewGraph.addEventListener("mousedown", (event) => {{
+      if (event.button !== 1) return;
+      event.preventDefault();
+    }});
+    overviewGraph.addEventListener("auxclick", (event) => {{
+      if (event.button !== 1) return;
+      event.preventDefault();
+      fitOverviewGraph();
+    }});
   }}
 
   function refreshActiveGraph() {{
@@ -3272,13 +3405,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
   overviewFit.addEventListener("click", () => {{
-    if (overviewCy) overviewCy.fit(undefined, 30);
+    fitOverviewGraph();
   }});
   overviewRelayout.addEventListener("click", () => {{
-    runOverviewLayout();
+    relayoutOverviewGraph();
   }});
   overviewReset.addEventListener("click", () => {{
-    clearSelection();
+    resetOverviewGraphState();
   }});
   if (themeToggle) {{
     updateThemeToggle();
@@ -3288,9 +3421,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
   if (overviewGraphMenu) {{
     overviewGraphMenu.addEventListener("click", (event) => {{
-      const button = event.target.closest("[data-svg-scope]");
+      const button = event.target.closest("button");
       if (!button) return;
-      downloadOverviewSvg(button.getAttribute("data-svg-scope"));
+      const scope = button.getAttribute("data-svg-scope");
+      if (scope) {{
+        downloadOverviewSvg(scope);
+      }} else {{
+        if (!handleOverviewGraphMenuAction(button.getAttribute("data-action"))) return;
+      }}
       hideOverviewGraphMenu();
     }});
     document.addEventListener("click", (event) => {{
