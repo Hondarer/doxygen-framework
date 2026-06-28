@@ -226,7 +226,21 @@ default: clean
 	fi
 
 	@if [ -f "$(XML_DIR)/index.xml" ] && grep -q '<compound ' "$(XML_DIR)/index.xml"; then \
-		python3 "$(DEPENDENCY_REPORT_GENERATOR)" "$(XML_DIR)" "$(DOCS_DOXYGEN_DIR)/dependency" "$(CATEGORY_ID)" || exit 1; \
+		DEPENDENCY_WARN_LOG=$$(mktemp); \
+		DEPENDENCY_WARN_EXTRACT=$$(mktemp); \
+		python3 "$(DEPENDENCY_REPORT_GENERATOR)" "$(XML_DIR)" "$(DOCS_DOXYGEN_DIR)/dependency" "$(CATEGORY_ID)" 2> "$$DEPENDENCY_WARN_LOG"; \
+		DEPENDENCY_REPORT_EXIT=$$?; \
+		if [ -s "$$DEPENDENCY_WARN_LOG" ]; then \
+			"$(DOXY_WARNING_COLORIZE)" < "$$DEPENDENCY_WARN_LOG" || true; \
+		fi; \
+		if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
+			"$(EXTRACT_DOXY_WARNINGS)" "$$DEPENDENCY_WARN_LOG" "$$DEPENDENCY_WARN_EXTRACT"; \
+			if [ -s "$$DEPENDENCY_WARN_EXTRACT" ]; then \
+				cat "$$DEPENDENCY_WARN_EXTRACT" >> "$(DOXY_WARN_OUTPUT)"; \
+			fi; \
+		fi; \
+		rm -f "$$DEPENDENCY_WARN_LOG" "$$DEPENDENCY_WARN_EXTRACT"; \
+		if [ $$DEPENDENCY_REPORT_EXIT -ne 0 ]; then exit $$DEPENDENCY_REPORT_EXIT; fi; \
 	fi
 
     # doxybook2 コマンドが存在しない場合、または処理対象がない場合は前処理～doxybook2～後処理をスキップ
