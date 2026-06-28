@@ -1139,11 +1139,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin: 0 0 4px;
+      margin: 0 0 12px;
     }}
     .dep-meta {{
       color: var(--dep-muted);
-      margin: 0 0 18px;
+      display: inline;
+      font-size: 1rem;
+      font-weight: 400;
+      margin-left: 10px;
     }}
     .dep-summary {{
       display: grid;
@@ -1491,11 +1494,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 10;
+      z-index: 40;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 8px;
+    }}
+    .dep-graph-shell.controls-inert .dep-graph-toolbar {{
+      pointer-events: none;
     }}
     .dep-graph-toolbar button {{
       min-height: 30px;
@@ -1520,7 +1526,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border-radius: 6px;
       background: var(--dep-graph-bg);
     }}
-    .dep-graph.layout-pending::after {{
+    .dep-graph.layout-initializing::after,
+    .dep-graph.layout-relayouting::after {{
       content: "マップをレイアウトしています...";
       position: absolute;
       top: 50%;
@@ -1535,6 +1542,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
       pointer-events: none;
       z-index: 20;
+    }}
+    .dep-graph.layout-initializing::after {{
+      inset: 0;
+      transform: none;
+      border: 0;
+      border-radius: 0;
+      background: var(--dep-graph-bg);
+      box-shadow: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }}
+    .dep-graph.layout-initializing canvas {{
+      opacity: 0;
     }}
     .dep-graph-note {{
       color: var(--dep-muted);
@@ -1677,7 +1698,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
 <body>
 <main>
   <div class="dep-title-row">
-    <h1>{title}</h1>
+    <h1>{title}<span class="dep-meta">対象: {escaped_category}</span></h1>
     <div class="dep-title-actions">
       <button type="button" id="themeToggle" class="dep-theme-toggle" aria-pressed="false">ライト</button>
       <section class="dep-downloads" role="group" aria-label="ダウンロード">
@@ -1687,7 +1708,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
       </section>
     </div>
   </div>
-  <p class="dep-meta">対象: {escaped_category}</p>
   <section class="dep-summary" id="summary"></section>
   <nav class="dep-tabs" aria-label="表示切り替え">
     <button type="button" class="dep-tab active" data-tab-target="functionListPanel">関数一覧</button>
@@ -1854,6 +1874,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
   const tabPanels = Array.from(document.querySelectorAll(".dep-panel"));
   const overviewGraph = document.getElementById("overviewGraph");
+  const overviewGraphShell = overviewGraph ? overviewGraph.closest(".dep-graph-shell") : null;
   const overviewDetail = document.getElementById("overviewDetail");
   const overviewFit = document.getElementById("overviewFit");
   const overviewRelayout = document.getElementById("overviewRelayout");
@@ -2229,6 +2250,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "label": "data(label)",
           "text-valign": "top",
           "text-halign": "center",
+          "text-margin-y": -2,
           "font-size": 12,
           "padding": 16,
           "color": colors.parentText,
@@ -2334,15 +2356,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
     requestFrame(callback);
   }}
 
+  function setOverviewControlsInert(inert) {{
+    if (overviewGraphShell) overviewGraphShell.classList.toggle("controls-inert", inert);
+  }}
+
   function setOverviewLayoutRunning(running) {{
     overviewLayoutRunning = running;
-    if (overviewRelayout) overviewRelayout.disabled = running;
-    if (overviewGraphMenu) {{
-      for (const button of overviewGraphMenu.querySelectorAll('[data-action="relayout"]')) {{
-        button.disabled = running;
-      }}
-    }}
-    if (overviewGraph) overviewGraph.classList.toggle("layout-pending", running);
+    setOverviewControlsInert(running);
+    if (overviewGraph) overviewGraph.classList.toggle("layout-relayouting", running);
     if (!running && overviewLayoutWatchdog !== null) {{
       window.clearTimeout(overviewLayoutWatchdog);
       overviewLayoutWatchdog = null;
@@ -2350,7 +2371,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function clearOverviewLayoutPendingLabel() {{
-    if (overviewGraph) overviewGraph.classList.remove("layout-pending");
+    if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
   }}
 
   function relayoutOverviewGraph() {{
@@ -2508,7 +2529,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const strokeWidth = graphStyleNumber(node, "border-width", 1);
     const fontSize = graphStyleNumber(node, "font-size", node.isParent() ? 12 : 11);
     const color = graphStyleValue(node, "color", "#111827");
-    const labelY = node.isParent() ? box.y1 + Math.max(16, fontSize) : point.y;
+    const labelY = node.isParent() ? box.y1 + Math.max(14, fontSize - 2) : point.y;
     return svgShapeForNode(node, shapePoint, shapeWidth, shapeHeight, fill, stroke, strokeWidth) +
       svgText(node.data("label"), point.x, labelY, fontSize, color, "middle");
   }}
@@ -3048,12 +3069,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
-  function springProgress(t, impact) {{
+  function exponentialEaseOutProgress(t, impact) {{
     const clamped = Math.max(0, Math.min(1, t));
-    const stiffness = 3.6 + Math.max(0, Math.min(1, impact)) * 3.2;
-    const value = 1 - (1 + stiffness * clamped) * Math.exp(-stiffness * clamped);
-    const endValue = 1 - (1 + stiffness) * Math.exp(-stiffness);
-    if (endValue <= 0) return clamped;
+    if (clamped >= 1) return 1;
+    const rate = 5.2 + Math.max(0, Math.min(1, impact)) * 2.0;
+    const endValue = 1 - Math.exp(-rate);
+    if (endValue <= 0) return 1;
+    const value = 1 - Math.exp(-rate * clamped);
     return Math.max(0, Math.min(1, value / endValue));
   }}
 
@@ -3091,7 +3113,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         if (!target) return undefined;
         const start = startPositions.get(node.id()) || target;
         const impact = (distances.get(node.id()) || 0) / maxDistance;
-        const p = springProgress(t, impact);
+        const p = exponentialEaseOutProgress(t, impact);
         return {{
           x: start.x + (target.x - start.x) * p,
           y: start.y + (target.y - start.y) * p
@@ -3288,7 +3310,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function resetOverviewGraph() {{
     if (!overviewCy) return;
-    overviewGraph.classList.add("layout-pending");
+    overviewGraph.classList.add("layout-initializing");
+    setOverviewControlsInert(true);
     overviewLayoutInitialized = false;
     stopOverviewPositionAnimation();
     overviewCy.resize();
@@ -3305,7 +3328,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           overviewCy.resize();
           overviewCy.fit(undefined, 30);
         }}
-        overviewGraph.classList.remove("layout-pending");
+        overviewGraph.classList.remove("layout-initializing");
+        setOverviewControlsInert(false);
       }}
     }});
   }}
