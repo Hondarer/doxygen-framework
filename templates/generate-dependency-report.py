@@ -960,22 +960,136 @@ def write_html(output_dir: Path, category_id: str) -> None:
   <script src="cytoscape.min.js"></script>
   <script src="webcola.min.js"></script>
   <script src="cytoscape-cola.js"></script>
+  <script>
+    (function () {{
+      "use strict";
+      const key = "doxyfw-dependency-theme";
+      let theme = "";
+      try {{
+        theme = window.localStorage ? window.localStorage.getItem(key) || "" : "";
+      }} catch (err) {{
+        theme = "";
+      }}
+      if (theme !== "light" && theme !== "dark") {{
+        theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }}
+      document.documentElement.setAttribute("data-theme", theme);
+    }}());
+  </script>
   <style>
     :root {{
-      color-scheme: light dark;
+      color-scheme: light;
+      --dep-page-bg: #ffffff;
+      --dep-text: #111827;
+      --dep-muted: #596579;
       --dep-border: #d8dee8;
       --dep-bg: #f7f9fc;
-      --dep-accent: #0f766e;
+      --dep-accent: #0e639c;
       --dep-warning: #a16207;
       --dep-danger: #b91c1c;
       --dep-input-bg: #ffffff;
       --dep-input-text: #1f2937;
       --dep-input-border: #b8c2d1;
-      --dep-input-focus: #0f766e;
+      --dep-input-focus: #0e639c;
+      --dep-filter-warning-bg: #fef3c7;
+      --dep-filter-warning-text: #713f12;
+      --dep-badge-text: #111827;
+      --dep-badge-leaf-bg: #dcfce7;
+      --dep-badge-leaf-border: #16a34a;
+      --dep-badge-local-bg: #e0f2fe;
+      --dep-badge-local-border: #0284c7;
+      --dep-badge-cycle-bg: #fee2e2;
+      --dep-badge-cycle-border: #dc2626;
+      --dep-badge-caller-bg: #fef3c7;
+      --dep-badge-caller-border: #d97706;
+      --dep-badge-library-bg: #eef2ff;
+      --dep-badge-library-border: #4f46e5;
+      --dep-badge-source-bg: #f3e8ff;
+      --dep-badge-source-border: #9333ea;
+      --dep-graph-bg: #ffffff;
+      --dep-graph-label-bg: #ffffff;
+      --dep-graph-text: #111827;
+      --dep-graph-parent-text: #1f2937;
+      --dep-graph-node-bg: #dbeafe;
+      --dep-graph-node-border: #2563eb;
+      --dep-graph-file-bg: #f8fafc;
+      --dep-graph-file-border: #64748b;
+      --dep-graph-parent-bg: #f1f5f9;
+      --dep-graph-edge: #64748b;
+      --dep-graph-muted-edge: #cbd5e1;
+      --dep-graph-active-edge: #334155;
+      --dep-graph-leaf-bg: #dcfce7;
+      --dep-graph-leaf-border: #16a34a;
+      --dep-graph-local-bg: #e0f2fe;
+      --dep-graph-local-border: #0284c7;
+      --dep-graph-caller-bg: #fef3c7;
+      --dep-graph-caller-border: #d97706;
+      --dep-graph-danger-bg: #fee2e2;
+      --dep-graph-danger-border: #dc2626;
+      --dep-graph-library-bg: #eef2ff;
+      --dep-graph-library-border: #4f46e5;
+      --dep-graph-source-bg: #f3e8ff;
+      --dep-graph-source-border: #9333ea;
+    }}
+    :root[data-theme="dark"] {{
+      color-scheme: dark;
+      --dep-page-bg: #1e1e1e;
+      --dep-text: #d4d4d4;
+      --dep-muted: #9b9b9b;
+      --dep-border: #3c3c3c;
+      --dep-bg: #252526;
+      --dep-accent: #3794d8;
+      --dep-warning: #cca700;
+      --dep-danger: #f48771;
+      --dep-input-bg: #1e1e1e;
+      --dep-input-text: #d4d4d4;
+      --dep-input-border: #3c3c3c;
+      --dep-input-focus: #3794d8;
+      --dep-filter-warning-bg: #3a3314;
+      --dep-filter-warning-text: #d7ba7d;
+      --dep-badge-text: #d4d4d4;
+      --dep-badge-leaf-bg: #163b2b;
+      --dep-badge-leaf-border: #4ec9b0;
+      --dep-badge-local-bg: #17364a;
+      --dep-badge-local-border: #4fc1ff;
+      --dep-badge-cycle-bg: #4b2525;
+      --dep-badge-cycle-border: #f48771;
+      --dep-badge-caller-bg: #3f321b;
+      --dep-badge-caller-border: #d7ba7d;
+      --dep-badge-library-bg: #2d2a4a;
+      --dep-badge-library-border: #9cdcfe;
+      --dep-badge-source-bg: #3b2a4a;
+      --dep-badge-source-border: #c586c0;
+      --dep-graph-bg: #1e1e1e;
+      --dep-graph-label-bg: #252526;
+      --dep-graph-text: #d4d4d4;
+      --dep-graph-parent-text: #d4d4d4;
+      --dep-graph-node-bg: #264f78;
+      --dep-graph-node-border: #3794ff;
+      --dep-graph-file-bg: #252526;
+      --dep-graph-file-border: #858585;
+      --dep-graph-parent-bg: #2d2d30;
+      --dep-graph-edge: #858585;
+      --dep-graph-muted-edge: #5a5a5a;
+      --dep-graph-active-edge: #c5c5c5;
+      --dep-graph-leaf-bg: #163b2b;
+      --dep-graph-leaf-border: #4ec9b0;
+      --dep-graph-local-bg: #17364a;
+      --dep-graph-local-border: #4fc1ff;
+      --dep-graph-caller-bg: #3f321b;
+      --dep-graph-caller-border: #d7ba7d;
+      --dep-graph-danger-bg: #4b2525;
+      --dep-graph-danger-border: #f48771;
+      --dep-graph-library-bg: #2d2a4a;
+      --dep-graph-library-border: #9cdcfe;
+      --dep-graph-source-bg: #3b2a4a;
+      --dep-graph-source-border: #c586c0;
     }}
     body {{
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--dep-page-bg);
+      color: var(--dep-text);
     }}
     main {{
       max-width: min(2000px, 96vw);
@@ -994,7 +1108,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       margin: 0 0 4px;
     }}
     .dep-meta {{
-      color: #596579;
+      color: var(--dep-muted);
       margin: 0 0 18px;
     }}
     .dep-summary {{
@@ -1027,17 +1141,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
       flex-wrap: wrap;
       justify-content: flex-end;
     }}
-    .dep-download {{
-      display: inline-block;
+    .dep-title-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }}
+    .dep-download,
+    .dep-theme-toggle {{
+      display: inline-flex;
+      align-items: center;
       padding: 4px 10px;
       border: 1px solid var(--dep-border);
       border-radius: 4px;
       background: var(--dep-bg);
       color: var(--dep-input-text);
       text-decoration: none;
+      font: inherit;
       font-size: 0.9rem;
+      cursor: pointer;
     }}
-    .dep-download:hover {{
+    .dep-download:hover,
+    .dep-theme-toggle:hover {{
       background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
       border-color: var(--dep-accent);
       color: var(--dep-accent);
@@ -1051,7 +1176,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       padding: 6px 8px;
       background: var(--dep-input-bg);
       color: var(--dep-input-text);
-      color-scheme: light;
+      color-scheme: inherit;
     }}
     select {{
       padding-right: 32px;
@@ -1084,8 +1209,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border: 1px solid color-mix(in srgb, var(--dep-warning) 45%, var(--dep-border));
       border-radius: 6px;
       padding: 8px 10px;
-      background: color-mix(in srgb, var(--dep-warning) 10%, white);
-      color: #713f12;
+      background: var(--dep-filter-warning-bg);
+      color: var(--dep-filter-warning-text);
     }}
     .dep-filter-notice.visible {{
       display: flex;
@@ -1180,37 +1305,37 @@ def write_html(output_dir: Path, category_id: str) -> None:
       padding: 1px 6px;
       border: 1px solid var(--dep-border);
       background: var(--dep-bg);
-      color: #111827;
+      color: var(--dep-badge-text);
       font-size: 0.74rem;
       line-height: 1.2;
     }}
     .badge.leaf-static,
     .badge.leaf-global {{
-      background: #dcfce7;
-      border-color: #16a34a;
+      background: var(--dep-badge-leaf-bg);
+      border-color: var(--dep-badge-leaf-border);
     }}
     .badge.file-local {{
-      background: #e0f2fe;
-      border-color: #0284c7;
+      background: var(--dep-badge-local-bg);
+      border-color: var(--dep-badge-local-border);
     }}
     .badge.cycle {{
-      background: #fee2e2;
-      border-color: #dc2626;
+      background: var(--dep-badge-cycle-bg);
+      border-color: var(--dep-badge-cycle-border);
     }}
     .badge.libsrc-file-caller,
     .badge.src-file-caller,
     .badge.other-to-libsrc-caller,
     .badge.cross-area-caller {{
-      background: #fef3c7;
-      border-color: #d97706;
+      background: var(--dep-badge-caller-bg);
+      border-color: var(--dep-badge-caller-border);
     }}
     .badge.area-library {{
-      background: #eef2ff;
-      border-color: #4f46e5;
+      background: var(--dep-badge-library-bg);
+      border-color: var(--dep-badge-library-border);
     }}
     .badge.area-source {{
-      background: #f3e8ff;
-      border-color: #9333ea;
+      background: var(--dep-badge-source-bg);
+      border-color: var(--dep-badge-source-border);
     }}
     .dep-detail {{
       border: 1px solid var(--dep-border);
@@ -1227,7 +1352,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     .dep-detail .dep-brief {{
       margin: 0 0 12px;
-      color: #333;
+      color: var(--dep-text);
       font-size: 0.95rem;
       line-height: 1.5;
       white-space: pre-wrap;
@@ -1239,14 +1364,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
       margin: 0 0 12px;
     }}
     .dep-detail dt {{
-      color: #596579;
+      color: var(--dep-muted);
     }}
     .dep-detail dd {{
       margin: 0;
       overflow-wrap: anywhere;
     }}
     .dep-detail a {{
+      color: var(--dep-accent);
       overflow-wrap: anywhere;
+    }}
+    .dep-detail a:hover {{
+      color: var(--dep-accent);
+      text-decoration-thickness: 2px;
     }}
     .dep-neighbors {{
       display: grid;
@@ -1277,7 +1407,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       overflow-wrap: anywhere;
     }}
     .dep-empty {{
-      color: #596579;
+      color: var(--dep-muted);
     }}
     .dep-tabs {{
       display: flex;
@@ -1349,7 +1479,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       min-height: 520px;
       border: 1px solid var(--dep-border);
       border-radius: 6px;
-      background: #ffffff;
+      background: var(--dep-graph-bg);
     }}
     .dep-graph.layout-pending::after {{
       content: "マップを初期化しています...";
@@ -1358,7 +1488,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #596579;
+      color: var(--dep-muted);
       font-size: 0.95rem;
       pointer-events: none;
       z-index: 2;
@@ -1367,7 +1497,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       opacity: 0;
     }}
     .dep-graph-note {{
-      color: #596579;
+      color: var(--dep-muted);
       margin: 0 0 8px;
     }}
     .dep-graph-detail ul {{
@@ -1478,6 +1608,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .dep-downloads {{
         justify-content: flex-start;
       }}
+      .dep-title-actions {{
+        justify-content: flex-start;
+      }}
       .dep-controls, .dep-layout, .dep-graph-layout {{
         grid-template-columns: 1fr;
       }}
@@ -1498,11 +1631,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
 <main>
   <div class="dep-title-row">
     <h1>{title}</h1>
-    <section class="dep-downloads" role="group" aria-label="ダウンロード">
-      <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
-      <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
-      <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
-    </section>
+    <div class="dep-title-actions">
+      <button type="button" id="themeToggle" class="dep-theme-toggle" aria-pressed="false">ライト</button>
+      <section class="dep-downloads" role="group" aria-label="ダウンロード">
+        <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
+        <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
+        <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
+      </section>
+    </div>
   </div>
   <p class="dep-meta">対象: {escaped_category}</p>
   <section class="dep-summary" id="summary"></section>
@@ -1617,12 +1753,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const overviewRelayout = document.getElementById("overviewRelayout");
   const overviewReset = document.getElementById("overviewReset");
   const overviewGraphMenu = document.getElementById("overviewGraphMenu");
+  const themeToggle = document.getElementById("themeToggle");
   const reportCategory = {js_category};
+  const themeStorageKey = "doxyfw-dependency-theme";
   let selectedId = "";
   let selectedFilePath = "";
   let selectedEdgeKey = "";
   let sortState = {{ key: "level", direction: "asc" }};
   let activeTab = "listPanel";
+  let currentTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
   let overviewCy = null;
   let overviewLayoutInitialized = false;
   let overviewPositionAnimation = null;
@@ -1654,6 +1793,63 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function safeFileNamePart(value) {{
     const normalized = text(value).trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
     return normalized || "doxygen";
+  }}
+
+  function cssVar(name) {{
+    return window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }}
+
+  function updateThemeToggle() {{
+    if (!themeToggle) return;
+    const isDark = currentTheme === "dark";
+    themeToggle.setAttribute("aria-pressed", isDark ? "true" : "false");
+    themeToggle.textContent = isDark ? "ダーク" : "ライト";
+    themeToggle.title = isDark ? "ライト モードに切り替え" : "ダーク モードに切り替え";
+  }}
+
+  function saveTheme(theme) {{
+    try {{
+      if (window.localStorage) window.localStorage.setItem(themeStorageKey, theme);
+    }} catch (err) {{
+      // 保存できない環境では、このページ内の切り替えだけ反映する。
+    }}
+  }}
+
+  function applyTheme(theme, persist) {{
+    currentTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", currentTheme);
+    if (persist) saveTheme(currentTheme);
+    updateThemeToggle();
+    refreshOverviewGraphStyle();
+  }}
+
+  function graphColors() {{
+    return {{
+      background: cssVar("--dep-graph-bg") || "#ffffff",
+      labelBackground: cssVar("--dep-graph-label-bg") || "#ffffff",
+      text: cssVar("--dep-graph-text") || "#111827",
+      parentText: cssVar("--dep-graph-parent-text") || "#1f2937",
+      nodeBackground: cssVar("--dep-graph-node-bg") || "#dbeafe",
+      nodeBorder: cssVar("--dep-graph-node-border") || "#2563eb",
+      fileBackground: cssVar("--dep-graph-file-bg") || "#f8fafc",
+      fileBorder: cssVar("--dep-graph-file-border") || "#64748b",
+      parentBackground: cssVar("--dep-graph-parent-bg") || "#f1f5f9",
+      edge: cssVar("--dep-graph-edge") || "#64748b",
+      mutedEdge: cssVar("--dep-graph-muted-edge") || "#cbd5e1",
+      activeEdge: cssVar("--dep-graph-active-edge") || "#334155",
+      leafBackground: cssVar("--dep-graph-leaf-bg") || "#dcfce7",
+      leafBorder: cssVar("--dep-graph-leaf-border") || "#16a34a",
+      localBackground: cssVar("--dep-graph-local-bg") || "#e0f2fe",
+      localBorder: cssVar("--dep-graph-local-border") || "#0284c7",
+      callerBackground: cssVar("--dep-graph-caller-bg") || "#fef3c7",
+      callerBorder: cssVar("--dep-graph-caller-border") || "#d97706",
+      dangerBackground: cssVar("--dep-graph-danger-bg") || "#fee2e2",
+      dangerBorder: cssVar("--dep-graph-danger-border") || "#dc2626",
+      libraryBackground: cssVar("--dep-graph-library-bg") || "#eef2ff",
+      libraryBorder: cssVar("--dep-graph-library-border") || "#4f46e5",
+      sourceBackground: cssVar("--dep-graph-source-bg") || "#f3e8ff",
+      sourceBorder: cssVar("--dep-graph-source-border") || "#9333ea"
+    }};
   }}
 
   function levelText(fn) {{
@@ -1765,6 +1961,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function graphStyle() {{
+    const colors = graphColors();
     return [
       {{
         selector: "node",
@@ -1775,13 +1972,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "text-max-width": 120,
           "text-valign": "center",
           "text-halign": "center",
-          "background-color": "#dbeafe",
-          "border-color": "#2563eb",
+          "background-color": colors.nodeBackground,
+          "border-color": colors.nodeBorder,
           "border-width": 1,
-          "color": "#111827",
+          "color": colors.text,
           "width": "mapData(weight, 1, 12, 42, 86)",
           "height": "mapData(weight, 1, 12, 42, 86)",
-          "z-index": 1
+          "z-index": 1,
+          "z-compound-depth": "bottom"
         }}
       }},
       {{
@@ -1789,23 +1987,32 @@ def write_html(output_dir: Path, category_id: str) -> None:
         style: {{
           "curve-style": "bezier",
           "target-arrow-shape": "triangle",
-          "target-arrow-color": "#64748b",
-          "line-color": "#94a3b8",
+          "target-arrow-color": colors.edge,
+          "line-color": colors.edge,
+          "opacity": 0.7,
           "width": "mapData(weight, 1, 8, 1, 5)",
           "label": "data(label)",
           "font-size": 10,
-          "text-background-color": "#ffffff",
+          "color": colors.text,
+          "text-background-color": colors.labelBackground,
           "text-background-opacity": 0.85,
           "text-background-padding": 2,
           "z-compound-depth": "bottom",
           "z-index": 0
         }}
       }},
-      {{ selector: ".dep-leaf-node", style: {{ "background-color": "#dcfce7", "border-color": "#16a34a" }} }},
-      {{ selector: ".dep-local-node", style: {{ "background-color": "#e0f2fe", "border-color": "#0284c7" }} }},
-      {{ selector: ".dep-caller-node", style: {{ "background-color": "#fef3c7", "border-color": "#d97706" }} }},
-      {{ selector: ".dep-danger-node", style: {{ "background-color": "#fee2e2", "border-color": "#dc2626" }} }},
-      {{ selector: ".dep-file-node", style: {{ "background-color": "#f8fafc", "border-color": "#64748b" }} }},
+      {{
+        selector: ".dep-leaf-node, .dep-local-node, .dep-caller-node, .dep-danger-node",
+        style: {{
+          "z-index": 4,
+          "z-compound-depth": "top"
+        }}
+      }},
+      {{ selector: ".dep-leaf-node", style: {{ "background-color": colors.leafBackground, "border-color": colors.leafBorder }} }},
+      {{ selector: ".dep-local-node", style: {{ "background-color": colors.localBackground, "border-color": colors.localBorder }} }},
+      {{ selector: ".dep-caller-node", style: {{ "background-color": colors.callerBackground, "border-color": colors.callerBorder }} }},
+      {{ selector: ".dep-danger-node", style: {{ "background-color": colors.dangerBackground, "border-color": colors.dangerBorder }} }},
+      {{ selector: ".dep-file-node", style: {{ "background-color": colors.fileBackground, "border-color": colors.fileBorder, "z-index": 1 }} }},
       {{ selector: ".dep-center-node", style: {{ "border-width": 2 }} }},
       {{ selector: ".dep-upstream-node", style: {{ "shape": "round-rectangle" }} }},
       {{ selector: ".dep-downstream-node", style: {{ "shape": "ellipse" }} }},
@@ -1814,33 +2021,44 @@ def write_html(output_dir: Path, category_id: str) -> None:
         selector: "$node > node",
         style: {{
           "shape": "round-rectangle",
-          "background-color": "#f1f5f9",
+          "background-color": colors.parentBackground,
           "background-opacity": 0.5,
-          "border-color": "#64748b",
+          "border-color": colors.fileBorder,
           "border-width": 1,
           "label": "data(label)",
           "text-valign": "top",
           "text-halign": "center",
           "font-size": 12,
           "padding": 16,
-          "color": "#1f2937",
-          "z-index": 2
+          "color": colors.parentText,
+          "z-index": 2,
+          "z-compound-depth": "bottom"
         }}
       }},
-      {{ selector: ".dep-file-library-node", style: {{ "background-color": "#eef2ff", "border-color": "#4f46e5" }} }},
-      {{ selector: ".dep-file-source-node", style: {{ "background-color": "#f3e8ff", "border-color": "#9333ea" }} }},
+      {{ selector: ".dep-file-library-node", style: {{ "background-color": colors.libraryBackground, "border-color": colors.libraryBorder }} }},
+      {{ selector: ".dep-file-source-node", style: {{ "background-color": colors.sourceBackground, "border-color": colors.sourceBorder }} }},
       {{
         selector: ".dep-base-edge-muted",
         style: {{
-          "line-color": "#cbd5e1",
-          "target-arrow-color": "#cbd5e1",
+          "line-color": colors.mutedEdge,
+          "target-arrow-color": colors.mutedEdge,
           "opacity": 0.4
         }}
       }},
-      {{ selector: ".dep-selected-edge", style: {{ "opacity": 1 }} }},
+      {{
+        selector: ".dep-selected-edge",
+        style: {{
+          "line-color": colors.activeEdge,
+          "target-arrow-color": colors.activeEdge,
+          "opacity": 0.7
+        }}
+      }},
       {{
         selector: ".dep-function-edge",
         style: {{
+          "line-color": colors.activeEdge,
+          "target-arrow-color": colors.activeEdge,
+          "opacity": 0.7,
           "z-compound-depth": "top",
           "z-index": 3
         }}
@@ -1868,6 +2086,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function graphUnavailable(container, detailElement) {{
     container.innerHTML = "<p class=\\"dep-empty\\">Cytoscape.js を読み込めませんでした。</p>";
     detailElement.innerHTML = "<p class=\\"dep-empty\\">グラフ ライブラリを確認してください。</p>";
+  }}
+
+  function refreshOverviewGraphStyle() {{
+    if (!overviewCy) return;
+    const style = overviewCy.style();
+    if (style && typeof style.fromJson === "function") {{
+      style.fromJson(graphStyle()).update();
+      return;
+    }}
+    if (typeof overviewCy.style === "function") {{
+      overviewCy.style(graphStyle());
+    }}
   }}
 
   function hideOverviewGraphMenu() {{
@@ -1970,6 +2200,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return "<text x=\\"" + x.toFixed(2) + "\\" y=\\"" + y.toFixed(2) + "\\" text-anchor=\\"" + escapeXml(anchor || "middle") + "\\" dominant-baseline=\\"middle\\" font-family=\\"system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif\\" font-size=\\"" + escapeXml(fontSize) + "\\" fill=\\"" + escapeXml(color) + "\\">" + escapeXml(label) + "</text>";
   }}
 
+  function svgArrow(start, end, size, fill, opacity) {{
+    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    const spread = Math.PI / 7;
+    const p1 = {{
+      x: end.x - Math.cos(angle - spread) * size,
+      y: end.y - Math.sin(angle - spread) * size
+    }};
+    const p2 = {{
+      x: end.x - Math.cos(angle + spread) * size,
+      y: end.y - Math.sin(angle + spread) * size
+    }};
+    const points = [end.x, end.y, p1.x, p1.y, p2.x, p2.y].map((value) => Number(value).toFixed(2)).join(" ");
+    return "<polygon points=\\"" + points + "\\" fill=\\"" + escapeXml(fill) + "\\" opacity=\\"" + escapeXml(opacity) + "\\"/>";
+  }}
+
   function svgNode(node, scope) {{
     const point = svgPoint(node, scope);
     const box = svgBox(node, scope);
@@ -2003,8 +2248,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const label = edge.data("label");
     const fontSize = graphStyleNumber(edge, "font-size", 10);
     const color = graphStyleValue(edge, "color", "#111827");
-    return "<line x1=\\"" + start.x.toFixed(2) + "\\" y1=\\"" + start.y.toFixed(2) + "\\" x2=\\"" + end.x.toFixed(2) + "\\" y2=\\"" + end.y.toFixed(2) + "\\" stroke=\\"" + escapeXml(stroke) + "\\" stroke-width=\\"" + escapeXml(strokeWidth) + "\\" opacity=\\"" + escapeXml(opacity) + "\\" marker-end=\\"url(#dep-arrow)\\"/>" +
-      (label ? "<rect x=\\"" + (midX - 10).toFixed(2) + "\\" y=\\"" + (midY - 8).toFixed(2) + "\\" width=\\"20\\" height=\\"16\\" rx=\\"3\\" fill=\\"#ffffff\\" opacity=\\"0.85\\"/>" + svgText(label, midX, midY, fontSize, color, "middle") : "");
+    return "<line x1=\\"" + start.x.toFixed(2) + "\\" y1=\\"" + start.y.toFixed(2) + "\\" x2=\\"" + end.x.toFixed(2) + "\\" y2=\\"" + end.y.toFixed(2) + "\\" stroke=\\"" + escapeXml(stroke) + "\\" stroke-width=\\"" + escapeXml(strokeWidth) + "\\" opacity=\\"" + escapeXml(opacity) + "\\"/>" +
+      svgArrow(start, end, Math.max(7, strokeWidth + 6), stroke, opacity) +
+      (label ? "<rect x=\\"" + (midX - 10).toFixed(2) + "\\" y=\\"" + (midY - 8).toFixed(2) + "\\" width=\\"20\\" height=\\"16\\" rx=\\"3\\" fill=\\"" + escapeXml(cssVar("--dep-graph-label-bg") || "#ffffff") + "\\" opacity=\\"0.85\\"/>" + svgText(label, midX, midY, fontSize, color, "middle") : "");
   }}
 
   function buildOverviewSvg(scope) {{
@@ -2013,15 +2259,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const bounds = svgElementBounds(scope);
     const width = Math.max(1, bounds.x2 - bounds.x1);
     const height = Math.max(1, bounds.y2 - bounds.y1);
-    const edgesSvg = overviewCy.edges(":visible").map((edge) => svgEdge(edge, scope)).join("");
-    const parentsSvg = overviewCy.nodes(":visible").filter((node) => node.isParent()).map((node) => svgNode(node, scope)).join("");
-    const nodesSvg = overviewCy.nodes(":visible").filter((node) => !node.isParent()).map((node) => svgNode(node, scope)).join("");
+    const visibleEdges = overviewCy.edges(":visible");
+    const visibleNodes = overviewCy.nodes(":visible");
+    const fileEdgesSvg = visibleEdges.filter((edge) => !edge.hasClass("dep-function-edge")).map((edge) => svgEdge(edge, scope)).join("");
+    const fileOverviewNodesSvg = visibleNodes.filter((node) => !node.isParent() && node.hasClass("dep-file-node")).map((node) => svgNode(node, scope)).join("");
+    const fileDetailNodesSvg = visibleNodes.filter((node) => node.isParent()).map((node) => svgNode(node, scope)).join("");
+    const functionEdgesSvg = visibleEdges.filter((edge) => edge.hasClass("dep-function-edge")).map((edge) => svgEdge(edge, scope)).join("");
+    const functionNodesSvg = visibleNodes.filter((node) => !node.isParent() && !node.hasClass("dep-file-node")).map((node) => svgNode(node, scope)).join("");
+    const colors = graphColors();
     return "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n" +
       "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"" + width.toFixed(0) + "\\" height=\\"" + height.toFixed(0) + "\\" viewBox=\\"" + bounds.x1.toFixed(2) + " " + bounds.y1.toFixed(2) + " " + width.toFixed(2) + " " + height.toFixed(2) + "\\" role=\\"img\\">" +
       "<title>" + escapeXml("依存関係マップ") + "</title>" +
-      "<defs><marker id=\\"dep-arrow\\" viewBox=\\"0 0 10 10\\" refX=\\"9\\" refY=\\"5\\" markerWidth=\\"7\\" markerHeight=\\"7\\" orient=\\"auto-start-reverse\\"><path d=\\"M 0 0 L 10 5 L 0 10 z\\" fill=\\"#64748b\\"/></marker></defs>" +
-      "<rect x=\\"" + bounds.x1.toFixed(2) + "\\" y=\\"" + bounds.y1.toFixed(2) + "\\" width=\\"" + width.toFixed(2) + "\\" height=\\"" + height.toFixed(2) + "\\" fill=\\"#ffffff\\"/>" +
-      edgesSvg + parentsSvg + nodesSvg +
+      "<rect x=\\"" + bounds.x1.toFixed(2) + "\\" y=\\"" + bounds.y1.toFixed(2) + "\\" width=\\"" + width.toFixed(2) + "\\" height=\\"" + height.toFixed(2) + "\\" fill=\\"" + escapeXml(colors.background) + "\\"/>" +
+      fileEdgesSvg + fileOverviewNodesSvg + fileDetailNodesSvg + functionEdgesSvg + functionNodesSvg +
       "</svg>\\n";
   }}
 
@@ -2441,7 +2691,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function animateOverviewPositions(startPositions, targetPositions, opts) {{
     if (!overviewCy) return;
     stopOverviewPositionAnimation();
-    const duration = 720;
+    const duration = 430;
     const distances = new Map();
     let maxDistance = 1;
     for (const [id, target] of targetPositions) {{
@@ -3023,6 +3273,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
   overviewReset.addEventListener("click", () => {{
     clearSelection();
   }});
+  if (themeToggle) {{
+    updateThemeToggle();
+    themeToggle.addEventListener("click", () => {{
+      applyTheme(currentTheme === "dark" ? "light" : "dark", true);
+    }});
+  }}
   if (overviewGraphMenu) {{
     overviewGraphMenu.addEventListener("click", (event) => {{
       const button = event.target.closest("[data-svg-scope]");

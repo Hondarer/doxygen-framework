@@ -228,6 +228,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('data-svg-scope="full"', index_html)
             self.assertIn("function buildOverviewSvg(scope)", index_html)
             self.assertIn("function downloadOverviewSvg(scope)", index_html)
+            self.assertIn('id="themeToggle"', index_html)
+            self.assertIn("function applyTheme(theme, persist)", index_html)
 
     def test_cycle_detection(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
