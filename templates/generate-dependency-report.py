@@ -2114,6 +2114,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function activateTab(tabId) {{
+    const immediateOverviewUpdate = tabId === "overviewPanel" && activeTab !== "overviewPanel";
     activeTab = tabId;
     for (const item of tabButtons) {{
       item.classList.toggle("active", item.getAttribute("data-tab-target") === activeTab);
@@ -2121,7 +2122,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const panel of tabPanels) {{
       panel.classList.toggle("active", panel.id === activeTab);
     }}
-    refreshActiveGraph();
+    refreshActiveGraph({{ immediate: immediateOverviewUpdate }});
     if (activeTab === "functionListPanel" && pendingFunctionListScroll) {{
       syncSelectedRowScroll(true);
     }}
@@ -3255,8 +3256,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return true;
   }}
 
-  function syncOverviewElements(targetElements) {{
+  function syncOverviewElements(targetElements, opts) {{
     if (!overviewCy) return;
+    const immediate = Boolean(opts && opts.immediate);
+    const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
     const previousPositions = overviewNodePositions();
     const movingNodeIds = new Set();
     const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
@@ -3293,18 +3296,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
       restoreOverviewNodePositions(previousPositions);
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
       if (movingNodeIds.size > 0) {{
-        runOverviewLayout({{ movingNodeIds, anchorCenters }});
+        if (opts) opts.layoutStarted = true;
+        runOverviewLayout({{ movingNodeIds, anchorCenters, immediate, onComplete }});
       }}
     }}
   }}
 
-  function renderOverviewGraph() {{
+  function renderOverviewGraph(opts) {{
     if (!overviewCy) return;
     if (overviewCy.elements().length === 0) {{
       resetOverviewGraph();
       return true;
     }}
-    syncOverviewElements(buildOverviewElements());
+    syncOverviewElements(buildOverviewElements(), opts);
     return false;
   }}
 
@@ -3392,18 +3396,38 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
 
-  function refreshActiveGraph() {{
+  function refreshActiveGraph(opts) {{
     if (activeTab === "overviewPanel") {{
       initOverviewGraph();
+      const immediate = Boolean(opts && opts.immediate);
+      if (immediate && overviewCy && overviewCy.elements().length > 0) {{
+        overviewGraph.classList.add("layout-initializing");
+        setOverviewControlsInert(true);
+      }}
+      const finishImmediateRefresh = () => {{
+        if (!immediate) return;
+        if (overviewGraph) overviewGraph.classList.remove("layout-initializing");
+        setOverviewControlsInert(false);
+      }};
       const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(() => callback(Date.now()), 16));
-      requestFrame(() => {{
-        if (activeTab !== "overviewPanel") return;
-        const resetStarted = renderOverviewGraph();
-        if (overviewCy && !resetStarted) {{
+      const refresh = () => {{
+        if (activeTab !== "overviewPanel") {{
+          finishImmediateRefresh();
+          return;
+        }}
+        const renderOpts = {{ immediate, onComplete: finishImmediateRefresh }};
+        const resetStarted = renderOverviewGraph(renderOpts);
+        if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
           overviewCy.resize();
           overviewCy.fit(undefined, 30);
+          finishImmediateRefresh();
         }}
-      }});
+      }};
+      if (immediate) {{
+        requestFrame(() => requestFrame(refresh));
+      }} else {{
+        requestFrame(refresh);
+      }}
     }}
   }}
 
