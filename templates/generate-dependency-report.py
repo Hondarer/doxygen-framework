@@ -1728,7 +1728,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "border-width": 1,
           "color": "#111827",
           "width": "mapData(weight, 1, 12, 42, 86)",
-          "height": "mapData(weight, 1, 12, 42, 86)"
+          "height": "mapData(weight, 1, 12, 42, 86)",
+          "z-index": 1
         }}
       }},
       {{
@@ -1743,7 +1744,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "font-size": 10,
           "text-background-color": "#ffffff",
           "text-background-opacity": 0.85,
-          "text-background-padding": 2
+          "text-background-padding": 2,
+          "z-compound-depth": "bottom",
+          "z-index": 0
         }}
       }},
       {{ selector: ".dep-leaf-node", style: {{ "background-color": "#dcfce7", "border-color": "#16a34a" }} }},
@@ -1768,7 +1771,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "text-halign": "center",
           "font-size": 12,
           "padding": 16,
-          "color": "#1f2937"
+          "color": "#1f2937",
+          "z-index": 2
         }}
       }},
       {{ selector: ".dep-file-library-node", style: {{ "background-color": "#eef2ff", "border-color": "#4f46e5" }} }},
@@ -1782,6 +1786,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         }}
       }},
       {{ selector: ".dep-selected-edge", style: {{ "opacity": 1 }} }},
+      {{
+        selector: ".dep-function-edge",
+        style: {{
+          "z-compound-depth": "top",
+          "z-index": 3
+        }}
+      }},
       {{
         selector: ".dep-pull-edge",
         style: {{
@@ -2008,7 +2019,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
             source: edge.caller,
             target: edge.callee,
             weight: 1
-          }}
+          }},
+          classes: "dep-function-edge"
         }});
       }}
     }} else if (selectedFilePath) {{
