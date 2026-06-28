@@ -164,7 +164,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 ### makefile からの呼び出し
 
 ```bash
-doxybook2 -i ../../xml -o ../../docs/doxybook2 --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh
+doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -173,7 +173,7 @@ doxybook2 -i ../../xml -o ../../docs/doxybook2 --config doxybook2-config.json --
 ### 終了コードの保持
 
 ```bash
-doxybook2 -i ../../xml -o ../../docs/doxybook2 --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh;
+doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh;
 DOXYBOOK2_EXIT=${PIPESTATUS[0]};
 exit $DOXYBOOK2_EXIT;
 ```
@@ -199,8 +199,8 @@ exit $DOXYBOOK2_EXIT;
 [2025-11-26 10:30:15.123] [info] Processing file calculator.h
 ```
 
-[2025-11-26 10:30:15.124] <span style="color: #ffaa00">[warning]</span> Missing brief description  
-[2025-11-26 10:30:15.125] <span style="color: #ff0000">[error]</span> Failed to parse member  
+[2025-11-26 10:30:15.124] <span style="color: #ffaa00">[warning]</span> Missing brief description
+[2025-11-26 10:30:15.125] <span style="color: #ff0000">[error]</span> Failed to parse member
 [2025-11-26 10:30:15.126] <span style="color: #ff0000">[critical]</span> Fatal error occurred
 
 (`[info]` は着色なし、`[warning]` 単語は通常の太さの黄色、`[error]` と `[critical]` 単語は通常の太さの赤色で表示)

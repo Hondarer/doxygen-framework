@@ -46,7 +46,7 @@ spdlog の `ansicolor_sink` は、以下のデフォルト カラーマッピン
 Doxybook2 には `-q, --quiet` オプションが存在します。
 
 ```bash
-doxybook2 -q -i xml/ -o output/
+doxybook2 -q -i "$DOXYFW_XML_WORK_DIR" -o output/
 ```
 
 このオプションは stdout を抑制し、stderr にエラーとワーニングのみを出力します。
