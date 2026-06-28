@@ -948,6 +948,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
 def write_html(output_dir: Path, category_id: str) -> None:
     title = "依存関係レポート"
     escaped_category = html.escape(category_id or "doxygen")
+    js_category = json.dumps(category_id or "doxygen", ensure_ascii=False)
     html_text = f"""<!doctype html>
 <html lang="ja">
 <head>
@@ -1377,6 +1378,37 @@ def write_html(output_dir: Path, category_id: str) -> None:
       margin: 2px 0;
       overflow-wrap: anywhere;
     }}
+    .dep-graph-context-menu {{
+      position: fixed;
+      z-index: 1000;
+      display: none;
+      min-width: 180px;
+      border: 1px solid var(--dep-border);
+      border-radius: 6px;
+      padding: 4px;
+      background: var(--dep-input-bg);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+    }}
+    .dep-graph-context-menu.visible {{
+      display: block;
+    }}
+    .dep-graph-context-menu button {{
+      display: block;
+      width: 100%;
+      min-height: 30px;
+      border: 0;
+      border-radius: 4px;
+      padding: 6px 8px;
+      background: transparent;
+      color: var(--dep-input-text);
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+    }}
+    .dep-graph-context-menu button:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-input-bg));
+      color: var(--dep-accent);
+    }}
     @media (min-width: 981px) {{
       html, body {{
         height: 100%;
@@ -1528,6 +1560,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" id="overviewReset">初期化</button>
         </div>
         <div id="overviewGraph" class="dep-graph"></div>
+        <div id="overviewGraphMenu" class="dep-graph-context-menu" role="menu" aria-label="マップ ダウンロード">
+          <button type="button" role="menuitem" data-svg-scope="full">マップ全体を SVG で保存</button>
+          <button type="button" role="menuitem" data-svg-scope="viewport">表示範囲を SVG で保存</button>
+        </div>
       </div>
       <aside class="dep-detail dep-graph-detail" id="overviewDetail">
         <p class="dep-empty">ファイルまたは関数を選択してください。</p>
@@ -1580,6 +1616,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const overviewFit = document.getElementById("overviewFit");
   const overviewRelayout = document.getElementById("overviewRelayout");
   const overviewReset = document.getElementById("overviewReset");
+  const overviewGraphMenu = document.getElementById("overviewGraphMenu");
+  const reportCategory = {js_category};
   let selectedId = "";
   let selectedFilePath = "";
   let selectedEdgeKey = "";
@@ -1602,6 +1640,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }}
+
+  function escapeXml(value) {{
+    return text(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }}
+
+  function safeFileNamePart(value) {{
+    const normalized = text(value).trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+    return normalized || "doxygen";
   }}
 
   function levelText(fn) {{
@@ -1816,6 +1868,170 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function graphUnavailable(container, detailElement) {{
     container.innerHTML = "<p class=\\"dep-empty\\">Cytoscape.js を読み込めませんでした。</p>";
     detailElement.innerHTML = "<p class=\\"dep-empty\\">グラフ ライブラリを確認してください。</p>";
+  }}
+
+  function hideOverviewGraphMenu() {{
+    if (!overviewGraphMenu) return;
+    overviewGraphMenu.classList.remove("visible");
+  }}
+
+  function showOverviewGraphMenu(clientX, clientY) {{
+    if (!overviewGraphMenu) return;
+    const margin = 8;
+    overviewGraphMenu.classList.add("visible");
+    overviewGraphMenu.style.left = "0px";
+    overviewGraphMenu.style.top = "0px";
+    const rect = overviewGraphMenu.getBoundingClientRect();
+    const left = Math.min(Math.max(margin, clientX), Math.max(margin, window.innerWidth - rect.width - margin));
+    const top = Math.min(Math.max(margin, clientY), Math.max(margin, window.innerHeight - rect.height - margin));
+    overviewGraphMenu.style.left = left + "px";
+    overviewGraphMenu.style.top = top + "px";
+  }}
+
+  function downloadTextFile(fileName, textContent, mimeType) {{
+    const url = URL.createObjectURL(new Blob([textContent], {{ type: mimeType }}));
+    const tmp = document.createElement("a");
+    tmp.href = url;
+    tmp.setAttribute("download", fileName);
+    document.body.appendChild(tmp);
+    tmp.click();
+    document.body.removeChild(tmp);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }}
+
+  function graphStyleValue(element, name, fallback) {{
+    const value = element.style(name);
+    if (value === null || value === undefined || value === "") return fallback;
+    return value;
+  }}
+
+  function graphStyleNumber(element, name, fallback) {{
+    const value = Number(graphStyleValue(element, name, fallback));
+    if (Number.isFinite(value)) return value;
+    return fallback;
+  }}
+
+  function svgPoint(element, scope) {{
+    if (scope === "viewport") return element.renderedPosition();
+    return element.position();
+  }}
+
+  function svgBox(element, scope) {{
+    const box = scope === "viewport"
+      ? element.renderedBoundingBox({{ includeLabels: true, includeOverlays: false }})
+      : element.boundingBox({{ includeLabels: true, includeOverlays: false }});
+    return {{
+      x1: box.x1,
+      y1: box.y1,
+      x2: box.x2,
+      y2: box.y2,
+      w: Math.max(1, box.w),
+      h: Math.max(1, box.h)
+    }};
+  }}
+
+  function svgElementBounds(scope) {{
+    if (!overviewCy || overviewCy.elements().length === 0) {{
+      return {{ x1: 0, y1: 0, x2: overviewGraph.clientWidth, y2: overviewGraph.clientHeight }};
+    }}
+    if (scope === "viewport") {{
+      return {{ x1: 0, y1: 0, x2: overviewCy.width(), y2: overviewCy.height() }};
+    }}
+    const box = overviewCy.elements(":visible").not(".dep-pull-edge").boundingBox({{ includeLabels: true, includeOverlays: false }});
+    const padding = 40;
+    return {{
+      x1: box.x1 - padding,
+      y1: box.y1 - padding,
+      x2: box.x2 + padding,
+      y2: box.y2 + padding
+    }};
+  }}
+
+  function svgShapeForNode(node, point, width, height, fill, stroke, strokeWidth) {{
+    const shape = graphStyleValue(node, "shape", "ellipse");
+    const attrs = " fill=\\"" + escapeXml(fill) + "\\" stroke=\\"" + escapeXml(stroke) + "\\" stroke-width=\\"" + escapeXml(strokeWidth) + "\\"";
+    if (shape === "diamond") {{
+      const x = point.x;
+      const y = point.y;
+      const hw = width / 2;
+      const hh = height / 2;
+      return "<polygon points=\\"" + [x, y - hh, x + hw, y, x, y + hh, x - hw, y].map((value) => Number(value).toFixed(2)).join(" ") + "\\"" + attrs + "/>";
+    }}
+    if (shape === "round-rectangle" || shape === "roundrectangle" || node.isParent()) {{
+      const x = point.x - width / 2;
+      const y = point.y - height / 2;
+      return "<rect x=\\"" + x.toFixed(2) + "\\" y=\\"" + y.toFixed(2) + "\\" width=\\"" + width.toFixed(2) + "\\" height=\\"" + height.toFixed(2) + "\\" rx=\\"10\\" ry=\\"10\\"" + attrs + "/>";
+    }}
+    return "<ellipse cx=\\"" + point.x.toFixed(2) + "\\" cy=\\"" + point.y.toFixed(2) + "\\" rx=\\"" + (width / 2).toFixed(2) + "\\" ry=\\"" + (height / 2).toFixed(2) + "\\"" + attrs + "/>";
+  }}
+
+  function svgText(label, x, y, fontSize, color, anchor) {{
+    if (!label) return "";
+    return "<text x=\\"" + x.toFixed(2) + "\\" y=\\"" + y.toFixed(2) + "\\" text-anchor=\\"" + escapeXml(anchor || "middle") + "\\" dominant-baseline=\\"middle\\" font-family=\\"system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif\\" font-size=\\"" + escapeXml(fontSize) + "\\" fill=\\"" + escapeXml(color) + "\\">" + escapeXml(label) + "</text>";
+  }}
+
+  function svgNode(node, scope) {{
+    const point = svgPoint(node, scope);
+    const box = svgBox(node, scope);
+    const width = scope === "viewport" ? Math.max(1, node.renderedWidth()) : Math.max(1, node.width());
+    const height = scope === "viewport" ? Math.max(1, node.renderedHeight()) : Math.max(1, node.height());
+    const shapeWidth = node.isParent() ? box.w : width;
+    const shapeHeight = node.isParent() ? box.h : height;
+    const shapePoint = node.isParent() ? {{ x: (box.x1 + box.x2) / 2, y: (box.y1 + box.y2) / 2 }} : point;
+    const fill = graphStyleValue(node, "background-color", "#ffffff");
+    const stroke = graphStyleValue(node, "border-color", "#64748b");
+    const strokeWidth = graphStyleNumber(node, "border-width", 1);
+    const fontSize = graphStyleNumber(node, "font-size", node.isParent() ? 12 : 11);
+    const color = graphStyleValue(node, "color", "#111827");
+    const labelY = node.isParent() ? box.y1 + Math.max(16, fontSize) : point.y;
+    return svgShapeForNode(node, shapePoint, shapeWidth, shapeHeight, fill, stroke, strokeWidth) +
+      svgText(node.data("label"), point.x, labelY, fontSize, color, "middle");
+  }}
+
+  function svgEdge(edge, scope) {{
+    if (edge.hasClass("dep-pull-edge")) return "";
+    const source = edge.source();
+    const target = edge.target();
+    if (!source.length || !target.length) return "";
+    const start = svgPoint(source, scope);
+    const end = svgPoint(target, scope);
+    const stroke = graphStyleValue(edge, "line-color", "#94a3b8");
+    const strokeWidth = Math.max(1, graphStyleNumber(edge, "width", 1));
+    const opacity = graphStyleValue(edge, "opacity", "1");
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    const label = edge.data("label");
+    const fontSize = graphStyleNumber(edge, "font-size", 10);
+    const color = graphStyleValue(edge, "color", "#111827");
+    return "<line x1=\\"" + start.x.toFixed(2) + "\\" y1=\\"" + start.y.toFixed(2) + "\\" x2=\\"" + end.x.toFixed(2) + "\\" y2=\\"" + end.y.toFixed(2) + "\\" stroke=\\"" + escapeXml(stroke) + "\\" stroke-width=\\"" + escapeXml(strokeWidth) + "\\" opacity=\\"" + escapeXml(opacity) + "\\" marker-end=\\"url(#dep-arrow)\\"/>" +
+      (label ? "<rect x=\\"" + (midX - 10).toFixed(2) + "\\" y=\\"" + (midY - 8).toFixed(2) + "\\" width=\\"20\\" height=\\"16\\" rx=\\"3\\" fill=\\"#ffffff\\" opacity=\\"0.85\\"/>" + svgText(label, midX, midY, fontSize, color, "middle") : "");
+  }}
+
+  function buildOverviewSvg(scope) {{
+    if (!overviewCy) return "";
+    stopOverviewPositionAnimation();
+    const bounds = svgElementBounds(scope);
+    const width = Math.max(1, bounds.x2 - bounds.x1);
+    const height = Math.max(1, bounds.y2 - bounds.y1);
+    const edgesSvg = overviewCy.edges(":visible").map((edge) => svgEdge(edge, scope)).join("");
+    const parentsSvg = overviewCy.nodes(":visible").filter((node) => node.isParent()).map((node) => svgNode(node, scope)).join("");
+    const nodesSvg = overviewCy.nodes(":visible").filter((node) => !node.isParent()).map((node) => svgNode(node, scope)).join("");
+    return "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n" +
+      "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"" + width.toFixed(0) + "\\" height=\\"" + height.toFixed(0) + "\\" viewBox=\\"" + bounds.x1.toFixed(2) + " " + bounds.y1.toFixed(2) + " " + width.toFixed(2) + " " + height.toFixed(2) + "\\" role=\\"img\\">" +
+      "<title>" + escapeXml("依存関係マップ") + "</title>" +
+      "<defs><marker id=\\"dep-arrow\\" viewBox=\\"0 0 10 10\\" refX=\\"9\\" refY=\\"5\\" markerWidth=\\"7\\" markerHeight=\\"7\\" orient=\\"auto-start-reverse\\"><path d=\\"M 0 0 L 10 5 L 0 10 z\\" fill=\\"#64748b\\"/></marker></defs>" +
+      "<rect x=\\"" + bounds.x1.toFixed(2) + "\\" y=\\"" + bounds.y1.toFixed(2) + "\\" width=\\"" + width.toFixed(2) + "\\" height=\\"" + height.toFixed(2) + "\\" fill=\\"#ffffff\\"/>" +
+      edgesSvg + parentsSvg + nodesSvg +
+      "</svg>\\n";
+  }}
+
+  function downloadOverviewSvg(scope) {{
+    if (!overviewCy) return;
+    const safeCategory = safeFileNamePart(reportCategory);
+    const suffix = scope === "full" ? "full" : "viewport";
+    const svg = buildOverviewSvg(scope);
+    if (!svg) return;
+    downloadTextFile("dependency-map-" + safeCategory + "-" + suffix + ".svg", svg, "image/svg+xml;charset=utf-8");
   }}
 
   function renderOverviewDetail(filePath) {{
@@ -2494,6 +2710,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (event.target !== overviewCy) return;
       clearOverviewSelection();
     }});
+    overviewCy.on("cxttap", (event) => {{
+      if (event.target !== overviewCy) return;
+      const originalEvent = event.originalEvent || {{}};
+      if (originalEvent.preventDefault) originalEvent.preventDefault();
+      let clientX = Number(originalEvent.clientX);
+      let clientY = Number(originalEvent.clientY);
+      if ((!Number.isFinite(clientX) || !Number.isFinite(clientY)) && event.renderedPosition) {{
+        const rect = overviewGraph.getBoundingClientRect();
+        clientX = rect.left + event.renderedPosition.x;
+        clientY = rect.top + event.renderedPosition.y;
+      }}
+      if (Number.isFinite(clientX) && Number.isFinite(clientY)) {{
+        showOverviewGraphMenu(clientX, clientY);
+      }}
+    }});
+    overviewGraph.addEventListener("contextmenu", (event) => {{
+      event.preventDefault();
+    }});
   }}
 
   function refreshActiveGraph() {{
@@ -2789,6 +3023,22 @@ def write_html(output_dir: Path, category_id: str) -> None:
   overviewReset.addEventListener("click", () => {{
     clearSelection();
   }});
+  if (overviewGraphMenu) {{
+    overviewGraphMenu.addEventListener("click", (event) => {{
+      const button = event.target.closest("[data-svg-scope]");
+      if (!button) return;
+      downloadOverviewSvg(button.getAttribute("data-svg-scope"));
+      hideOverviewGraphMenu();
+    }});
+    document.addEventListener("click", (event) => {{
+      if (!overviewGraphMenu.contains(event.target)) hideOverviewGraphMenu();
+    }});
+    document.addEventListener("keydown", (event) => {{
+      if (event.key === "Escape") hideOverviewGraphMenu();
+    }});
+    window.addEventListener("resize", hideOverviewGraphMenu);
+    window.addEventListener("scroll", hideOverviewGraphMenu, true);
+  }}
   clearFilters.addEventListener("click", () => {{
     search.value = "";
     levelFilter.value = "";

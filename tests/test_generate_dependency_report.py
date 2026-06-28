@@ -222,6 +222,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             payload = data_js.removeprefix("window.DoxyfwDependencyData = ").rstrip(";\n")
             self.assertEqual(json.loads(payload)["summary"]["functionCount"], 11)
 
+            index_html = (output_dir / "index.html").read_text(encoding="utf-8")
+            self.assertIn('id="overviewGraphMenu"', index_html)
+            self.assertIn('data-svg-scope="viewport"', index_html)
+            self.assertIn('data-svg-scope="full"', index_html)
+            self.assertIn("function buildOverviewSvg(scope)", index_html)
+            self.assertIn("function downloadOverviewSvg(scope)", index_html)
+
     def test_cycle_detection(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
             temp_dir = Path(temp_dir_text)
