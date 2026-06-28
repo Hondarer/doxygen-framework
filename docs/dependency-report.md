@@ -77,8 +77,11 @@ HTML リンクは、代表として採用した Doxygen `memberdef` のページ
 
 ## 依存 level
 
-`dependencyLevel` は、依存種別に対応する基準値と、対象範囲内の呼び出し深さである `dependencyDepth` から算出します。  
-`leaf-static` は `0`、`leaf-global` は `1` になり、呼び出し先を持つ分類は分類ごとの基準値に `dependencyDepth` を加えた値になります。
+`dependencyLevel` は、依存種別に対応する基準値と、対象範囲内の呼び出し関係から算出します。
+`leaf-static` と `leaf-global` は、対象範囲内の呼び出し元数を基準値に加えた値になります。
+`leaf-static` は `0` 番台、`leaf-global` は `1000` 番台を使います。
+呼び出し先を持つ分類は、分類ごとの基準値に `dependencyDepth` を加えた値になります。
+`file-local` と `include-callee` は `2000` 番台、`libsrc-file-caller` は `3000` 番台、`src-file-caller` は `4000` 番台、`other-to-libsrc-caller` は `5000` 番台、`cross-area-caller` は `6000` 番台を使います。
 
 `dependencyDepth` は、対象範囲内の呼び出し先を持たない関数を `0` とします。  
 呼び出し先を持つ関数は、呼び出し先の最大 `dependencyDepth` に `1` を加えた値になります。
@@ -90,7 +93,7 @@ HTML リンクは、代表として採用した Doxygen `memberdef` のページ
 HTML と CSV では `cycle` として扱います。
 
 この level は「確認順の目安」です。  
-`0` の関数は対象範囲内で他関数に依存しないため、先に確認しやすい候補です。  
+level が小さい leaf 関数は対象範囲内で他関数に依存せず、呼び出し元も少ないため、先に確認しやすい候補です。
 一方で、呼び出し元が多い関数は影響範囲が大きい可能性があるため、`inScopeCallerCount` もあわせて確認します。
 
 ## 分類

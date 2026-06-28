@@ -608,7 +608,7 @@ DEPENDENCY_RANKS = {
 
 DEPENDENCY_LEVEL_BASES = {
     "leaf-static": 0,
-    "leaf-global": 1,
+    "leaf-global": 1000,
     "file-local": 2000,
     "include-callee": 2000,
     "libsrc-file-caller": 3000,
@@ -725,6 +725,15 @@ def classify_function(info: FunctionInfo, functions: Dict[str, FunctionInfo], cy
     return call_kind
 
 
+def compute_dependency_level(info: FunctionInfo, dependency_class: str, dependency_depth: Optional[int]) -> Optional[int]:
+    if dependency_depth is None:
+        return None
+    base = DEPENDENCY_LEVEL_BASES[dependency_class]
+    if dependency_class in {"leaf-static", "leaf-global"}:
+        return base + len(info.callers)
+    return base + dependency_depth
+
+
 def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[str, object]:
     functions = collect_functions(xml_dir)
     cycle_map, sccs = detect_cycle_groups(functions)
@@ -740,9 +749,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         dependency_class = classify_function(info, functions, cycle_map)
         dependency_rank = DEPENDENCY_RANKS[dependency_class]
         dependency_depth = depths[func_id]
-        dependency_level = None
-        if dependency_depth is not None:
-            dependency_level = DEPENDENCY_LEVEL_BASES[dependency_class] + dependency_depth
+        dependency_level = compute_dependency_level(info, dependency_class, dependency_depth)
         source_area = path_area(info.file)
         callee_areas = sorted({path_area(functions[callee_id].file) for callee_id in info.callees})
         max_callee_area = ""

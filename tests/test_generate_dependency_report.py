@@ -162,11 +162,12 @@ class GenerateDependencyReportTest(unittest.TestCase):
             data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
             by_id = {row["id"]: row for row in data["functions"]}
 
-            self.assertEqual(by_id["a_leaf"]["dependencyLevel"], 0)
+            self.assertEqual(by_id["a_leaf"]["dependencyLevel"], 1)
             self.assertEqual(by_id["a_leaf"]["dependencyClass"], "leaf-static")
-            self.assertEqual(by_id["b_leaf"]["dependencyLevel"], 1)
+            self.assertEqual(by_id["b_leaf"]["dependencyLevel"], 1001)
             self.assertEqual(by_id["b_leaf"]["dependencyRank"], 1)
             self.assertEqual(by_id["b_leaf"]["dependencyClass"], "leaf-global")
+            self.assertEqual(by_id["c_leaf"]["dependencyLevel"], 1003)
             self.assertEqual(by_id["a_local"]["dependencyLevel"], 2001)
             self.assertEqual(by_id["a_local"]["dependencyRank"], 2)
             self.assertEqual(by_id["a_local"]["dependencyDepth"], 1)
