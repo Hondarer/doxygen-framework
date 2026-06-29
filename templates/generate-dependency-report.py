@@ -2024,6 +2024,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewDraggingNodeIds = new Set();
   let overviewDragRevision = 0;
   let overviewSyncAfterDrag = false;
+  let overviewLastClassUpdatePlan = null;
   let previousSelectedRowVisible = false;
   let previousSelectedFileRowVisible = false;
   let pendingFunctionListScroll = false;
@@ -3595,24 +3596,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .join(" ");
   }}
 
-  // 興味対象外を表す非強調 (透過) クラス。クリック応答を阻害しないよう、
-  // これらの適用だけを最終フェーズ (Phase C) へ遅延させる。
-  const OVERVIEW_MUTED_CLASSES = new Set([
-    "dep-file-node-muted",
-    "dep-base-edge-muted"
-  ]);
-
-  function overviewMutedClassList(classes) {{
+  function overviewStateClasses(classes) {{
     return classText(classes || "")
       .split(/\\s+/)
-      .filter((name) => name && OVERVIEW_MUTED_CLASSES.has(name));
+      .filter((name) => name && OVERVIEW_STATE_CLASSES.has(name))
+      .join(" ");
   }}
 
-  function overviewFocusClasses(classes) {{
-    return classText(classes || "")
-      .split(/\\s+/)
-      .filter((name) => name && !OVERVIEW_MUTED_CLASSES.has(name))
-      .join(" ");
+  function overviewMergeStructuralAndStateClasses(structuralClasses, stateClasses) {{
+    return classText([overviewStructuralClasses(structuralClasses), overviewStateClasses(stateClasses)].filter(Boolean).join(" "));
   }}
 
   function overviewStructureElement(element) {{
@@ -3777,6 +3769,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return token === null || token === undefined || isLatestOverviewSync(token);
   }}
 
+  function selectionSignatureHasSelection(signature) {{
+    if (!signature) return false;
+    try {{
+      const values = JSON.parse(signature);
+      return Array.isArray(values) && values.some((value) => Boolean(value));
+    }} catch (err) {{
+      return false;
+    }}
+  }}
+
   function targetElementIdSet(targetElements) {{
     return new Set(targetElements.map((element) => element.data.id));
   }}
@@ -3822,11 +3824,22 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
     anchorOverviewChildPositions(targetElements, anchorCenters);
     const plan = overviewSyncDiffPlan(targetElements);
+    const previousSelectionSignature = overviewRenderedSelectionSignature || JSON.stringify(["", "", ""]);
+    const previousHasSelection = selectionSignatureHasSelection(previousSelectionSignature);
+    const nextHasSelection = selectionSignatureHasSelection(selectionSignature);
+    const deferStateClassChanges = previousHasSelection !== nextHasSelection;
 
     // --- Phase A (同期・単一 batch) ---
     let layoutNeeded = false;
     const dragRevision = overviewDragRevision;
-    const deferredMutedTargets = [];
+    const deferredClassTargets = [];
+    overviewLastClassUpdatePlan = {{
+      previousHasSelection,
+      nextHasSelection,
+      deferStateClassChanges,
+      phaseA: 0,
+      phaseC: 0
+    }};
     overviewCy.batch(() => {{
       if (plan.stale.length > 0) {{
         const staleCollection = overviewCy.collection(plan.stale);
@@ -3857,22 +3870,17 @@ def write_html(output_dir: Path, category_id: str) -> None:
         if (currentDataDiffers(element, target.data)) {{
           element.data(target.data);
         }}
-        // 興味対象の強調/非強調は即時。新たに付与されるミュートのみ Phase C へ遅延する
-        // (既にミュート済みで継続する要素は維持し、一瞬の解除によるちらつきを避ける)。
-        const targetMuted = overviewMutedClassList(target.classes);
-        let phaseAClasses = classText(target.classes || "");
-        if (targetMuted.length > 0) {{
-          const currentClasses = element.classes();
-          const newlyMuted = targetMuted.filter((name) => currentClasses.indexOf(name) === -1);
-          if (newlyMuted.length > 0) {{
-            phaseAClasses = phaseAClasses
-              .split(/\\s+/)
-              .filter((name) => name && newlyMuted.indexOf(name) === -1)
-              .join(" ");
-            deferredMutedTargets.push(target);
+        const targetClasses = classText(target.classes || "");
+        let phaseAClasses = targetClasses;
+        if (deferStateClassChanges) {{
+          phaseAClasses = overviewMergeStructuralAndStateClasses(targetClasses, element.classes().join(" "));
+          if (classText(phaseAClasses) !== targetClasses) {{
+            deferredClassTargets.push({{ id: target.data.id, classes: targetClasses }});
+            overviewLastClassUpdatePlan.phaseC += 1;
           }}
         }}
         if (currentClassesDiffer(element, phaseAClasses)) {{
+          overviewLastClassUpdatePlan.phaseA += 1;
           element.classes(phaseAClasses);
         }}
       }}
@@ -3905,17 +3913,17 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (phaseCStarted) return;
       phaseCStarted = true;
       if (!overviewCy || !isLatestOverviewSync(token)) return;
-      if (deferredMutedTargets.length === 0) {{
+      if (deferredClassTargets.length === 0) {{
         phaseCClassesDone = true;
         finishPhaseCIfReady();
         return;
       }}
       (async () => {{
-        const completed = await processOverviewChunks(deferredMutedTargets, token, (chunk) => {{
+        const completed = await processOverviewChunks(deferredClassTargets, token, (chunk) => {{
           if (!overviewCy || !isLatestOverviewSync(token)) return;
           overviewCy.batch(() => {{
             for (const target of chunk) {{
-              const element = overviewCy.getElementById(target.data.id);
+              const element = overviewCy.getElementById(target.id);
               if (!element.length) continue;
               if (currentClassesDiffer(element, target.classes)) {{
                 element.classes(target.classes || "");
@@ -3957,7 +3965,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
     // 構造変化なし: 興味対象の強調は反映済み。ミュートがあれば次フレームへ遅延し、
     // 強調の描画を先行させる。なければ即座に確定する。
-    if (deferredMutedTargets.length > 0) {{
+    if (deferredClassTargets.length > 0) {{
       requestOverviewFrame(startPhaseC);
     }} else {{
       startPhaseC();
@@ -4769,6 +4777,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       clearSelection: () => clearOverviewSelection(),
       renderedSignature: () => overviewRenderedSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),
+      lastClassUpdatePlan: () => overviewLastClassUpdatePlan,
       activateFunctionList: () => activateTab("functionListPanel"),
       activateFileList: () => activateTab("fileListPanel"),
       isRelayoutHidden: () => Boolean(overviewGraph && overviewGraph.classList.contains("layout-relayouting")),

@@ -141,7 +141,8 @@ async function runRapidSelectionScenario(page) {
     return {
       selectedFileClasses: api.classesOf('src/file_c.c') || [],
       fileAMutedImmediate: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1,
-      fileCMutedImmediate: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+      fileCMutedImmediate: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
+      classPlan: api.lastClassUpdatePlan()
     };
   });
 
@@ -191,7 +192,8 @@ async function run(reportPath) {
       return {
         selectedFileClasses: api.classesOf('src/file_a.c') || [],
         functionNodes: api.nodeIds().filter((id) => id.indexOf('src/') === -1),
-        fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+        fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
+        classPlan: api.lastClassUpdatePlan()
       };
     });
 
@@ -208,7 +210,8 @@ async function run(reportPath) {
         renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
         fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
         fileBMuted: (api.classesOf('src/file_b.c') || []).indexOf('dep-file-node-muted') !== -1,
-        functionNodes: api.nodeIds().filter((id) => id.indexOf('src/') === -1)
+        functionNodes: api.nodeIds().filter((id) => id.indexOf('src/') === -1),
+        classPlan: api.lastClassUpdatePlan()
       };
     });
 
@@ -219,14 +222,36 @@ async function run(reportPath) {
       return {
         selectedFileClasses: api.classesOf('src/file_c.c') || [],
         // Phase C 並行化後も、新しく選択した file_c の強調は同期時点で反映される。
-        fileAMutedImmediate: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1
+        fileAMutedImmediate: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1,
+        classPlan: api.lastClassUpdatePlan()
       };
     });
 
-    // 背景クリック相当 (選択解除)。
     await page.waitForFunction(() => !window.depReportOverviewTestApi.isLayoutRunning(), { timeout: 20000 });
-    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
-    await sleep(800);
+    const clearSelection = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      api.clearSelection();
+      return {
+        fileAClasses: api.classesOf('src/file_a.c') || [],
+        fileBClasses: api.classesOf('src/file_b.c') || [],
+        fileCClasses: api.classesOf('src/file_c.c') || [],
+        classPlan: api.lastClassUpdatePlan()
+      };
+    });
+    await page.waitForFunction(
+      () => !window.depReportOverviewTestApi.isLayoutRunning()
+        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+      { timeout: 20000 }
+    );
+    await sleep(50);
+    clearSelection.final = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        fileAClasses: api.classesOf('src/file_a.c') || [],
+        fileBClasses: api.classesOf('src/file_b.c') || [],
+        fileCClasses: api.classesOf('src/file_c.c') || []
+      };
+    });
 
     const hiddenTabSelection = await runHiddenTabSelectionScenario(page, 'src/file_a.c');
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
@@ -253,6 +278,7 @@ async function run(reportPath) {
       sync,
       final,
       switchSync,
+      clearSelection,
       hiddenTabSelection,
       rapidSelection,
       realClick,
