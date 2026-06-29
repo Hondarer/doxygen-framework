@@ -322,9 +322,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function isOverviewNodeDragging(nodeOrId)", index_html)
             self.assertIn("function hasOverviewDraggingNodes()", index_html)
             self.assertIn("function handleOverviewNodeGrab(node)", index_html)
+            self.assertIn("function handleOverviewNodeDrag(node)", index_html)
             self.assertIn("function handleOverviewNodeFree(node)", index_html)
             self.assertIn('overviewCy.on("grab", "node"', index_html)
+            self.assertIn('overviewCy.on("drag", "node"', index_html)
             self.assertIn('overviewCy.on("free", "node"', index_html)
+            # タップ起因の grab はドラッグ扱いしない (登録は drag で行う)。
+            self.assertNotIn("for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.add(id);", index_html)
             self.assertIn("Math.exp(-rate * clamped)", index_html)
             self.assertIn("const p = exponentialEaseOutProgress(t, impact);", index_html)
             self.assertIn("controls-inert", index_html)
@@ -966,10 +970,35 @@ OVERVIEW_FIXTURE = {
         <name>a_util</name>
         <location file="src/file_a.c" line="18" bodyfile="src/file_a.c" bodystart="18"/>
       </memberdef>
+      <memberdef kind="function" id="a_h1" static="yes">
+        <name>a_h1</name>
+        <location file="src/file_a.c" line="40" bodyfile="src/file_a.c" bodystart="40"/>
+      </memberdef>
+      <memberdef kind="function" id="a_h2" static="yes">
+        <name>a_h2</name>
+        <location file="src/file_a.c" line="48" bodyfile="src/file_a.c" bodystart="48"/>
+      </memberdef>
+      <memberdef kind="function" id="a_h3" static="yes">
+        <name>a_h3</name>
+        <location file="src/file_a.c" line="56" bodyfile="src/file_a.c" bodystart="56"/>
+      </memberdef>
+      <memberdef kind="function" id="a_h4" static="yes">
+        <name>a_h4</name>
+        <location file="src/file_a.c" line="64" bodyfile="src/file_a.c" bodystart="64"/>
+      </memberdef>
+      <memberdef kind="function" id="a_h5" static="yes">
+        <name>a_h5</name>
+        <location file="src/file_a.c" line="72" bodyfile="src/file_a.c" bodystart="72"/>
+      </memberdef>
       <memberdef kind="function" id="a_main" static="no">
         <name>a_main</name>
         <references refid="a_helper" compoundref="file__a_8c">a_helper</references>
         <references refid="a_util" compoundref="file__a_8c">a_util</references>
+        <references refid="a_h1" compoundref="file__a_8c">a_h1</references>
+        <references refid="a_h2" compoundref="file__a_8c">a_h2</references>
+        <references refid="a_h3" compoundref="file__a_8c">a_h3</references>
+        <references refid="a_h4" compoundref="file__a_8c">a_h4</references>
+        <references refid="a_h5" compoundref="file__a_8c">a_h5</references>
         <references refid="b_entry" compoundref="file__b_8c">b_entry</references>
         <location file="src/file_a.c" line="30" bodyfile="src/file_a.c" bodystart="30"/>
       </memberdef>
@@ -1059,15 +1088,15 @@ class OverviewInteractionTest(unittest.TestCase):
                 ["src/file_a.c", "src/file_b.c", "src/file_c.c"],
             )
 
+            # file_a の関数 (a_helper, a_util, a_h1..a_h5, a_main の 8 個)。
+            file_a_functions = ["a_h1", "a_h2", "a_h3", "a_h4", "a_h5", "a_helper", "a_main", "a_util"]
+
             # --- Phase A: クリック同期完了直後 ---
             sync = data["sync"]
             # 興味対象の強調は即時。
             self.assertIn("dep-selected-file", sync["selectedFileClasses"])
             # グループ内の関数ノードが同期的に追加されている。
-            self.assertEqual(
-                sorted(sync["functionNodes"]),
-                ["a_helper", "a_main", "a_util"],
-            )
+            self.assertEqual(sorted(sync["functionNodes"]), file_a_functions)
             # 興味対象外のミュートはこの時点では未適用 (Phase C へ遅延)。
             self.assertFalse(sync["fileCMuted"])
 
@@ -1078,15 +1107,21 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertTrue(final["fileCMuted"])
             # 呼び出し関係のある file_b はミュートされない。
             self.assertFalse(final["fileBMuted"])
-            self.assertEqual(
-                sorted(final["functionNodes"]),
-                ["a_helper", "a_main", "a_util"],
-            )
+            self.assertEqual(sorted(final["functionNodes"]), file_a_functions)
 
             # --- 別ファイルへ選択切替: 強調は即時、旧選択のミュートは遅延 ---
             switch_sync = data["switchSync"]
             self.assertIn("dep-selected-file", switch_sync["selectedFileClasses"])
             self.assertFalse(switch_sync["fileAMutedImmediate"])
+
+            # --- 実マウス クリックで関数の位置補正 (Phase B) が効くこと ---
+            # ノードの実タップは grab/free を発火する。これがドラッグ扱いされると
+            # Phase B がスキップされ関数が seed のまま残る (修正前の不具合)。
+            real_click = data["realClick"]
+            self.assertTrue(real_click["available"])
+            self.assertEqual(real_click["total"], len(file_a_functions))
+            # 過半数の関数が初期配置 (seed) から移動していること。
+            self.assertGreater(real_click["moved"], len(file_a_functions) // 2)
 
 
 if __name__ == "__main__":

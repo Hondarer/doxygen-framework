@@ -3926,14 +3926,29 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function handleOverviewNodeGrab(node) {{
+    // grab (mousedown) はタップでも発火する。ここでドラッグ集合へ登録すると、
+    // タップ直後の選択 sync がドラッグ後回し分岐に入り Phase B (関数レイアウト) を
+    // 取りこぼす。実際の移動 (drag) があって初めてドラッグ扱いとする。
     stopOverviewPositionAnimation();
-    for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.add(id);
-    overviewDragRevision += 1;
+  }}
+
+  function handleOverviewNodeDrag(node) {{
+    let added = false;
+    for (const id of overviewNodeDragIds(node)) {{
+      if (!overviewDraggingNodeIds.has(id)) {{
+        overviewDraggingNodeIds.add(id);
+        added = true;
+      }}
+    }}
+    if (added) overviewDragRevision += 1;
   }}
 
   function handleOverviewNodeFree(node) {{
-    for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.delete(id);
-    overviewDragRevision += 1;
+    let removed = false;
+    for (const id of overviewNodeDragIds(node)) {{
+      if (overviewDraggingNodeIds.delete(id)) removed = true;
+    }}
+    if (removed) overviewDragRevision += 1;
     if (hasOverviewDraggingNodes() || !overviewSyncAfterDrag) return;
     overviewSyncAfterDrag = false;
     runLatestOverviewSync({{}}, buildOverviewElements());
@@ -4069,6 +4084,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
     overviewCy.on("grab", "node", (event) => {{
       handleOverviewNodeGrab(event.target);
+    }});
+    overviewCy.on("drag", "node", (event) => {{
+      handleOverviewNodeDrag(event.target);
     }});
     overviewCy.on("free", "node", (event) => {{
       handleOverviewNodeFree(event.target);
@@ -4698,7 +4716,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const element = overviewCy.getElementById(id);
         return element && element.length ? element.classes() : null;
       }},
-      nodeIds: () => (overviewCy ? overviewCy.nodes().map((node) => node.id()) : [])
+      nodeIds: () => (overviewCy ? overviewCy.nodes().map((node) => node.id()) : []),
+      childPositions: (parentId) => {{
+        if (!overviewCy) return null;
+        const parent = overviewCy.getElementById(parentId);
+        if (!parent || !parent.length) return null;
+        return parent.children().map((child) => {{
+          const position = child.position();
+          return {{ id: child.id(), x: Math.round(position.x), y: Math.round(position.y) }};
+        }});
+      }},
+      renderedPositionOf: (id) => {{
+        if (!overviewCy) return null;
+        const element = overviewCy.getElementById(id);
+        if (!element || !element.length) return null;
+        const rendered = element.renderedPosition();
+        const rect = overviewGraph.getBoundingClientRect();
+        return {{ x: rect.left + rendered.x, y: rect.top + rendered.y }};
+      }}
     }};
   }}
 }}());
