@@ -380,6 +380,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("async function revealOverviewGraphAfterFit(token)", index_html)
             self.assertIn("async function overviewNodePositionsAsync(token)", index_html)
             self.assertIn("async function applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token)", index_html)
+            self.assertIn("function stabilizeOverviewCompoundCenters(targetPositions, anchorCenters)", index_html)
             self.assertIn("async function processOverviewChunks(items, token, callback)", index_html)
             # クリック反映は 3 フェーズの同期オーケストレータに集約 (クラス分離・同期ヘルパーを伴う)。
             self.assertIn("function syncOverviewElementsCore(targetElements, opts, token)", index_html)
@@ -439,6 +440,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # Phase B 前に元位置へ戻し、グループ ノードをアンカーで固定する。
             self.assertIn("restoreOverviewNodePositions(previousPositions);", index_html)
             self.assertIn("applyOverviewAnchorCentersToCurrentPositions(anchorCenters);", index_html)
+            self.assertIn("stabilizeOverviewCompoundCenters(targetPositions, anchorCenters);", index_html)
             self.assertIn("const dragRevision = overviewDragRevision;", index_html)
             self.assertIn("if (isOverviewNodeDragging(node)) return;", index_html)
             # ドラッグ中はレイアウトを後回し。
@@ -1172,6 +1174,14 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertIn("dep-selected-file", rapid_selection["final"]["selectedFileClasses"])
             self.assertTrue(rapid_selection["final"]["fileAMuted"])
             self.assertFalse(rapid_selection["final"]["fileCMuted"])
+
+            # --- ファイル選択 -> 選択解除の往復で、ファイル グループ中心を維持する ---
+            center_stability = data["centerStability"]
+            self.assertIsNotNone(center_stability["before"])
+            self.assertIsNotNone(center_stability["selected"])
+            self.assertIsNotNone(center_stability["cleared"])
+            self.assertLess(center_stability["selectedDrift"], 2.0)
+            self.assertLess(center_stability["clearedDrift"], 2.0)
 
             # --- 実マウス クリックで関数の位置補正 (Phase B) が効くこと ---
             # ノードの実タップは grab/free を発火する。これがドラッグ扱いされると

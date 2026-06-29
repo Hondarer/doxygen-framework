@@ -3299,6 +3299,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           lockedNodes.unlock();
           return;
         }}
+        stabilizeOverviewCompoundCenters(targetPositions, anchorCenters);
         stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
         restoreOverviewNodePositions(startPositions);
         lockedNodes.unlock();
@@ -3320,6 +3321,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         lockedNodes.unlock();
         return;
       }}
+      stabilizeOverviewCompoundCenters(targetPositions, anchorCenters);
       stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
       lockedNodes.unlock();
       if (fit) fitOverviewGraph();
@@ -3422,6 +3424,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const targetCenter = overviewNodeCenter(targetPositions, startPositions);
     if (!startCenter || !targetCenter) return;
     translateOverviewPositions(targetPositions, startCenter.x - targetCenter.x, startCenter.y - targetCenter.y);
+  }}
+
+  function stabilizeOverviewCompoundCenters(targetPositions, anchorCenters) {{
+    if (!overviewCy || !anchorCenters || anchorCenters.size === 0) return;
+    for (const [parentId, anchor] of anchorCenters) {{
+      const parent = overviewCy.getElementById(parentId);
+      if (!parent || !parent.length || isOverviewNodeDragging(parent)) continue;
+      const targetParent = targetPositions.get(parentId);
+      if (!targetParent) continue;
+      const dx = anchor.x - targetParent.x;
+      const dy = anchor.y - targetParent.y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      targetParent.x += dx;
+      targetParent.y += dy;
+      parent.descendants().nodes().forEach((child) => {{
+        if (isOverviewNodeDragging(child)) return;
+        const position = targetPositions.get(child.id());
+        if (!position) return;
+        position.x += dx;
+        position.y += dy;
+      }});
+    }}
   }}
 
   function overviewNodeDragIds(node) {{
@@ -4804,6 +4828,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const rendered = element.renderedPosition();
         const rect = overviewGraph.getBoundingClientRect();
         return {{ x: rect.left + rendered.x, y: rect.top + rendered.y }};
+      }},
+      positionOf: (id) => {{
+        if (!overviewCy) return null;
+        const element = overviewCy.getElementById(id);
+        if (!element || !element.length) return null;
+        const position = element.position();
+        return {{ x: position.x, y: position.y }};
       }}
     }};
   }}

@@ -43,6 +43,42 @@ function countMoved(seed, settled) {
   return moved;
 }
 
+function distance(a, b) {
+  if (!a || !b) return null;
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+async function waitOverviewReady(page) {
+  await page.waitForFunction(
+    () => !window.depReportOverviewTestApi.isLayoutRunning()
+      && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+    { timeout: 20000 }
+  );
+  await sleep(50);
+}
+
+async function runCenterStabilityScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const before = await page.evaluate((p) => window.depReportOverviewTestApi.positionOf(p), filePath);
+
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await waitOverviewReady(page);
+  const selected = await page.evaluate((p) => window.depReportOverviewTestApi.positionOf(p), filePath);
+
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const cleared = await page.evaluate((p) => window.depReportOverviewTestApi.positionOf(p), filePath);
+
+  return {
+    before,
+    selected,
+    cleared,
+    selectedDrift: distance(before, selected),
+    clearedDrift: distance(before, cleared)
+  };
+}
+
 // ファイル ノードを実マウスでクリックし、グループ内関数が seed から移動するか測る。
 async function runRealClickScenario(page, filePath) {
   const pos = await page.evaluate((p) => window.depReportOverviewTestApi.renderedPositionOf(p), filePath);
@@ -198,12 +234,7 @@ async function run(reportPath) {
     });
 
     // レイアウト + アニメーション + Phase C 完了待ち。
-    await page.waitForFunction(
-      () => !window.depReportOverviewTestApi.isLayoutRunning()
-        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
-      { timeout: 20000 }
-    );
-    await sleep(50);
+    await waitOverviewReady(page);
     const final = await page.evaluate(() => {
       const api = window.depReportOverviewTestApi;
       return {
@@ -238,12 +269,7 @@ async function run(reportPath) {
         classPlan: api.lastClassUpdatePlan()
       };
     });
-    await page.waitForFunction(
-      () => !window.depReportOverviewTestApi.isLayoutRunning()
-        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
-      { timeout: 20000 }
-    );
-    await sleep(50);
+    await waitOverviewReady(page);
     clearSelection.final = await page.evaluate(() => {
       const api = window.depReportOverviewTestApi;
       return {
@@ -255,19 +281,13 @@ async function run(reportPath) {
 
     const hiddenTabSelection = await runHiddenTabSelectionScenario(page, 'src/file_a.c');
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
-    await page.waitForFunction(
-      () => !window.depReportOverviewTestApi.isLayoutRunning()
-        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
-      { timeout: 20000 }
-    );
+    await waitOverviewReady(page);
 
     const rapidSelection = await runRapidSelectionScenario(page);
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
-    await page.waitForFunction(
-      () => !window.depReportOverviewTestApi.isLayoutRunning()
-        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
-      { timeout: 20000 }
-    );
+    await waitOverviewReady(page);
+
+    const centerStability = await runCenterStabilityScenario(page, 'src/file_a.c');
 
     // 実マウス クリックでの位置補正検証。grab/free を実際に発火させるため、
     // selectFile 直呼びではなく page.mouse.click を使う。
@@ -281,6 +301,7 @@ async function run(reportPath) {
       clearSelection,
       hiddenTabSelection,
       rapidSelection,
+      centerStability,
       realClick,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
     };
