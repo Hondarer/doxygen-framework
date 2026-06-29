@@ -3425,20 +3425,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
 
-  async function restoreOverviewNodePositionsAsync(positions, token) {{
-    if (!overviewCy) return false;
-    const nodes = overviewCy.nodes().toArray();
-    return processOverviewChunks(nodes, token, (chunk) => {{
-      overviewCy.batch(() => {{
-        for (const node of chunk) {{
-          if (isOverviewNodeDragging(node)) continue;
-          const position = positions.get(node.id());
-          if (position) node.position(position);
-        }}
-      }});
-    }});
-  }}
-
   function applyOverviewAnchorCentersToCurrentPositions(anchorCenters) {{
     if (!overviewCy || !anchorCenters || anchorCenters.size === 0) return;
     for (const [id, anchor] of anchorCenters) {{
@@ -3585,6 +3571,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .join(" ");
   }}
 
+  // 興味対象外を表す非強調 (透過) クラス。クリック応答を阻害しないよう、
+  // これらの適用だけを最終フェーズ (Phase C) へ遅延させる。
+  const OVERVIEW_MUTED_CLASSES = new Set([
+    "dep-file-node-muted",
+    "dep-base-edge-muted"
+  ]);
+
+  function overviewMutedClassList(classes) {{
+    return classText(classes || "")
+      .split(/\\s+/)
+      .filter((name) => name && OVERVIEW_MUTED_CLASSES.has(name));
+  }}
+
+  function overviewFocusClasses(classes) {{
+    return classText(classes || "")
+      .split(/\\s+/)
+      .filter((name) => name && !OVERVIEW_MUTED_CLASSES.has(name))
+      .join(" ");
+  }}
+
   function overviewStructureElement(element) {{
     const result = {{ data: Object.assign({{}}, element.data || {{}}) }};
     const classes = overviewStructuralClasses(element.classes || "");
@@ -3687,42 +3693,37 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return isLatestOverviewSync(token);
   }}
 
-  async function anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token) {{
-    if (!anchorCenters || anchorCenters.size === 0) return true;
+  function anchorOverviewChildPositions(targetElements, anchorCenters) {{
+    if (!anchorCenters || anchorCenters.size === 0) return;
     const childrenByParent = new Map();
-    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
-      for (const element of chunk) {{
-        if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
-        if (!anchorCenters.has(element.data.parent)) continue;
-        if (!childrenByParent.has(element.data.parent)) childrenByParent.set(element.data.parent, []);
-        childrenByParent.get(element.data.parent).push(element);
+    for (const element of targetElements) {{
+      if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+      if (!anchorCenters.has(element.data.parent)) continue;
+      if (!childrenByParent.has(element.data.parent)) childrenByParent.set(element.data.parent, []);
+      childrenByParent.get(element.data.parent).push(element);
+    }}
+    for (const [parentId, children] of childrenByParent) {{
+      const anchor = anchorCenters.get(parentId);
+      if (!anchor || children.length === 0) continue;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const child of children) {{
+        const position = child.position || anchor;
+        minX = Math.min(minX, position.x);
+        maxX = Math.max(maxX, position.x);
+        minY = Math.min(minY, position.y);
+        maxY = Math.max(maxY, position.y);
       }}
-    }}))) return false;
-    const groups = Array.from(childrenByParent.entries());
-    return processOverviewChunks(groups, token, (chunk) => {{
-      for (const [parentId, children] of chunk) {{
-        const anchor = anchorCenters.get(parentId);
-        if (!anchor || children.length === 0) continue;
-        let minX = Infinity;
-        let maxX = -Infinity;
-        let minY = Infinity;
-        let maxY = -Infinity;
-        for (const child of children) {{
-          const position = child.position || anchor;
-          minX = Math.min(minX, position.x);
-          maxX = Math.max(maxX, position.x);
-          minY = Math.min(minY, position.y);
-          maxY = Math.max(maxY, position.y);
-        }}
-        const center = {{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }};
-        const dx = anchor.x - center.x;
-        const dy = anchor.y - center.y;
-        for (const child of children) {{
-          const position = child.position || anchor;
-          child.position = {{ x: position.x + dx, y: position.y + dy }};
-        }}
+      const center = {{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }};
+      const dx = anchor.x - center.x;
+      const dy = anchor.y - center.y;
+      for (const child of children) {{
+        const position = child.position || anchor;
+        child.position = {{ x: position.x + dx, y: position.y + dy }};
       }}
-    }});
+    }}
   }}
 
   function collectOverviewAnchorCenters(previousPositions, targetElements) {{
@@ -3771,62 +3772,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }};
   }}
 
-  async function applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token) {{
-    let layoutNeeded = false;
-    let positionDeferred = false;
-    if (!(await processOverviewChunks(plan.stale, token, (chunk) => {{
-      overviewCy.batch(() => {{
-        if (chunk.some((element) => element.isNode && element.isNode())) layoutNeeded = true;
-        overviewCy.remove(overviewCy.collection(chunk));
-      }});
-    }}))) return null;
-    if (!(await processOverviewChunks(plan.missingOrdered, token, (chunk) => {{
-      const missingElements = chunk
-        .map((element) => plan.targetById.get(element.data.id))
-        .filter(Boolean)
-        .map(overviewStructureElement);
-      overviewCy.batch(() => {{
-        for (const element of missingElements) {{
-          if (!isEdgeElement(element)) movingNodeIds.add(element.data.id);
-        }}
-        overviewCy.add(missingElements);
-      }});
-      if (missingElements.length > 0) layoutNeeded = true;
-    }}))) return null;
-    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
-      overviewCy.batch(() => {{
-        for (const target of chunk) {{
-          if (!target.data || !target.data.parent) continue;
-          const element = overviewCy.getElementById(target.data.id);
-          if (!element.length || element.data("parent") === target.data.parent) continue;
-          element.move({{ parent: target.data.parent }});
-          movingNodeIds.add(target.data.id);
-          layoutNeeded = true;
-        }}
-      }});
-    }}))) return null;
-    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
-      overviewCy.batch(() => {{
-      for (const target of chunk) {{
-        if (isEdgeElement(target) || !target.position) continue;
-        const element = overviewCy.getElementById(target.data.id);
-        if (!element.length) continue;
-        if (isOverviewNodeDragging(element)) {{
-          positionDeferred = true;
-          continue;
-        }}
-        const current = element.position();
-        const dx = target.position.x - current.x;
-        const dy = target.position.y - current.y;
-        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-        element.position(target.position);
-      }}
-      }});
-    }}))) return null;
-    if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token))) return null;
-    return {{ layoutNeeded: layoutNeeded, positionDeferred: positionDeferred }};
-  }}
-
   async function processOverviewChunks(items, token, callback) {{
     for (let index = 0; index < items.length; index += OVERVIEW_SYNC_CHUNK_SIZE) {{
       if (!isOverviewSyncTokenActive(token)) return false;
@@ -3836,90 +3781,134 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return isOverviewSyncTokenActive(token);
   }}
 
-  async function applyOverviewDataAsync(targetElements, token) {{
-    return processOverviewChunks(targetElements, token, (chunk) => {{
-      overviewCy.batch(() => {{
-        for (const target of chunk) {{
-          const element = overviewCy.getElementById(target.data.id);
-          if (!element.length) continue;
-          if (currentDataDiffers(element, target.data)) {{
-            element.data(target.data);
-          }}
-        }}
-      }});
-    }});
-  }}
-
-  async function applyOverviewClassesAsync(targetElements, token) {{
-    return processOverviewChunks(targetElements, token, (chunk) => {{
-      overviewCy.batch(() => {{
-        for (const target of chunk) {{
-          const element = overviewCy.getElementById(target.data.id);
-          if (!element.length) continue;
-          if (currentClassesDiffer(element, target.classes)) {{
-            element.classes(target.classes || "");
-          }}
-        }}
-      }});
-    }});
-  }}
-
-  async function syncOverviewElementsAsync(targetElements, opts, token) {{
+  // クリックによるマップ更新を 3 フェーズで反映する。
+  //   Phase A: 構造変化 (グループ化・関数ノード・関数間エッジの追加/削除/親移動)、
+  //            data 更新、興味対象の強調/非強調、ファイル グループ ノードの座標補正を
+  //            フレーム待機なしの単一 overviewCy.batch() で同期反映する。batch が中間状態の
+  //            再描画を合体させるため、グラフを隠さずちらつかせず 1 回の連続描画になる。
+  //   Phase B: グループ内関数のレイアウトを非同期計算し、アニメーションで反映する。
+  //   Phase C: 興味対象外の非強調 (ミュート) を最後に適用し、クリック応答を阻害しない。
+  function syncOverviewElementsCore(targetElements, opts, token) {{
     if (!overviewCy || !isLatestOverviewSync(token)) return false;
     const immediate = Boolean(opts && opts.immediate);
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
     const selectionSignature = opts && opts.selectionSignature ? opts.selectionSignature : overviewSelectionSignature();
-    const completeSync = () => {{
+    const previousPositions = overviewNodePositions();
+    const movingNodeIds = new Set();
+    const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
+    anchorOverviewChildPositions(targetElements, anchorCenters);
+    const plan = overviewSyncDiffPlan(targetElements);
+
+    // --- Phase A (同期・単一 batch) ---
+    let layoutNeeded = false;
+    const dragRevision = overviewDragRevision;
+    const deferredMutedTargets = [];
+    overviewCy.batch(() => {{
+      if (plan.stale.length > 0) {{
+        const staleCollection = overviewCy.collection(plan.stale);
+        if (staleCollection.nodes().length > 0) layoutNeeded = true;
+        overviewCy.remove(staleCollection);
+      }}
+      if (plan.missingOrdered.length > 0) {{
+        const missingElements = plan.missingOrdered
+          .map((element) => plan.targetById.get(element.data.id))
+          .filter(Boolean)
+          .map(overviewStructureElement);
+        for (const element of missingElements) {{
+          if (!isEdgeElement(element)) movingNodeIds.add(element.data.id);
+        }}
+        if (missingElements.length > 0) {{
+          overviewCy.add(missingElements);
+          layoutNeeded = true;
+        }}
+      }}
+      for (const target of targetElements) {{
+        const element = overviewCy.getElementById(target.data.id);
+        if (!element.length) continue;
+        if (target.data && target.data.parent && element.data("parent") !== target.data.parent) {{
+          element.move({{ parent: target.data.parent }});
+          movingNodeIds.add(target.data.id);
+          layoutNeeded = true;
+        }}
+        if (currentDataDiffers(element, target.data)) {{
+          element.data(target.data);
+        }}
+        // 興味対象の強調/非強調は即時。新たに付与されるミュートのみ Phase C へ遅延する
+        // (既にミュート済みで継続する要素は維持し、一瞬の解除によるちらつきを避ける)。
+        const targetMuted = overviewMutedClassList(target.classes);
+        let phaseAClasses = classText(target.classes || "");
+        if (targetMuted.length > 0) {{
+          const currentClasses = element.classes();
+          const newlyMuted = targetMuted.filter((name) => currentClasses.indexOf(name) === -1);
+          if (newlyMuted.length > 0) {{
+            phaseAClasses = phaseAClasses
+              .split(/\\s+/)
+              .filter((name) => name && newlyMuted.indexOf(name) === -1)
+              .join(" ");
+            deferredMutedTargets.push(target);
+          }}
+        }}
+        if (currentClassesDiffer(element, phaseAClasses)) {{
+          element.classes(phaseAClasses);
+        }}
+      }}
+      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
+    }});
+
+    if (!isLatestOverviewSync(token)) return false;
+
+    // --- Phase C 本体 ---
+    const runPhaseC = () => {{
+      if (!overviewCy || !isLatestOverviewSync(token)) return;
+      if (deferredMutedTargets.length > 0) {{
+        overviewCy.batch(() => {{
+          for (const target of deferredMutedTargets) {{
+            const element = overviewCy.getElementById(target.data.id);
+            if (!element.length) continue;
+            if (currentClassesDiffer(element, target.classes)) {{
+              element.classes(target.classes || "");
+            }}
+          }}
+        }});
+      }}
       if (isLatestOverviewSync(token) && selectionSignature === overviewSelectionSignature()) {{
         overviewRenderedSelectionSignature = selectionSignature;
       }}
       if (onComplete) onComplete();
     }};
-    const previousPositions = overviewNodePositions();
-    const movingNodeIds = new Set();
-    const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
-    if (!(await anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token))) return false;
-    const plan = overviewSyncDiffPlan(targetElements);
-    const structureResult = await applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token);
-    if (!structureResult) return false;
-    let layoutNeeded = structureResult.layoutNeeded;
-    const layoutStartPositions = overviewNodePositions();
-    const dragRevision = overviewDragRevision;
-    if (!isLatestOverviewSync(token)) return false;
 
-    if (!(await applyOverviewDataAsync(targetElements, token))) return false;
-
-    if (!isLatestOverviewSync(token)) return false;
-    if (structureResult.positionDeferred || (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision))) {{
+    // ドラッグ中はレイアウトを後回しにし、ドラッグ終了後 (handleOverviewNodeFree) に再同期する。
+    if (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)) {{
       overviewSyncAfterDrag = true;
-      if (onComplete) onComplete();
+      runPhaseC();
       return true;
     }}
-    const completeStructureSync = async () => {{
-      if (!(await applyOverviewClassesAsync(targetElements, token))) return false;
-      completeSync();
+
+    // --- Phase B (非同期レイアウト + アニメーション) ---
+    if (layoutNeeded && movingNodeIds.size > 0) {{
+      restoreOverviewNodePositions(previousPositions);
+      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
+      if (opts) opts.layoutStarted = true;
+      runOverviewLayout({{
+        movingNodeIds,
+        anchorCenters,
+        immediate,
+        animatePositions: !(opts && opts.hideDuringUpdate),
+        onComplete: runPhaseC,
+        deferPositions: true,
+        syncToken: token
+      }});
       return true;
-    }};
-    if (layoutNeeded) {{
-      if (!(await restoreOverviewNodePositionsAsync(layoutStartPositions, token))) return false;
-      if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token))) return false;
-      if (movingNodeIds.size > 0) {{
-        if (opts) opts.layoutStarted = true;
-        runOverviewLayout({{
-          movingNodeIds,
-          anchorCenters,
-          immediate,
-          animatePositions: !(opts && opts.hideDuringUpdate),
-          onComplete: () => {{
-            completeStructureSync();
-          }},
-          deferPositions: true,
-          syncToken: token
-        }});
-        return true;
-      }}
     }}
-    return completeStructureSync();
+
+    // 構造変化なし: 興味対象の強調は反映済み。ミュートがあれば次フレームへ遅延し、
+    // 強調の描画を先行させる。なければ即座に確定する。
+    if (deferredMutedTargets.length > 0) {{
+      requestOverviewFrame(runPhaseC);
+    }} else {{
+      runPhaseC();
+    }}
+    return true;
   }}
 
   function syncOverviewElements(targetElements, opts) {{
@@ -3932,10 +3921,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
     stopOverviewPositionAnimation();
-    syncOverviewElementsAsync(targetElements || buildOverviewElements(), opts || {{}}, token).then((completed) => {{
-      if (!completed || !isLatestOverviewSync(token)) return;
-      if (opts && opts.onSyncComplete) opts.onSyncComplete();
-    }});
+    const completed = syncOverviewElementsCore(targetElements || buildOverviewElements(), opts || {{}}, token);
+    if (completed && isLatestOverviewSync(token) && opts && opts.onSyncComplete) opts.onSyncComplete();
   }}
 
   function handleOverviewNodeGrab(node) {{
@@ -4691,6 +4678,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
           window.location.href = href;
         }});
     }});
+  }}
+
+  // テスト専用フック。読み込み前に window.__DEP_REPORT_TEST__ を true に設定した場合のみ
+  // 公開する。通常の閲覧時はグローバルを汚さない。Puppeteer による全体マップの
+  // インタラクション検証 (Phase A 同期反映 / Phase C 遅延) に用いる。
+  if (window.__DEP_REPORT_TEST__) {{
+    window.depReportOverviewTestApi = {{
+      activateOverview: () => activateTab("overviewPanel"),
+      isReady: () => Boolean(overviewCy) && overviewCy.elements().length > 0 && isOverviewRenderedSelectionCurrent(),
+      isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
+      selectFile: (path) => selectFile(path),
+      selectFunction: (id) => selectFunction(id),
+      clearSelection: () => clearOverviewSelection(),
+      renderedSignature: () => overviewRenderedSelectionSignature,
+      currentSignature: () => overviewSelectionSignature(),
+      classesOf: (id) => {{
+        if (!overviewCy) return null;
+        const element = overviewCy.getElementById(id);
+        return element && element.length ? element.classes() : null;
+      }},
+      nodeIds: () => (overviewCy ? overviewCy.nodes().map((node) => node.id()) : [])
+    }};
   }}
 }}());
 </script>

@@ -6,7 +6,10 @@ import contextlib
 import io
 import importlib.util
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -367,21 +370,28 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("async function resetOverviewGraphAsync(token)", index_html)
             self.assertIn("async function revealOverviewGraphAfterFit(token)", index_html)
             self.assertIn("async function overviewNodePositionsAsync(token)", index_html)
-            self.assertIn("async function restoreOverviewNodePositionsAsync(positions, token)", index_html)
             self.assertIn("async function applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token)", index_html)
-            self.assertIn("async function anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token)", index_html)
-            self.assertIn("async function applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token)", index_html)
             self.assertIn("async function processOverviewChunks(items, token, callback)", index_html)
-            self.assertIn("async function applyOverviewDataAsync(targetElements, token)", index_html)
-            self.assertIn("async function applyOverviewClassesAsync(targetElements, token)", index_html)
-            self.assertIn("async function syncOverviewElementsAsync(targetElements, opts, token)", index_html)
+            # クリック反映は 3 フェーズの同期オーケストレータに集約 (クラス分離・同期ヘルパーを伴う)。
+            self.assertIn("function syncOverviewElementsCore(targetElements, opts, token)", index_html)
+            self.assertIn("function anchorOverviewChildPositions(targetElements, anchorCenters)", index_html)
+            self.assertIn("function overviewFocusClasses(classes)", index_html)
+            self.assertIn("function overviewMutedClassList(classes)", index_html)
+            self.assertIn("const OVERVIEW_MUTED_CLASSES = new Set([", index_html)
+            # 旧非同期パス (チャンク化された構造 diff / クラス適用) は Phase A 同期化に統合し廃止。
+            self.assertNotIn("async function syncOverviewElementsAsync", index_html)
+            self.assertNotIn("async function applyOverviewStructureDiffAsync", index_html)
+            self.assertNotIn("async function applyOverviewDataAsync", index_html)
+            self.assertNotIn("async function applyOverviewClassesAsync", index_html)
+            self.assertNotIn("async function anchorOverviewChildPositionsAsync", index_html)
+            self.assertNotIn("async function restoreOverviewNodePositionsAsync", index_html)
             self.assertIn("function runLatestOverviewSync(opts, targetElements)", index_html)
             self.assertIn("const token = ++overviewSyncToken;", index_html)
             self.assertIn("++overviewLayoutToken;", index_html)
             self.assertIn("overviewRenderedSelectionSignature = selectionSignature;", index_html)
             self.assertIn("overviewRenderedSelectionSignature = overviewSelectionSignature();", index_html)
             self.assertIn("overviewRenderedSelectionSignature = null;", index_html)
-            self.assertIn("if (!completed || !isLatestOverviewSync(token)) return;", index_html)
+            self.assertIn("const completed = syncOverviewElementsCore(", index_html)
             self.assertIn("await nextOverviewFrame();", index_html)
             self.assertIn("const elements = await buildOverviewElementsAsync(token);", index_html)
             self.assertIn("await seedOverviewInitialPositionsAsync(elements, token)", index_html)
@@ -392,25 +402,31 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("resetOverviewGraphAsync(token);", index_html)
             self.assertIn("stale: stale", index_html)
             self.assertIn("missingOrdered: parentNodes.concat(childNodes, edgeElements)", index_html)
-            self.assertIn("await anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token)", index_html)
-            self.assertIn("const structureResult = await applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token);", index_html)
-            self.assertIn("let layoutNeeded = structureResult.layoutNeeded;", index_html)
-            self.assertIn("let positionDeferred = false;", index_html)
+            # Phase A は単一 batch の同期処理 (フレーム待機なし)。
+            self.assertIn("anchorOverviewChildPositions(targetElements, anchorCenters);", index_html)
+            self.assertIn("const plan = overviewSyncDiffPlan(targetElements);", index_html)
+            self.assertIn("let layoutNeeded = false;", index_html)
+            self.assertIn("const deferredMutedTargets = [];", index_html)
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
-            self.assertIn("overviewCy.remove(overviewCy.collection(chunk));", index_html)
+            self.assertIn("overviewCy.remove(staleCollection);", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
             self.assertIn(".map(overviewStructureElement)", index_html)
-            self.assertIn("await applyOverviewDataAsync(targetElements, token)", index_html)
-            self.assertIn("await applyOverviewClassesAsync(targetElements, token)", index_html)
-            self.assertIn("element.position(target.position);", index_html)
-            self.assertIn("const layoutStartPositions = overviewNodePositions();", index_html)
+            # 興味対象の強調は即時、新規ミュートのみ Phase C へ遅延。
+            self.assertIn("const targetMuted = overviewMutedClassList(target.classes);", index_html)
+            self.assertIn("deferredMutedTargets.push(target);", index_html)
+            # Phase B 前に元位置へ戻し、グループ ノードをアンカーで固定する。
+            self.assertIn("restoreOverviewNodePositions(previousPositions);", index_html)
+            self.assertIn("applyOverviewAnchorCentersToCurrentPositions(anchorCenters);", index_html)
             self.assertIn("const dragRevision = overviewDragRevision;", index_html)
-            self.assertIn("await restoreOverviewNodePositionsAsync(layoutStartPositions, token)", index_html)
-            self.assertIn("await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token)", index_html)
             self.assertIn("if (isOverviewNodeDragging(node)) return;", index_html)
-            self.assertIn("if (isOverviewNodeDragging(element)) {", index_html)
-            self.assertIn("positionDeferred = true;", index_html)
-            self.assertIn("if (structureResult.positionDeferred || (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)))", index_html)
+            # ドラッグ中はレイアウトを後回し。
+            self.assertIn("if (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)) {", index_html)
+            # 構造変化なしのミュートは次フレームへ遅延し、強調描画を先行させる。
+            self.assertIn("requestOverviewFrame(runPhaseC);", index_html)
+            self.assertIn("onComplete: runPhaseC,", index_html)
+            # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
+            self.assertNotIn("structureResult.positionDeferred", index_html)
+            self.assertNotIn("element.position(target.position);", index_html)
             self.assertIn("overviewSyncAfterDrag = true;", index_html)
             self.assertIn("runLatestOverviewSync({}, buildOverviewElements());", index_html)
             self.assertIn("const fragment = document.createDocumentFragment();", index_html)
@@ -916,6 +932,161 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
             # reverse-boundary-caller 警告は出力されない
             self.assertNotIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
+
+
+PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
+PUPPETEER_DIR = (
+    Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
+)
+
+
+def _node_binary():
+    return shutil.which("node")
+
+
+def _puppeteer_available():
+    if os.environ.get("DOXYFW_TEST_PUPPETEER"):
+        return True
+    return PUPPETEER_DIR.is_dir()
+
+
+# file_a -> file_b への呼び出しがあり、file_c はどこともつながらない 3 ファイル構成。
+# ファイル選択時に file_b は興味対象 (非ミュート)、file_c は興味対象外 (ミュート) になる。
+OVERVIEW_FIXTURE = {
+    "file_a.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__a_8c" kind="file">
+    <compoundname>file_a.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="a_helper" static="yes">
+        <name>a_helper</name>
+        <location file="src/file_a.c" line="10" bodyfile="src/file_a.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="a_util" static="yes">
+        <name>a_util</name>
+        <location file="src/file_a.c" line="18" bodyfile="src/file_a.c" bodystart="18"/>
+      </memberdef>
+      <memberdef kind="function" id="a_main" static="no">
+        <name>a_main</name>
+        <references refid="a_helper" compoundref="file__a_8c">a_helper</references>
+        <references refid="a_util" compoundref="file__a_8c">a_util</references>
+        <references refid="b_entry" compoundref="file__b_8c">b_entry</references>
+        <location file="src/file_a.c" line="30" bodyfile="src/file_a.c" bodystart="30"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+    "file_b.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__b_8c" kind="file">
+    <compoundname>file_b.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="b_leaf" static="yes">
+        <name>b_leaf</name>
+        <location file="src/file_b.c" line="10" bodyfile="src/file_b.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="b_entry" static="no">
+        <name>b_entry</name>
+        <references refid="b_leaf" compoundref="file__b_8c">b_leaf</references>
+        <location file="src/file_b.c" line="20" bodyfile="src/file_b.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+    "file_c.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__c_8c" kind="file">
+    <compoundname>file_c.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="c_alone" static="no">
+        <name>c_alone</name>
+        <location file="src/file_c.c" line="10" bodyfile="src/file_c.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+}
+
+
+@unittest.skipUnless(_node_binary(), "node が見つからないため Puppeteer テストをスキップ")
+@unittest.skipUnless(_puppeteer_available(), "puppeteer が見つからないため Puppeteer テストをスキップ")
+class OverviewInteractionTest(unittest.TestCase):
+    """全体マップのクリック反映を Puppeteer で検証する (3 フェーズ モデル)。"""
+
+    def _generate_report(self, temp_dir):
+        xml_dir = temp_dir / "xml"
+        output_dir = temp_dir / "report"
+        xml_dir.mkdir()
+        output_dir.mkdir()
+        for name, content in OVERVIEW_FIXTURE.items():
+            write_xml(xml_dir, name, content)
+        generate_dependency_report.generate_report(xml_dir, output_dir, "test")
+        return output_dir / "index.html"
+
+    def _run_probe(self, index_html):
+        result = subprocess.run(
+            [_node_binary(), str(PROBE_SCRIPT), str(index_html)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_click_phases(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_report(Path(temp_dir_text))
+            data = self._run_probe(index_html)
+
+            # JS 実行時エラーが無いこと (CSS 欠落 ERR_FILE_NOT_FOUND は除外済み)。
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+
+            # 初期はファイル ノードのみ。
+            self.assertEqual(
+                sorted(data["initialNodeIds"]),
+                ["src/file_a.c", "src/file_b.c", "src/file_c.c"],
+            )
+
+            # --- Phase A: クリック同期完了直後 ---
+            sync = data["sync"]
+            # 興味対象の強調は即時。
+            self.assertIn("dep-selected-file", sync["selectedFileClasses"])
+            # グループ内の関数ノードが同期的に追加されている。
+            self.assertEqual(
+                sorted(sync["functionNodes"]),
+                ["a_helper", "a_main", "a_util"],
+            )
+            # 興味対象外のミュートはこの時点では未適用 (Phase C へ遅延)。
+            self.assertFalse(sync["fileCMuted"])
+
+            # --- Phase B + C 完了後 ---
+            final = data["final"]
+            self.assertTrue(final["renderedMatchesCurrent"])
+            # 無関係な file_c はミュートされる。
+            self.assertTrue(final["fileCMuted"])
+            # 呼び出し関係のある file_b はミュートされない。
+            self.assertFalse(final["fileBMuted"])
+            self.assertEqual(
+                sorted(final["functionNodes"]),
+                ["a_helper", "a_main", "a_util"],
+            )
+
+            # --- 別ファイルへ選択切替: 強調は即時、旧選択のミュートは遅延 ---
+            switch_sync = data["switchSync"]
+            self.assertIn("dep-selected-file", switch_sync["selectedFileClasses"])
+            self.assertFalse(switch_sync["fileAMutedImmediate"])
 
 
 if __name__ == "__main__":
