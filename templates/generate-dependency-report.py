@@ -633,6 +633,40 @@ def path_area(file_path: str) -> str:
     return "other"
 
 
+# Doxygen が制御構文を phantom memberdef として生成するとき、name に C キーワードが設定される。
+# bodyfile はソースファイルを指すため body_file == "" チェックでは除外できない。
+_C_KEYWORDS: frozenset = frozenset({
+    "if", "else", "for", "while", "do", "switch", "case", "default",
+    "break", "continue", "return", "goto",
+    "sizeof", "typeof", "_Alignof",
+    "typedef", "struct", "union", "enum",
+    "extern", "static", "inline", "register", "auto", "volatile",
+    "const", "restrict", "_Atomic",
+    "void", "int", "char", "short", "long", "float", "double",
+    "unsigned", "signed", "_Bool", "_Complex", "_Imaginary",
+})
+
+
+def is_external_function(info: FunctionInfo) -> bool:
+    """自ライブラリに含まれない外部関数かどうかを判定する。
+
+    Doxygen は以下の 2 種類の phantom memberdef を生成することがある。いずれも依存関係レポートの
+    対象外とする。
+
+    1. 標準ライブラリなどプロジェクト外の関数:
+       呼び出し箇所を location とした phantom エントリが生成される。bodyfile を持たないため
+       body_file == "" で識別する。
+
+    2. C キーワード (if, for, while など):
+       EXTRACT_ALL=YES のとき Doxygen が制御構文を「関数」として memberdef に出力することがある。
+       この場合 bodyfile がソースファイルを指すため body_file == "" では除外できない。
+       name が C キーワードかどうかで識別する。
+    """
+    if info.name in _C_KEYWORDS:
+        return True
+    return info.body_file == ""
+
+
 def classify_call_kind(caller: FunctionInfo, callee: FunctionInfo) -> str:
     if caller.file == callee.file:
         return "same-file"
@@ -737,7 +771,26 @@ def compute_dependency_level(info: FunctionInfo, dependency_class: str, dependen
 
 
 def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[str, object]:
-    functions = collect_functions(xml_dir)
+    all_functions = collect_functions(xml_dir)
+
+    external_ids: Set[str] = {fid for fid, info in all_functions.items() if is_external_function(info)}
+    functions: Dict[str, FunctionInfo] = {fid: info for fid, info in all_functions.items() if fid not in external_ids}
+
+    owned_to_external_callees: Dict[str, List[Dict[str, str]]] = {}
+    for fid, info in functions.items():
+        ext_names: List[str] = sorted(
+            {all_functions[cid].name for cid in info.callees if cid in external_ids}
+        )
+        owned_to_external_callees[fid] = [{"name": n} for n in ext_names]
+        info.callees = {cid for cid in info.callees if cid not in external_ids}
+
+    for info in functions.values():
+        info.callers = set()
+    for caller_id, info in functions.items():
+        for callee_id in info.callees:
+            if callee_id in functions:
+                functions[callee_id].callers.add(caller_id)
+
     cycle_map, sccs = detect_cycle_groups(functions)
     depths = compute_dependency_depths(functions, cycle_map)
     file_briefs = collect_file_briefs(xml_dir)
@@ -788,6 +841,8 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
             "htmlUrl": info.html_url,
             "sourceUrl": info.source_url,
             "brief": info.brief,
+            "externalCallees": owned_to_external_callees.get(func_id, []),
+            "externalCalleeCount": len(owned_to_external_callees.get(func_id, [])),
         }
         function_rows.append(row)
         file_groups[info.file].append(row)
@@ -818,6 +873,27 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         )
     )
     edges.sort(key=lambda row: (row["callerFile"], row["caller"], row["callee"]))
+
+    file_edge_map: Dict[Tuple[str, str], Dict[str, object]] = {}
+    for edge in edges:
+        if edge["callerFile"] == edge["calleeFile"]:
+            continue
+        key = (str(edge["callerFile"]), str(edge["calleeFile"]))
+        current = file_edge_map.get(key)
+        if current is None:
+            current = {
+                "id": f"{key[0]}\n{key[1]}",
+                "source": key[0],
+                "target": key[1],
+                "fromFile": key[0],
+                "toFile": key[1],
+                "weight": 0,
+                "label": "",
+            }
+            file_edge_map[key] = current
+        current["weight"] = int(current["weight"]) + 1
+        current["label"] = str(current["weight"])
+    file_edges = [file_edge_map[key] for key in sorted(file_edge_map)]
 
     file_rows = []
     for file_path, rows in sorted(file_groups.items()):
@@ -870,6 +946,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         "summary": summary,
         "functions": function_rows,
         "edges": edges,
+        "fileEdges": file_edges,
         "files": file_rows,
         "sccs": sccs,
     }
@@ -1448,6 +1525,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .dep-neighbors small {{
       overflow-wrap: anywhere;
     }}
+    .dep-external-callee {{
+      color: var(--dep-muted);
+      overflow-wrap: anywhere;
+    }}
     .dep-empty {{
       color: var(--dep-muted);
     }}
@@ -1528,7 +1609,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     .dep-graph.layout-initializing::after,
     .dep-graph.layout-relayouting::after {{
-      content: "マップをレイアウトしています...";
       position: absolute;
       top: 50%;
       left: 50%;
@@ -1542,6 +1622,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
       pointer-events: none;
       z-index: 20;
+    }}
+    .dep-graph.layout-initializing::after {{
+      content: "初期化しています...";
+    }}
+    .dep-graph.layout-relayouting::after {{
+      content: "マップをレイアウトしています...";
     }}
     .dep-graph.layout-initializing::after {{
       inset: 0;
@@ -1844,6 +1930,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     callees.get(edge.caller).push(edge.callee);
     callers.get(edge.callee).push(edge.caller);
   }}
+  const fileEdges = (data.fileEdges && data.fileEdges.length > 0) ? data.fileEdges : buildFileEdges(edges);
+  const fileEdgeByKey = new Map(fileEdges.map((edge) => [edge.id, {{ data: edge }}]));
+  const edgePairsByFileKey = new Map();
+  for (const edge of edges) {{
+    if (edge.callerFile === edge.calleeFile) continue;
+    const key = overviewEdgeKey(edge.callerFile, edge.calleeFile);
+    if (!edgePairsByFileKey.has(key)) edgePairsByFileKey.set(key, []);
+    edgePairsByFileKey.get(key).push(edge);
+  }}
+  for (const pairs of edgePairsByFileKey.values()) {{
+    pairs.sort((a, b) => compareText(a.callerFile, b.callerFile) || compareText(a.caller, b.caller) || compareText(a.callee, b.callee));
+  }}
+  const OVERVIEW_SYNC_CHUNK_SIZE = 25;
 
   const summary = document.getElementById("summary");
   const rows = document.getElementById("functionRows");
@@ -1895,7 +1994,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewPositionAnimation = null;
   let overviewLayoutRunning = false;
   let overviewLayoutToken = 0;
+  let overviewSyncToken = 0;
   let overviewLayoutWatchdog = null;
+  let overviewInteractionStateBeforeLayout = null;
+  let overviewDraggingNodeIds = new Set();
+  let overviewDragRevision = 0;
+  let overviewSyncAfterDrag = false;
   let previousSelectedRowVisible = false;
   let previousSelectedFileRowVisible = false;
   let pendingFunctionListScroll = false;
@@ -2177,6 +2281,27 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return text(fromFile) + "\\n" + text(toFile);
   }}
 
+  function buildFileEdges(sourceEdges) {{
+    const edgeMap = new Map();
+    for (const edge of sourceEdges) {{
+      if (edge.callerFile === edge.calleeFile) continue;
+      const key = overviewEdgeKey(edge.callerFile, edge.calleeFile);
+      const current = edgeMap.get(key) || {{
+        id: key,
+        source: edge.callerFile,
+        target: edge.calleeFile,
+        fromFile: edge.callerFile,
+        toFile: edge.calleeFile,
+        weight: 0,
+        label: ""
+      }};
+      current.weight += 1;
+      current.label = String(current.weight);
+      edgeMap.set(key, current);
+    }}
+    return Array.from(edgeMap.values()).sort((a, b) => compareText(a.fromFile, b.fromFile) || compareText(a.toFile, b.toFile));
+  }}
+
   function graphFunctionWeight(fn) {{
     const rank = Number(fn.dependencyRank);
     if (!Number.isFinite(rank)) return 10;
@@ -2264,7 +2389,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{
         selector: ".dep-file-node-muted",
         style: {{
-          "opacity": 0.45
+          "opacity": 0.3
         }}
       }},
       {{
@@ -2272,7 +2397,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         style: {{
           "line-color": colors.mutedEdge,
           "target-arrow-color": colors.mutedEdge,
-          "opacity": 0.4
+          "opacity": 0.25
         }}
       }},
       {{
@@ -2348,8 +2473,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewGraphMenu.style.top = top + "px";
   }}
 
+  function overviewFitElements() {{
+    if (!overviewCy) return undefined;
+    return overviewCy.elements(":visible").not(".dep-pull-edge");
+  }}
+
   function fitOverviewGraph() {{
-    if (overviewCy) overviewCy.fit(undefined, 30);
+    if (overviewCy) overviewCy.fit(overviewFitElements(), 30);
   }}
 
   function requestOverviewFrame(callback) {{
@@ -2361,9 +2491,34 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (overviewGraphShell) overviewGraphShell.classList.toggle("controls-inert", inert);
   }}
 
+  function setOverviewGraphInteractionLocked(locked) {{
+    if (!overviewCy) return;
+    if (locked) {{
+      if (overviewInteractionStateBeforeLayout !== null) return;
+      overviewInteractionStateBeforeLayout = {{
+        panningEnabled: overviewCy.panningEnabled(),
+        zoomingEnabled: overviewCy.zoomingEnabled(),
+        autoungrabify: overviewCy.autoungrabify(),
+        boxSelectionEnabled: overviewCy.boxSelectionEnabled()
+      }};
+      overviewCy.panningEnabled(false);
+      overviewCy.zoomingEnabled(false);
+      overviewCy.autoungrabify(true);
+      overviewCy.boxSelectionEnabled(false);
+      return;
+    }}
+    if (overviewInteractionStateBeforeLayout === null) return;
+    overviewCy.panningEnabled(overviewInteractionStateBeforeLayout.panningEnabled);
+    overviewCy.zoomingEnabled(overviewInteractionStateBeforeLayout.zoomingEnabled);
+    overviewCy.autoungrabify(overviewInteractionStateBeforeLayout.autoungrabify);
+    overviewCy.boxSelectionEnabled(overviewInteractionStateBeforeLayout.boxSelectionEnabled);
+    overviewInteractionStateBeforeLayout = null;
+  }}
+
   function setOverviewLayoutRunning(running) {{
     overviewLayoutRunning = running;
     setOverviewControlsInert(running);
+    setOverviewGraphInteractionLocked(running);
     if (overviewGraph) overviewGraph.classList.toggle("layout-relayouting", running);
     if (!running && overviewLayoutWatchdog !== null) {{
       window.clearTimeout(overviewLayoutWatchdog);
@@ -2663,7 +2818,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<dt>リンク</dt><dd>" + [linkFor(fn, "Doxygen", false), linkFor(fn, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       "<div class=\\"dep-neighbors\\">" +
-      "<section><strong>呼び出し先</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
+      "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
+      (fn.externalCallees && fn.externalCallees.length > 0 ? "<section><strong>呼び出し先 (外部)</strong>" + externalCalleeList(fn.externalCallees) + "</section>" : "") +
       "<section><strong>呼び出し元</strong>" + neighborList(callers.get(fn.id), "対象範囲内の呼び出し元はありません。") + "</section>" +
       "</div>";
     bindOverviewActions();
@@ -2677,8 +2833,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function edgeFunctionPairs(fromFile, toFile) {{
-    return edges
-      .filter((edge) => edge.callerFile === fromFile && edge.calleeFile === toFile)
+    return (edgePairsByFileKey.get(overviewEdgeKey(fromFile, toFile)) || [])
       .map((edge) => {{
         return {{ caller: byId.get(edge.caller), callee: byId.get(edge.callee) }};
       }})
@@ -2766,27 +2921,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function overviewBaseElements() {{
-    const edgeMap = new Map();
-    for (const edge of edges) {{
-      if (edge.callerFile === edge.calleeFile) continue;
-      const key = overviewEdgeKey(edge.callerFile, edge.calleeFile);
-      const current = edgeMap.get(key) || {{
-        data: {{
-          id: key,
-          source: edge.callerFile,
-          target: edge.calleeFile,
-          kind: "file-edge",
-          fromFile: edge.callerFile,
-          toFile: edge.calleeFile,
-          label: "",
-          weight: 0
-        }}
-      }};
-      current.data.weight += 1;
-      current.data.label = String(current.data.weight);
-      edgeMap.set(key, current);
-    }}
-    const selectionState = overviewSelectionState(edgeMap);
+    const selectionState = overviewSelectionState(fileEdgeByKey);
     const elements = [];
     for (const file of files) {{
       const classes = ["dep-file-node"];
@@ -2806,14 +2941,25 @@ def write_html(output_dir: Path, category_id: str) -> None:
         classes: classes.join(" ")
       }});
     }}
-    for (const edge of edgeMap.values()) {{
+    for (const edge of fileEdges) {{
       const classes = [];
-      if (selectedEdgeKey && edge.data.id === selectedEdgeKey) classes.push("dep-selected-edge");
-      if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.data.id)) {{
+      if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
+      if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
         classes.push("dep-base-edge-muted");
       }}
-      if (classes.length > 0) edge.classes = classes.join(" ");
-      elements.push(edge);
+      elements.push({{
+        data: {{
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          kind: "file-edge",
+          fromFile: edge.fromFile,
+          toFile: edge.toFile,
+          label: edge.label,
+          weight: edge.weight
+        }},
+        classes: classes.join(" ")
+      }});
     }}
     return elements;
   }}
@@ -2894,6 +3040,119 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return elements;
   }}
 
+  async function buildOverviewElementsAsync(token) {{
+    const selectionState = overviewSelectionState(fileEdgeByKey);
+    const elements = [];
+    if (!(await processOverviewChunks(files, token, (chunk) => {{
+      for (const file of chunk) {{
+        const classes = ["dep-file-node"];
+        const areaClass = graphFileClassFor(file.dominantArea);
+        if (areaClass) classes.push(areaClass);
+        if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
+        if (selectionState.hasSelection && !selectionState.activeFiles.has(file.path)) {{
+          classes.push("dep-file-node-muted");
+        }}
+        elements.push({{
+          data: {{
+            id: file.path,
+            label: shortPath(file.path),
+            weight: Math.max(1, Number(file.functionCount || 1)),
+            path: file.path
+          }},
+          classes: classes.join(" ")
+        }});
+      }}
+    }}))) return null;
+    if (!(await processOverviewChunks(fileEdges, token, (chunk) => {{
+      for (const edge of chunk) {{
+        const classes = [];
+        if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
+        if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
+          classes.push("dep-base-edge-muted");
+        }}
+        elements.push({{
+          data: {{
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            kind: "file-edge",
+            fromFile: edge.fromFile,
+            toFile: edge.toFile,
+            label: edge.label,
+            weight: edge.weight
+          }},
+          classes: classes.join(" ")
+        }});
+      }}
+    }}))) return null;
+    const visibleFnIds = visibleFunctionIdsForOverview();
+    const visibleFns = Array.from(visibleFnIds)
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .sort((a, b) => {{
+        if (a.id === selectedId) return -1;
+        if (b.id === selectedId) return 1;
+        return compareBaseOrder(a, b);
+      }});
+    const childrenByFile = new Map();
+    let fnIndex = 0;
+    if (!(await processOverviewChunks(visibleFns, token, (chunk) => {{
+      for (const fn of chunk) {{
+        const index = fnIndex;
+        fnIndex += 1;
+        const classes = [graphClassFor(fn.dependencyClass)];
+        if (fn.id === selectedId) classes.push("dep-center-node");
+        elements.push({{
+          data: {{
+            id: fn.id,
+            label: fn.name,
+            parent: fn.file,
+            weight: graphFunctionWeight(fn)
+          }},
+          position: overviewFunctionPosition(fn, index, visibleFns.length),
+          classes: classes.join(" ")
+        }});
+        if (!childrenByFile.has(fn.file)) childrenByFile.set(fn.file, []);
+        childrenByFile.get(fn.file).push(fn.id);
+      }}
+    }}))) return null;
+    if (selectedId) {{
+      if (!(await processOverviewChunks(edges, token, (chunk) => {{
+        for (const edge of chunk) {{
+          if (!visibleFnIds.has(edge.caller) || !visibleFnIds.has(edge.callee)) continue;
+          elements.push({{
+            data: {{
+              id: edge.caller + "->" + edge.callee,
+              source: edge.caller,
+              target: edge.callee,
+              weight: 1
+            }},
+            classes: "dep-function-edge"
+          }});
+        }}
+      }}))) return null;
+    }} else if (selectedFilePath) {{
+      const childGroups = Array.from(childrenByFile.entries());
+      if (!(await processOverviewChunks(childGroups, token, (chunk) => {{
+        for (const [filePath, ids] of chunk) {{
+          if (ids.length < 2) continue;
+          const hub = ids[0];
+          for (let i = 1; i < ids.length; i++) {{
+            elements.push({{
+              data: {{
+                id: "pull-" + filePath + "-" + ids[i],
+                source: hub,
+                target: ids[i]
+              }},
+              classes: "dep-pull-edge"
+            }});
+          }}
+        }}
+      }}))) return null;
+    }}
+    return isLatestOverviewSync(token) ? elements : null;
+  }}
+
   function overviewFunctionPosition(fn, index, count) {{
     if (!overviewCy) return {{ x: 0, y: 0 }};
     const parent = overviewCy.getElementById(fn.file);
@@ -2952,7 +3211,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       lockedNodes.unlock();
       if (immediate) {{
         restoreOverviewNodePositions(targetPositions);
-        if (fit && overviewCy) overviewCy.fit(undefined, 30);
+        if (fit) fitOverviewGraph();
         if (onComplete) onComplete();
         return;
       }}
@@ -2964,6 +3223,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const layout = overviewCy.layout({{
         name: "cola",
         animate: false,
+        deferPositions: manual || immediate,
         refresh: 1,
         maxSimulationTime: manual ? 450 : (fullConvergence ? 2000 : 900),
         fit: false,
@@ -3045,9 +3305,27 @@ def write_html(output_dir: Path, category_id: str) -> None:
     translateOverviewPositions(targetPositions, startCenter.x - targetCenter.x, startCenter.y - targetCenter.y);
   }}
 
+  function overviewNodeDragIds(node) {{
+    const ids = new Set();
+    if (!node || !node.length) return ids;
+    ids.add(node.id());
+    node.descendants().nodes().forEach((child) => ids.add(child.id()));
+    return ids;
+  }}
+
+  function isOverviewNodeDragging(nodeOrId) {{
+    const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id();
+    return overviewDraggingNodeIds.has(id);
+  }}
+
+  function hasOverviewDraggingNodes() {{
+    return overviewDraggingNodeIds.size > 0;
+  }}
+
   function restoreOverviewNodePositions(positions) {{
     if (!overviewCy) return;
     overviewCy.nodes().forEach((node) => {{
+      if (isOverviewNodeDragging(node)) return;
       const position = positions.get(node.id());
       if (position) node.position(position);
     }});
@@ -3058,12 +3336,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const [id, anchor] of anchorCenters) {{
       const node = overviewCy.getElementById(id);
       if (!node || !node.length) continue;
+      if (isOverviewNodeDragging(node)) continue;
       const current = node.position();
       const dx = anchor.x - current.x;
       const dy = anchor.y - current.y;
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
       const movable = node.descendants().nodes(":unlocked");
       movable.positions((child) => {{
+        if (isOverviewNodeDragging(child)) return undefined;
         const position = child.position();
         return {{ x: position.x + dx, y: position.y + dy }};
       }});
@@ -3110,6 +3390,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const elapsed = Math.max(0, now - startedAt);
       const t = Math.min(1, elapsed / duration);
       overviewCy.nodes().positions((node) => {{
+        if (isOverviewNodeDragging(node)) return undefined;
         const target = targetPositions.get(node.id());
         if (!target) return undefined;
         const start = startPositions.get(node.id()) || target;
@@ -3128,7 +3409,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const shouldFit = Boolean(opts && opts.fit);
       const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
       stopOverviewPositionAnimation();
-      if (shouldFit && overviewCy) overviewCy.fit(undefined, 30);
+      if (shouldFit) fitOverviewGraph();
       if (onComplete) onComplete();
     }};
     overviewPositionAnimation.frameId = raf(frame);
@@ -3199,6 +3480,58 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
+  async function seedOverviewInitialPositionsAsync(elements, token) {{
+    const rootNodes = elements.filter((element) => (
+      !isEdgeElement(element) && element.data && !element.data.parent
+    ));
+    if (rootNodes.length === 0) return isLatestOverviewSync(token);
+    const columns = Math.ceil(Math.sqrt(rootNodes.length));
+    const rows = Math.ceil(rootNodes.length / columns);
+    const gap = 220;
+    const rootPositions = new Map();
+    let rootIndex = 0;
+    if (!(await processOverviewChunks(rootNodes, token, (chunk) => {{
+      for (const node of chunk) {{
+        const index = rootIndex;
+        rootIndex += 1;
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const position = {{
+          x: (column - (columns - 1) / 2) * gap,
+          y: (row - (rows - 1) / 2) * gap
+        }};
+        node.position = position;
+        rootPositions.set(node.data.id, position);
+      }}
+    }}))) return false;
+    const childCounts = new Map();
+    const childElements = [];
+    if (!(await processOverviewChunks(elements, token, (chunk) => {{
+      for (const element of chunk) {{
+        if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+        childElements.push(element);
+        childCounts.set(element.data.parent, (childCounts.get(element.data.parent) || 0) + 1);
+      }}
+    }}))) return false;
+    const childIndexes = new Map();
+    if (!(await processOverviewChunks(childElements, token, (chunk) => {{
+      for (const element of chunk) {{
+        const center = rootPositions.get(element.data.parent);
+        if (!center) continue;
+        const index = childIndexes.get(element.data.parent) || 0;
+        const count = childCounts.get(element.data.parent) || 1;
+        childIndexes.set(element.data.parent, index + 1);
+        const radius = 72 + Math.min(88, count * 5);
+        const angle = -Math.PI / 2 + (Math.PI * 2 * index) / count;
+        element.position = {{
+          x: center.x + Math.cos(angle) * radius,
+          y: center.y + Math.sin(angle) * radius
+        }};
+      }}
+    }}))) return false;
+    return isLatestOverviewSync(token);
+  }}
+
   function anchorOverviewChildPositions(targetElements, anchorCenters) {{
     if (!anchorCenters || anchorCenters.size === 0) return;
     for (const [parentId, anchor] of anchorCenters) {{
@@ -3242,64 +3575,162 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return anchorCenters;
   }}
 
-  function addMissingOverviewElements(targetElements, targetById, movingNodeIds) {{
+  function nextOverviewFrame() {{
+    return new Promise((resolve) => requestOverviewFrame(resolve));
+  }}
+
+  function isLatestOverviewSync(token) {{
+    return token === overviewSyncToken;
+  }}
+
+  function targetElementIdSet(targetElements) {{
+    return new Set(targetElements.map((element) => element.data.id));
+  }}
+
+  function overviewSyncDiffPlan(targetElements) {{
+    const targetIds = targetElementIdSet(targetElements);
+    const targetById = new Map(targetElements.map((element) => [element.data.id, element]));
+    const stale = overviewCy.elements().toArray().filter((element) => !targetIds.has(element.id()));
     const missing = targetElements.filter((element) => !overviewCy.getElementById(element.data.id).length);
     const parentNodes = missing.filter((element) => !isEdgeElement(element) && !element.data.parent);
     const childNodes = missing.filter((element) => !isEdgeElement(element) && element.data.parent);
     const edgeElements = missing.filter(isEdgeElement);
-    const ordered = parentNodes.concat(childNodes, edgeElements);
-    if (ordered.length === 0) return false;
-    for (const element of parentNodes.concat(childNodes)) {{
-      movingNodeIds.add(element.data.id);
-    }}
-    overviewCy.add(ordered.map((element) => targetById.get(element.data.id)));
-    return true;
+    return {{
+      targetById: targetById,
+      stale: stale,
+      missingOrdered: parentNodes.concat(childNodes, edgeElements)
+    }};
   }}
 
-  function syncOverviewElements(targetElements, opts) {{
-    if (!overviewCy) return;
+  function applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds) {{
+    let layoutNeeded = false;
+    let positionDeferred = false;
+    overviewCy.batch(() => {{
+      if (plan.stale.length > 0) {{
+        if (plan.stale.some((element) => element.isNode && element.isNode())) layoutNeeded = true;
+        overviewCy.remove(overviewCy.collection(plan.stale));
+      }}
+      if (plan.missingOrdered.length > 0) {{
+        const missingElements = plan.missingOrdered.map((element) => plan.targetById.get(element.data.id));
+        for (const element of missingElements) {{
+          if (!isEdgeElement(element)) movingNodeIds.add(element.data.id);
+        }}
+        overviewCy.add(missingElements);
+        layoutNeeded = true;
+      }}
+      for (const target of targetElements) {{
+        if (!target.data || !target.data.parent) continue;
+        const element = overviewCy.getElementById(target.data.id);
+        if (!element.length || element.data("parent") === target.data.parent) continue;
+        element.move({{ parent: target.data.parent }});
+        movingNodeIds.add(target.data.id);
+        layoutNeeded = true;
+      }}
+      for (const target of targetElements) {{
+        if (isEdgeElement(target) || !target.position) continue;
+        const element = overviewCy.getElementById(target.data.id);
+        if (!element.length) continue;
+        if (isOverviewNodeDragging(element)) {{
+          positionDeferred = true;
+          continue;
+        }}
+        const current = element.position();
+        const dx = target.position.x - current.x;
+        const dy = target.position.y - current.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+        element.position(target.position);
+      }}
+      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
+    }});
+    return {{ layoutNeeded: layoutNeeded, positionDeferred: positionDeferred }};
+  }}
+
+  async function processOverviewChunks(items, token, callback) {{
+    for (let index = 0; index < items.length; index += OVERVIEW_SYNC_CHUNK_SIZE) {{
+      if (!isLatestOverviewSync(token)) return false;
+      callback(items.slice(index, index + OVERVIEW_SYNC_CHUNK_SIZE));
+      await nextOverviewFrame();
+    }}
+    return isLatestOverviewSync(token);
+  }}
+
+  async function syncOverviewElementsAsync(targetElements, opts, token) {{
+    if (!overviewCy || !isLatestOverviewSync(token)) return false;
     const immediate = Boolean(opts && opts.immediate);
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
     const previousPositions = overviewNodePositions();
     const movingNodeIds = new Set();
     const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
     anchorOverviewChildPositions(targetElements, anchorCenters);
-    const targetById = new Map(targetElements.map((element) => [element.data.id, element]));
-    let layoutNeeded = false;
-    overviewCy.batch(() => {{
-      const stale = overviewCy.elements().filter((element) => !targetById.has(element.id()));
-      if (stale.length > 0) {{
-        if (stale.nodes().length > 0) layoutNeeded = true;
-        overviewCy.remove(stale);
-      }}
-      if (addMissingOverviewElements(targetElements, targetById, movingNodeIds)) {{
-        layoutNeeded = true;
-      }}
-      for (const target of targetElements) {{
-        const element = overviewCy.getElementById(target.data.id);
-        if (!element.length) continue;
-        if (target.data.parent && element.data("parent") !== target.data.parent) {{
-          element.move({{ parent: target.data.parent }});
-          movingNodeIds.add(target.data.id);
-          layoutNeeded = true;
+    const plan = overviewSyncDiffPlan(targetElements);
+    const structureResult = applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds);
+    let layoutNeeded = structureResult.layoutNeeded;
+    const layoutStartPositions = overviewNodePositions();
+    const dragRevision = overviewDragRevision;
+    if (!isLatestOverviewSync(token)) return false;
+
+    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        for (const target of chunk) {{
+          const element = overviewCy.getElementById(target.data.id);
+          if (!element.length) continue;
+          if (currentDataDiffers(element, target.data)) {{
+            element.data(target.data);
+          }}
+          if (currentClassesDiffer(element, target.classes)) {{
+            element.classes(target.classes || "");
+          }}
         }}
-        if (currentDataDiffers(element, target.data)) {{
-          element.data(target.data);
-        }}
-        if (currentClassesDiffer(element, target.classes)) {{
-          element.classes(target.classes || "");
-        }}
-      }}
-      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
-    }});
+      }});
+    }}))) return false;
+
+    if (!isLatestOverviewSync(token)) return false;
+    if (structureResult.positionDeferred || (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision))) {{
+      overviewSyncAfterDrag = true;
+      if (onComplete) onComplete();
+      return true;
+    }}
     if (layoutNeeded) {{
-      restoreOverviewNodePositions(previousPositions);
+      restoreOverviewNodePositions(layoutStartPositions);
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
       if (movingNodeIds.size > 0) {{
         if (opts) opts.layoutStarted = true;
         runOverviewLayout({{ movingNodeIds, anchorCenters, immediate, onComplete }});
+        return true;
       }}
     }}
+    if (onComplete) onComplete();
+    return true;
+  }}
+
+  function syncOverviewElements(targetElements, opts) {{
+    if (opts) opts.layoutStarted = true;
+    runLatestOverviewSync(opts, targetElements);
+  }}
+
+  function runLatestOverviewSync(opts, targetElements) {{
+    if (!overviewCy) return;
+    const token = ++overviewSyncToken;
+    ++overviewLayoutToken;
+    stopOverviewPositionAnimation();
+    syncOverviewElementsAsync(targetElements || buildOverviewElements(), opts || {{}}, token).then((completed) => {{
+      if (!completed || !isLatestOverviewSync(token)) return;
+      if (opts && opts.onSyncComplete) opts.onSyncComplete();
+    }});
+  }}
+
+  function handleOverviewNodeGrab(node) {{
+    stopOverviewPositionAnimation();
+    for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.add(id);
+    overviewDragRevision += 1;
+  }}
+
+  function handleOverviewNodeFree(node) {{
+    for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.delete(id);
+    overviewDragRevision += 1;
+    if (hasOverviewDraggingNodes() || !overviewSyncAfterDrag) return;
+    overviewSyncAfterDrag = false;
+    runLatestOverviewSync({{}}, buildOverviewElements());
   }}
 
   function renderOverviewGraph(opts) {{
@@ -3312,30 +3743,57 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return false;
   }}
 
-  function resetOverviewGraph() {{
-    if (!overviewCy) return;
-    overviewGraph.classList.add("layout-initializing");
-    setOverviewControlsInert(true);
-    overviewLayoutInitialized = false;
-    stopOverviewPositionAnimation();
+  async function resetOverviewGraphAsync(token) {{
+    await nextOverviewFrame();
+    await nextOverviewFrame();
+    if (!overviewCy || !isLatestOverviewSync(token)) return false;
     overviewCy.resize();
     overviewCy.elements().remove();
-    const elements = buildOverviewElements();
-    seedOverviewInitialPositions(elements);
-    overviewCy.add(elements);
+    await nextOverviewFrame();
+    if (!overviewCy || !isLatestOverviewSync(token)) return false;
+    const elements = await buildOverviewElementsAsync(token);
+    if (!elements || !isLatestOverviewSync(token)) return false;
+    if (!(await seedOverviewInitialPositionsAsync(elements, token))) return false;
+    if (!(await processOverviewChunks(elements, token, (chunk) => {{
+      overviewCy.add(chunk);
+    }}))) return false;
+    if (!overviewCy || !isLatestOverviewSync(token)) return false;
     runOverviewLayout({{
       immediate: true,
       fit: true,
       layoutPasses: 2,
+      layoutToken: overviewLayoutToken,
       onComplete: () => {{
-        if (overviewCy) {{
-          overviewCy.resize();
-          overviewCy.fit(undefined, 30);
-        }}
-        overviewGraph.classList.remove("layout-initializing");
-        setOverviewControlsInert(false);
+        revealOverviewGraphAfterFit(token);
       }}
     }});
+    return true;
+  }}
+
+  async function revealOverviewGraphAfterFit(token) {{
+    if (!overviewCy || !isLatestOverviewSync(token)) return;
+    setOverviewGraphInteractionLocked(false);
+    overviewCy.resize();
+    fitOverviewGraph();
+    await nextOverviewFrame();
+    if (!overviewCy || !isLatestOverviewSync(token)) return;
+    setOverviewGraphInteractionLocked(false);
+    overviewCy.resize();
+    fitOverviewGraph();
+    overviewGraph.classList.remove("layout-initializing");
+    setOverviewControlsInert(false);
+  }}
+
+  function resetOverviewGraph() {{
+    if (!overviewCy) return;
+    const token = ++overviewSyncToken;
+    ++overviewLayoutToken;
+    overviewGraph.classList.add("layout-initializing");
+    setOverviewControlsInert(true);
+    setOverviewGraphInteractionLocked(true);
+    overviewLayoutInitialized = false;
+    stopOverviewPositionAnimation();
+    resetOverviewGraphAsync(token);
   }}
 
   function initOverviewGraph() {{
@@ -3366,6 +3824,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.on("tap", (event) => {{
       if (event.target !== overviewCy) return;
       clearOverviewSelection();
+    }});
+    overviewCy.on("grab", "node", (event) => {{
+      handleOverviewNodeGrab(event.target);
+    }});
+    overviewCy.on("free", "node", (event) => {{
+      handleOverviewNodeFree(event.target);
     }});
     overviewCy.on("cxttap", (event) => {{
       if (event.target !== overviewCy) return;
@@ -3419,7 +3883,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const resetStarted = renderOverviewGraph(renderOpts);
         if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
           overviewCy.resize();
-          overviewCy.fit(undefined, 30);
+          fitOverviewGraph();
           finishImmediateRefresh();
         }}
       }};
@@ -3561,9 +4025,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function renderRows(opts) {{
-    rows.replaceChildren();
+    const fragment = document.createDocumentFragment();
     for (const fn of sortedFunctions(functions.filter(matches))) {{
       const tr = document.createElement("tr");
+      tr.setAttribute("data-function-row-id", fn.id);
       if (fn.id === selectedId) tr.className = "selected";
       tr.innerHTML =
         "<td class=\\"dep-num\\">" + escapeHtml(levelText(fn)) + "</td>" +
@@ -3576,20 +4041,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
         "<td class=\\"dep-num\\">" + escapeHtml(fn.inScopeCalleeCount) + "</td>" +
         "<td class=\\"dep-num\\">" + escapeHtml(fn.inScopeCallerCount) + "</td>" +
         "<td class=\\"dep-num\\">" + escapeHtml(fn.crossFileCalleeCount) + "</td>";
-      tr.addEventListener("click", () => {{
-        selectFunction(fn.id, {{ fromTableRow: true }});
-      }});
-      rows.appendChild(tr);
+      fragment.appendChild(tr);
     }}
+    rows.replaceChildren(fragment);
+    ensureFunctionRowSelectionRendered();
     renderNotice();
     renderSortMarks();
     syncSelectedRowScroll(Boolean(opts && opts.forceScroll));
   }}
 
   function renderFileRows(opts) {{
-    fileRows.replaceChildren();
+    const fragment = document.createDocumentFragment();
     for (const file of sortedFiles(files.filter(matchesFile))) {{
       const tr = document.createElement("tr");
+      tr.setAttribute("data-file-row-path", file.path);
       if (file.path === selectedFilePath) tr.className = "selected";
       tr.innerHTML =
         "<td>" + areaBadge(file.dominantArea || "") + "</td>" +
@@ -3601,14 +4066,25 @@ def write_html(output_dir: Path, category_id: str) -> None:
         "<td>" + escapeHtml(fileLevelText(file)) + "</td>" +
         "<td>" + escapeHtml(fileClassText(file)) + "</td>" +
         "<td>" + escapeHtml(fileAreasText(file)) + "</td>";
-      tr.addEventListener("click", () => {{
-        selectFile(file.path, {{ fromFileRow: true }});
-      }});
-      fileRows.appendChild(tr);
+      fragment.appendChild(tr);
     }}
+    fileRows.replaceChildren(fragment);
+    ensureFileRowSelectionRendered();
     renderFileNotice();
     renderFileSortMarks();
     syncSelectedFileRowScroll(Boolean(opts && opts.forceScroll));
+  }}
+
+  function ensureFunctionRowSelectionRendered() {{
+    for (const row of rows.querySelectorAll("[data-function-row-id]")) {{
+      row.classList.toggle("selected", row.getAttribute("data-function-row-id") === selectedId);
+    }}
+  }}
+
+  function ensureFileRowSelectionRendered() {{
+    for (const row of fileRows.querySelectorAll("[data-file-row-path]")) {{
+      row.classList.toggle("selected", row.getAttribute("data-file-row-path") === selectedFilePath);
+    }}
   }}
 
   function linkFor(fn, label, source) {{
@@ -3625,6 +4101,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .filter(Boolean)
       .sort((a, b) => a.file.localeCompare(b.file) || a.name.localeCompare(b.name))
       .map((fn) => "<li><button type=\\"button\\" class=\\"dep-neighbor-button\\" data-function-id=\\"" + escapeHtml(fn.id) + "\\">" + escapeHtml(fn.name) + "</button> <small>" + escapeHtml(fn.file) + "</small></li>");
+    return "<ul>" + items.join("") + "</ul>";
+  }}
+
+  function externalCalleeList(externalCallees) {{
+    if (!externalCallees || externalCallees.length === 0) return "";
+    const items = externalCallees.map((ec) =>
+      "<li><span class=\\"dep-external-callee\\">" + escapeHtml(ec.name) + "</span></li>"
+    );
     return "<ul>" + items.join("") + "</ul>";
   }}
 
@@ -3662,7 +4146,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<dt>リンク</dt><dd>" + [linkFor(fn, "Doxygen", false), linkFor(fn, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       "<div class=\\"dep-neighbors\\">" +
-      "<section><strong>呼び出し先</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
+      "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
+      (fn.externalCallees && fn.externalCallees.length > 0 ? "<section><strong>呼び出し先 (外部)</strong>" + externalCalleeList(fn.externalCallees) + "</section>" : "") +
       "<section><strong>呼び出し元</strong>" + neighborList(callers.get(fn.id), "対象範囲内の呼び出し元はありません。") + "</section>" +
       "</div>";
     bindDetailActions();
@@ -3671,7 +4156,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function selectFunction(id, opts) {{
     const fn = byId.get(id);
     if (!fn) return;
+    if (scheduleRenderRows) scheduleRenderRows.cancel();
     if (id === selectedId && !selectedEdgeKey) {{
+      ensureFunctionRowSelectionRendered();
+      renderNotice();
       if (opts && opts.activateFunctionList) {{
         pendingFunctionListScroll = true;
         activateTab("functionListPanel");
@@ -3697,7 +4185,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function selectFile(path, opts) {{
+    if (scheduleRenderFileRows) scheduleRenderFileRows.cancel();
     if (path === selectedFilePath && selectedId === "" && selectedEdgeKey === "") {{
+      ensureFileRowSelectionRendered();
+      renderFileNotice();
       if (opts && opts.activateFileList) {{
         pendingFileListScroll = true;
         activateTab("fileListPanel");
@@ -3765,6 +4256,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
+  function debounce(callback, delayMs) {{
+    let timer = null;
+    const debounced = () => {{
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {{
+        timer = null;
+        callback();
+      }}, delayMs);
+    }};
+    debounced.cancel = () => {{
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }};
+    return debounced;
+  }}
+
   addMetric("関数", data.summary.functionCount || 0);
   addMetric("呼び出し関係", data.summary.edgeCount || 0);
   addMetric("ファイル", data.summary.fileCount || 0);
@@ -3775,13 +4283,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
   fillOptions();
   renderRows();
   renderFileRows();
+  const scheduleRenderRows = debounce(() => renderRows(), 80);
+  const scheduleRenderFileRows = debounce(() => renderFileRows(), 80);
+  const rowSelectEventName = window.PointerEvent ? "pointerdown" : "mousedown";
+  rows.addEventListener(rowSelectEventName, (event) => {{
+    const row = event.target.closest("[data-function-row-id]");
+    if (!row || !rows.contains(row)) return;
+    selectFunction(row.getAttribute("data-function-row-id"), {{ fromTableRow: true }});
+  }});
+  fileRows.addEventListener(rowSelectEventName, (event) => {{
+    const row = event.target.closest("[data-file-row-path]");
+    if (!row || !fileRows.contains(row)) return;
+    selectFile(row.getAttribute("data-file-row-path"), {{ fromFileRow: true }});
+  }});
   for (const control of [search, levelFilter, classFilter, exportFilter, staticFilter, areaFilter, fileFilter]) {{
-    control.addEventListener("input", () => renderRows());
-    control.addEventListener("change", () => renderRows());
+    control.addEventListener("input", scheduleRenderRows);
+    control.addEventListener("change", scheduleRenderRows);
   }}
   for (const control of [fileSearch, fileLevelFilter, fileClassFilter, fileExportFilter, fileStaticFilter, fileAreaFilter]) {{
-    control.addEventListener("input", () => renderFileRows());
-    control.addEventListener("change", () => renderFileRows());
+    control.addEventListener("input", scheduleRenderFileRows);
+    control.addEventListener("change", scheduleRenderFileRows);
   }}
   for (const button of sortButtons) {{
     button.addEventListener("click", () => {{

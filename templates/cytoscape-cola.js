@@ -291,7 +291,7 @@ ColaLayout.prototype.run = function () {
         return ret;
       };
 
-      if (options.animate) {
+      if (options.animate || options.deferPositions) {
         var frame = function frame() {
           if (multitick()) {
             return;
@@ -637,6 +637,7 @@ var defaults = {
   animate: true, // whether to show the layout as it's running
   refresh: 1, // number of ticks per frame; higher is faster but more jerky
   maxSimulationTime: 4000, // max length in ms to run the layout
+  deferPositions: false, // whether to run in frames but only update node positions at the end
   ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
   fit: true, // on every layout reposition of nodes, fit the viewport
   padding: 30, // padding around the simulation

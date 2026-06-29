@@ -193,6 +193,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue(by_id["api_export"]["isExported"])
             self.assertFalse(by_id["d_leaf"]["isExported"])
             self.assertEqual(data["summary"]["exportCount"], 2)
+            self.assertIn("fileEdges", data)
+            self.assertTrue(data["fileEdges"])
+            self.assertTrue(all(edge["fromFile"] != edge["toFile"] for edge in data["fileEdges"]))
+            self.assertTrue(all(edge["label"] == str(edge["weight"]) for edge in data["fileEdges"]))
             file_by_path = {row["path"]: row for row in data["files"]}
             self.assertEqual(file_by_path["include/api.h"]["exportCount"], 2)
             self.assertEqual(file_by_path["include_internal/internal.h"]["exportCount"], 0)
@@ -206,6 +210,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "webcola.LICENSE.txt").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.js").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.LICENSE.txt").is_file())
+            cola_js = (output_dir / "cytoscape-cola.js").read_text(encoding="utf-8")
+            self.assertIn("options.animate || options.deferPositions", cola_js)
+            self.assertIn("deferPositions: false", cola_js)
             for file_row in data["files"]:
                 self.assertNotIn("dominantClass", file_row)
                 self.assertIn("classes", file_row)
@@ -221,7 +228,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
             payload = data_js.removeprefix("window.DoxyfwDependencyData = ").rstrip(";\n")
-            self.assertEqual(json.loads(payload)["summary"]["functionCount"], 11)
+            payload_data = json.loads(payload)
+            self.assertEqual(payload_data["summary"]["functionCount"], 11)
+            self.assertIn("fileEdges", payload_data)
 
             index_html = (output_dir / "index.html").read_text(encoding="utf-8")
             self.assertIn('<span class="dep-meta">対象: sample</span></h1>', index_html)
@@ -242,6 +251,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function syncSelectedFileRowScroll(forceScroll)", index_html)
             self.assertIn("function renderFileDetail(filePath)", index_html)
             self.assertIn("function activateTab(tabId)", index_html)
+            self.assertIn('content: "初期化しています...";', index_html)
+            self.assertIn('content: "マップをレイアウトしています...";', index_html)
             self.assertIn('const immediateOverviewUpdate = tabId === "overviewPanel" && activeTab !== "overviewPanel";', index_html)
             self.assertIn("refreshActiveGraph({ immediate: immediateOverviewUpdate });", index_html)
             self.assertIn("function syncOverviewElements(targetElements, opts)", index_html)
@@ -266,12 +277,21 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("padding: 2px 6px;", index_html)
             self.assertIn('"text-margin-y": -2', index_html)
             self.assertIn("Math.max(14, fontSize - 2)", index_html)
+            self.assertIn("function overviewFitElements()", index_html)
             self.assertIn("function fitOverviewGraph()", index_html)
             self.assertIn("function requestOverviewFrame(callback)", index_html)
             self.assertIn("function setOverviewControlsInert(inert)", index_html)
+            self.assertIn("function setOverviewGraphInteractionLocked(locked)", index_html)
             self.assertIn("function setOverviewLayoutRunning(running)", index_html)
             self.assertIn("function clearOverviewLayoutPendingLabel()", index_html)
             self.assertIn("function exponentialEaseOutProgress(t, impact)", index_html)
+            self.assertIn("function overviewNodeDragIds(node)", index_html)
+            self.assertIn("function isOverviewNodeDragging(nodeOrId)", index_html)
+            self.assertIn("function hasOverviewDraggingNodes()", index_html)
+            self.assertIn("function handleOverviewNodeGrab(node)", index_html)
+            self.assertIn("function handleOverviewNodeFree(node)", index_html)
+            self.assertIn('overviewCy.on("grab", "node"', index_html)
+            self.assertIn('overviewCy.on("free", "node"', index_html)
             self.assertIn("Math.exp(-rate * clamped)", index_html)
             self.assertIn("const p = exponentialEaseOutProgress(t, impact);", index_html)
             self.assertIn("controls-inert", index_html)
@@ -284,11 +304,88 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("manual: true", index_html)
             self.assertIn("overviewLayoutRunning", index_html)
             self.assertIn("overviewLayoutToken", index_html)
+            self.assertIn("let overviewInteractionStateBeforeLayout = null;", index_html)
+            self.assertIn("let overviewDraggingNodeIds = new Set();", index_html)
+            self.assertIn("let overviewDragRevision = 0;", index_html)
+            self.assertIn("let overviewSyncAfterDrag = false;", index_html)
+            self.assertIn("overviewCy.panningEnabled(false);", index_html)
+            self.assertIn("overviewCy.zoomingEnabled(false);", index_html)
+            self.assertIn("overviewCy.autoungrabify(true);", index_html)
+            self.assertIn("overviewCy.boxSelectionEnabled(false);", index_html)
+            self.assertIn("overviewCy.panningEnabled(overviewInteractionStateBeforeLayout.panningEnabled);", index_html)
             self.assertIn("function overviewFileEdgeLength(edge, maxLength, minLength)", index_html)
+            self.assertIn("const fileEdges = (data.fileEdges && data.fileEdges.length > 0) ? data.fileEdges : buildFileEdges(edges);", index_html)
+            self.assertIn("function buildFileEdges(sourceEdges)", index_html)
+            self.assertNotIn("LARGE_GRAPH_FILE_LIMIT", index_html)
+            self.assertNotIn("LARGE_GRAPH_EDGE_LIMIT", index_html)
+            self.assertNotIn("largeGraphMode", index_html)
+            self.assertNotIn("function completeOverviewPresetLayout(fit, onComplete)", index_html)
+            self.assertIn("deferPositions: manual || immediate", index_html)
+            self.assertIn("const OVERVIEW_SYNC_CHUNK_SIZE = 25;", index_html)
+            self.assertIn("let overviewSyncToken = 0;", index_html)
+            self.assertIn("function nextOverviewFrame()", index_html)
+            self.assertIn("function isLatestOverviewSync(token)", index_html)
+            self.assertIn("function targetElementIdSet(targetElements)", index_html)
+            self.assertIn("function overviewSyncDiffPlan(targetElements)", index_html)
+            self.assertIn("async function buildOverviewElementsAsync(token)", index_html)
+            self.assertIn("async function seedOverviewInitialPositionsAsync(elements, token)", index_html)
+            self.assertIn("async function resetOverviewGraphAsync(token)", index_html)
+            self.assertIn("async function revealOverviewGraphAfterFit(token)", index_html)
+            self.assertIn("function applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds)", index_html)
+            self.assertIn("async function processOverviewChunks(items, token, callback)", index_html)
+            self.assertIn("async function syncOverviewElementsAsync(targetElements, opts, token)", index_html)
+            self.assertIn("function runLatestOverviewSync(opts, targetElements)", index_html)
+            self.assertIn("const token = ++overviewSyncToken;", index_html)
+            self.assertIn("++overviewLayoutToken;", index_html)
+            self.assertIn("if (!completed || !isLatestOverviewSync(token)) return;", index_html)
+            self.assertIn("await nextOverviewFrame();", index_html)
+            self.assertIn("const elements = await buildOverviewElementsAsync(token);", index_html)
+            self.assertIn("await seedOverviewInitialPositionsAsync(elements, token)", index_html)
+            self.assertIn("overviewCy.add(chunk);", index_html)
+            self.assertIn("revealOverviewGraphAfterFit(token);", index_html)
+            self.assertIn("setOverviewGraphInteractionLocked(false);\n    overviewCy.resize();\n    fitOverviewGraph();", index_html)
+            self.assertIn("overviewCy.fit(overviewFitElements(), 30);", index_html)
+            self.assertIn("resetOverviewGraphAsync(token);", index_html)
+            self.assertIn("stale: stale", index_html)
+            self.assertIn("missingOrdered: parentNodes.concat(childNodes, edgeElements)", index_html)
+            self.assertIn("const structureResult = applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds);", index_html)
+            self.assertIn("let layoutNeeded = structureResult.layoutNeeded;", index_html)
+            self.assertIn("let positionDeferred = false;", index_html)
+            self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
+            self.assertIn("overviewCy.add(missingElements);", index_html)
+            self.assertIn("element.position(target.position);", index_html)
+            self.assertIn("const layoutStartPositions = overviewNodePositions();", index_html)
+            self.assertIn("const dragRevision = overviewDragRevision;", index_html)
+            self.assertIn("restoreOverviewNodePositions(layoutStartPositions);", index_html)
+            self.assertIn("applyOverviewAnchorCentersToCurrentPositions(anchorCenters);", index_html)
+            self.assertIn("if (isOverviewNodeDragging(node)) return;", index_html)
+            self.assertIn("if (isOverviewNodeDragging(element)) {", index_html)
+            self.assertIn("positionDeferred = true;", index_html)
+            self.assertIn("if (structureResult.positionDeferred || (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)))", index_html)
+            self.assertIn("overviewSyncAfterDrag = true;", index_html)
+            self.assertIn("runLatestOverviewSync({}, buildOverviewElements());", index_html)
+            self.assertIn("const fragment = document.createDocumentFragment();", index_html)
+            self.assertIn("function debounce(callback, delayMs)", index_html)
+            self.assertIn('tr.setAttribute("data-function-row-id", fn.id);', index_html)
+            self.assertIn('tr.setAttribute("data-file-row-path", file.path);', index_html)
+            self.assertIn("function ensureFunctionRowSelectionRendered()", index_html)
+            self.assertIn("function ensureFileRowSelectionRendered()", index_html)
+            self.assertIn("const rowSelectEventName = window.PointerEvent ? \"pointerdown\" : \"mousedown\";", index_html)
+            self.assertIn("rows.addEventListener(rowSelectEventName", index_html)
+            self.assertIn("fileRows.addEventListener(rowSelectEventName", index_html)
+            self.assertIn("debounced.cancel = () =>", index_html)
+            self.assertIn("if (scheduleRenderRows) scheduleRenderRows.cancel();", index_html)
+            self.assertIn("if (scheduleRenderFileRows) scheduleRenderFileRows.cancel();", index_html)
+            self.assertIn("ensureFunctionRowSelectionRendered();", index_html)
+            self.assertIn("ensureFileRowSelectionRendered();", index_html)
+            self.assertNotIn('tr.addEventListener("click", () => {', index_html)
+            self.assertIn("const scheduleRenderRows = debounce(() => renderRows(), 80);", index_html)
             self.assertIn('edgeLength: function (edge) { return overviewFileEdgeLength(edge, 140, 128); }', index_html)
             self.assertIn('idealEdgeLength: function (edge) { return overviewFileEdgeLength(edge, 128, 116); }', index_html)
             self.assertIn("function overviewSelectionState(edgeMap)", index_html)
             self.assertIn("dep-file-node-muted", index_html)
+            self.assertIn('"opacity": 0.3', index_html)
+            self.assertIn('"opacity": 0.25', index_html)
             self.assertIn("scrollbar-color:", index_html)
             self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
             self.assertIn('id="themeToggle"', index_html)
@@ -592,6 +689,158 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
             self.assertIn("lib_to_src", stderr.getvalue())
             self.assertIn("src_leaf", stderr.getvalue())
+
+
+    def test_c_keyword_phantom_excluded(self):
+        """C キーワード (if, for など) が phantom memberdef として生成された場合に除外されることを確認する。
+
+        Doxygen は EXTRACT_ALL=YES のとき、ソース内の制御構文 (if, for など) を
+        「関数」として memberdef に出力することがある。この場合 bodyfile がソースファイルを
+        指すため body_file == "" チェックでは除外できない。name が C キーワードかどうかで判定する。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "cmamng.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="cmamng_8c" kind="file">
+    <compoundname>cmamng.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="cmamng_main" static="no">
+        <name>main</name>
+        <references refid="cmamng_if">if</references>
+        <references refid="cmamng_for">for</references>
+        <location file="src/prc/cmamng/cmamng.c" line="800" bodyfile="src/prc/cmamng/cmamng.c" bodystart="800"/>
+      </memberdef>
+      <memberdef kind="function" id="cmamng_if" static="no">
+        <name>if</name>
+        <location file="src/prc/cmamng/cmamng.c" line="926" bodyfile="src/prc/cmamng/cmamng.c" bodystart="926"/>
+      </memberdef>
+      <memberdef kind="function" id="cmamng_for" static="no">
+        <name>for</name>
+        <location file="src/prc/cmamng/cmamng.c" line="941" bodyfile="src/prc/cmamng/cmamng.c" bodystart="941"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            # C キーワードは function_rows に含まれない
+            self.assertNotIn("cmamng_if", by_id)
+            self.assertNotIn("cmamng_for", by_id)
+
+            # main は function_rows に含まれる
+            self.assertIn("cmamng_main", by_id)
+
+            # if/for は inScopeCalleeCount にカウントされない
+            self.assertEqual(by_id["cmamng_main"]["inScopeCalleeCount"], 0)
+
+            # edges にキーワードへのエッジが生成されない
+            edge_callees = {e["callee"] for e in data["edges"]}
+            self.assertNotIn("cmamng_if", edge_callees)
+            self.assertNotIn("cmamng_for", edge_callees)
+
+            # reverse-boundary-caller 警告は出力されない
+            self.assertNotIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
+
+
+    def test_external_callee_excluded(self):
+        """bodyfile を持たない phantom な外部関数が正しく扱われることを確認する。
+
+        Doxygen が標準ライブラリ関数などを呼び出し箇所を location とした phantom な
+        memberdef として生成した場合 (bodyfile なし)、その関数は外部関数として扱われ:
+        - 関数一覧表 (functions) に含まれない
+        - 呼び出し元関数の externalCallees に名前が現れる
+        - edges にエッジが生成されない
+        - Warning: reverse-boundary-caller が出力されない
+        """
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "lib.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="lib_8c" kind="file">
+    <compoundname>lib.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="lib_caller" static="no">
+        <name>lib_caller</name>
+        <references refid="ext_memcpy">memcpy</references>
+        <references refid="ext_memset">memset</references>
+        <location file="libsrc/lib.c" line="10" bodyfile="libsrc/lib.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            # phantom な外部関数: bodyfile/bodystart なし (call site の location のみ)
+            write_xml(
+                xml_dir,
+                "src_phantom.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="src_8c" kind="file">
+    <compoundname>src.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="ext_memcpy" static="no">
+        <name>memcpy</name>
+        <location file="src/src.c" line="100"/>
+      </memberdef>
+      <memberdef kind="function" id="ext_memset" static="no">
+        <name>memset</name>
+        <location file="src/src.c" line="200"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            # 外部関数は function_rows に含まれない
+            self.assertNotIn("ext_memcpy", by_id)
+            self.assertNotIn("ext_memset", by_id)
+
+            # lib_caller は function_rows に含まれる
+            self.assertIn("lib_caller", by_id)
+
+            # externalCallees に外部関数名が現れる (名前順・重複排除)
+            external_names = [ec["name"] for ec in by_id["lib_caller"]["externalCallees"]]
+            self.assertEqual(external_names, ["memcpy", "memset"])
+
+            # externalCalleeCount が正しい
+            self.assertEqual(by_id["lib_caller"]["externalCalleeCount"], 2)
+
+            # 外部関数への edges は生成されない
+            edge_callees = {e["callee"] for e in data["edges"]}
+            self.assertNotIn("ext_memcpy", edge_callees)
+            self.assertNotIn("ext_memset", edge_callees)
+
+            # inScopeCalleeCount は外部関数を含まない
+            self.assertEqual(by_id["lib_caller"]["inScopeCalleeCount"], 0)
+
+            # reverse-boundary-caller 警告は出力されない
+            self.assertNotIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
 
 
 if __name__ == "__main__":
