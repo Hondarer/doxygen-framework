@@ -2017,6 +2017,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewLayoutRunning = false;
   let overviewLayoutToken = 0;
   let overviewSyncToken = 0;
+  let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
   let overviewLayoutWatchdog = null;
   let overviewInteractionStateBeforeLayout = null;
@@ -2523,6 +2524,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function requestOverviewFrame(callback) {{
     const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((fn) => window.setTimeout(() => fn(Date.now()), 16));
     requestFrame(callback);
+  }}
+
+  function scheduleOverviewRelayoutReveal(opts) {{
+    const viewport = opts && opts.viewport ? opts.viewport : null;
+    const revealToken = ++overviewRelayoutRevealToken;
+    const waitUntilReady = () => {{
+      if (revealToken !== overviewRelayoutRevealToken) return;
+      if (activeTab === "overviewPanel" && !isOverviewRenderedSelectionCurrent()) {{
+        requestOverviewFrame(waitUntilReady);
+        return;
+      }}
+      restoreOverviewViewport(viewport);
+      requestOverviewFrame(() => {{
+        requestOverviewFrame(() => {{
+          if (revealToken !== overviewRelayoutRevealToken) return;
+          if (activeTab === "overviewPanel" && !isOverviewRenderedSelectionCurrent()) {{
+            waitUntilReady();
+            return;
+          }}
+          if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
+          setOverviewControlsInert(false);
+        }});
+      }});
+    }};
+    waitUntilReady();
   }}
 
   function setOverviewControlsInert(inert) {{
@@ -3899,10 +3925,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
         anchorCenters,
         immediate,
         animatePositions: !(opts && opts.hideDuringUpdate),
-        // レイアウト確定後、位置アニメーション開始と同時に Phase C (興味対象外の
-        // 非強調) を反映し、エッジの強調/非強調切り替えがアニメーション完了まで
-        // 遅れないようにする。アニメーションが無い経路では onComplete 側で動く。
-        onBeforeAnimation: runPhaseC,
+        // マップ表示中の選択切り替えでは、位置アニメーション開始と同時に Phase C
+        // (興味対象外の非強調) を反映し、エッジの強調/非強調切り替えがアニメーション
+        // 完了まで遅れないようにする。非表示更新ではアニメーションを行わず、
+        // onComplete 側で Phase C まで完了してから表示する。
+        onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,
         onComplete: runPhaseC,
         deferPositions: true,
         syncToken: token
@@ -3993,13 +4020,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     renderOpts.hideDuringUpdate = hideDuringUpdate;
     renderOpts.onComplete = () => {{
       if (hideDuringUpdate) {{
-        restoreOverviewViewport(viewportBeforeUpdate);
-        if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
-        setOverviewControlsInert(false);
+        scheduleOverviewRelayoutReveal({{ viewport: viewportBeforeUpdate }});
       }}
       if (originalOnComplete) originalOnComplete();
     }};
     if (hideDuringUpdate) {{
+      ++overviewRelayoutRevealToken;
       overviewGraph.classList.add("layout-relayouting");
       setOverviewControlsInert(true);
     }}
@@ -4057,6 +4083,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewGraph.classList.add("layout-initializing");
     setOverviewControlsInert(true);
     setOverviewGraphInteractionLocked(true);
+    ++overviewRelayoutRevealToken;
     overviewLayoutInitialized = false;
     stopOverviewPositionAnimation();
     resetOverviewGraphAsync(token);
@@ -4137,15 +4164,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return;
       }}
       if (immediate && overviewCy && overviewCy.elements().length > 0) {{
+        ++overviewRelayoutRevealToken;
         overviewGraph.classList.add("layout-relayouting");
         setOverviewControlsInert(true);
       }}
+      const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(() => callback(Date.now()), 16));
       const finishImmediateRefresh = () => {{
         if (!immediate) return;
-        if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
-        setOverviewControlsInert(false);
+        if (activeTab === "overviewPanel" && !isOverviewRenderedSelectionCurrent()) {{
+          requestFrame(finishImmediateRefresh);
+          return;
+        }}
+        scheduleOverviewRelayoutReveal();
       }};
-      const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(() => callback(Date.now()), 16));
       const refresh = () => {{
         if (activeTab !== "overviewPanel") {{
           finishImmediateRefresh();
@@ -4720,6 +4751,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       clearSelection: () => clearOverviewSelection(),
       renderedSignature: () => overviewRenderedSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),
+      activateFunctionList: () => activateTab("functionListPanel"),
+      activateFileList: () => activateTab("fileListPanel"),
+      isRelayoutHidden: () => Boolean(overviewGraph && overviewGraph.classList.contains("layout-relayouting")),
+      isPositionAnimationActive: () => Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
       classesOf: (id) => {{
         if (!overviewCy) return null;
         const element = overviewCy.getElementById(id);

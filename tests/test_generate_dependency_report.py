@@ -268,7 +268,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const renderOpts = { immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature() };", index_html)
             self.assertIn("const resetStarted = renderOverviewGraph(renderOpts);", index_html)
             self.assertIn("const viewportBeforeUpdate = hideDuringUpdate ? overviewViewport() : null;", index_html)
-            self.assertIn("restoreOverviewViewport(viewportBeforeUpdate);", index_html)
+            self.assertIn("function scheduleOverviewRelayoutReveal(opts)", index_html)
+            self.assertIn("scheduleOverviewRelayoutReveal({ viewport: viewportBeforeUpdate });", index_html)
+            self.assertIn("restoreOverviewViewport(viewport);", index_html)
+            self.assertIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
             self.assertIn('overviewGraph.classList.add("layout-initializing");', index_html)
             self.assertIn('overviewGraph.classList.add("layout-relayouting");', index_html)
             self.assertIn("if (hideDuringUpdate) {", index_html)
@@ -316,6 +319,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function setOverviewControlsInert(inert)", index_html)
             self.assertIn("function setOverviewGraphInteractionLocked(locked)", index_html)
             self.assertIn("function setOverviewLayoutRunning(running)", index_html)
+            self.assertIn("isRelayoutHidden: () => Boolean(overviewGraph && overviewGraph.classList.contains(\"layout-relayouting\")),", index_html)
+            self.assertIn("isPositionAnimationActive: () => Boolean(overviewPositionAnimation && overviewPositionAnimation.active),", index_html)
             self.assertNotIn("function clearOverviewLayoutPendingLabel()", index_html)
             self.assertIn("function exponentialEaseOutProgress(t, impact)", index_html)
             self.assertIn("function overviewNodeDragIds(node)", index_html)
@@ -428,8 +433,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 構造変化なしのミュートは次フレームへ遅延し、強調描画を先行させる。
             self.assertIn("requestOverviewFrame(runPhaseC);", index_html)
             self.assertIn("onComplete: runPhaseC,", index_html)
-            # Phase C はアニメーション開始時 (onBeforeAnimation) にも並行で動かす。
-            self.assertIn("onBeforeAnimation: runPhaseC,", index_html)
+            # Phase C は表示中更新だけアニメーション開始時にも並行で動かす。
+            self.assertIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
             # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
             self.assertNotIn("structureResult.positionDeferred", index_html)
             self.assertNotIn("element.position(target.position);", index_html)
@@ -1115,6 +1120,18 @@ class OverviewInteractionTest(unittest.TestCase):
             switch_sync = data["switchSync"]
             self.assertIn("dep-selected-file", switch_sync["selectedFileClasses"])
             self.assertFalse(switch_sync["fileAMutedImmediate"])
+
+            # --- 初期化済みマップから別タブで選択変更後に戻る: 非表示同期 ---
+            hidden_tab_selection = data["hiddenTabSelection"]
+            self.assertTrue(hidden_tab_selection["immediate"]["hidden"])
+            self.assertFalse(hidden_tab_selection["immediate"]["animationActive"])
+            self.assertFalse(hidden_tab_selection["hiddenDroppedBeforeReady"])
+            self.assertFalse(hidden_tab_selection["animationSeen"])
+            self.assertFalse(hidden_tab_selection["final"]["hidden"])
+            self.assertFalse(hidden_tab_selection["final"]["animationActive"])
+            self.assertTrue(hidden_tab_selection["final"]["renderedMatchesCurrent"])
+            self.assertIn("dep-selected-file", hidden_tab_selection["final"]["selectedFileClasses"])
+            self.assertTrue(hidden_tab_selection["final"]["fileCMuted"])
 
             # --- 実マウス クリックで関数の位置補正 (Phase B) が効くこと ---
             # ノードの実タップは grab/free を発火する。これがドラッグ扱いされると

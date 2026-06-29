@@ -61,6 +61,78 @@ async function runRealClickScenario(page, filePath) {
   };
 }
 
+async function runHiddenTabSelectionScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await page.waitForFunction(
+    () => !window.depReportOverviewTestApi.isLayoutRunning()
+      && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+    { timeout: 20000 }
+  );
+
+  await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    api.activateFileList();
+    api.selectFile(p);
+    api.activateOverview();
+  }, filePath);
+
+  const immediate = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      hidden: api.isRelayoutHidden(),
+      animationActive: api.isPositionAnimationActive(),
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+    };
+  });
+
+  let animationSeen = immediate.animationActive;
+  let hiddenDroppedBeforeReady = false;
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    const state = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        hidden: api.isRelayoutHidden(),
+        layoutRunning: api.isLayoutRunning(),
+        animationActive: api.isPositionAnimationActive(),
+        renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+      };
+    });
+    if (state.animationActive) animationSeen = true;
+    if (!state.hidden && (state.layoutRunning || !state.renderedMatchesCurrent)) {
+      hiddenDroppedBeforeReady = true;
+    }
+    if (!state.layoutRunning && state.renderedMatchesCurrent) {
+      break;
+    }
+    await sleep(50);
+  }
+
+  while (Date.now() < deadline) {
+    const hidden = await page.evaluate(() => window.depReportOverviewTestApi.isRelayoutHidden());
+    if (!hidden) break;
+    await sleep(20);
+  }
+
+  const final = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      hidden: api.isRelayoutHidden(),
+      animationActive: api.isPositionAnimationActive(),
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      selectedFileClasses: api.classesOf(p) || [],
+      fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+    };
+  }, filePath);
+
+  return {
+    immediate,
+    animationSeen,
+    hiddenDroppedBeforeReady,
+    final
+  };
+}
+
 async function run(reportPath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -124,6 +196,14 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await sleep(800);
 
+    const hiddenTabSelection = await runHiddenTabSelectionScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await page.waitForFunction(
+      () => !window.depReportOverviewTestApi.isLayoutRunning()
+        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+      { timeout: 20000 }
+    );
+
     // 実マウス クリックでの位置補正検証。grab/free を実際に発火させるため、
     // selectFile 直呼びではなく page.mouse.click を使う。
     const realClick = await runRealClickScenario(page, 'src/file_a.c');
@@ -133,6 +213,7 @@ async function run(reportPath) {
       sync,
       final,
       switchSync,
+      hiddenTabSelection,
       realClick,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
     };
