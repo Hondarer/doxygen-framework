@@ -428,6 +428,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 構造変化なしのミュートは次フレームへ遅延し、強調描画を先行させる。
             self.assertIn("requestOverviewFrame(runPhaseC);", index_html)
             self.assertIn("onComplete: runPhaseC,", index_html)
+            # Phase C はアニメーション開始時 (onBeforeAnimation) にも並行で動かす。
+            self.assertIn("onBeforeAnimation: runPhaseC,", index_html)
             # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
             self.assertNotIn("structureResult.positionDeferred", index_html)
             self.assertNotIn("element.position(target.position);", index_html)

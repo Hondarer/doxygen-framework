@@ -3858,7 +3858,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!isLatestOverviewSync(token)) return false;
 
     // --- Phase C 本体 ---
+    // Phase B のアニメーションと並行して動かすため、開始時 (onBeforeAnimation) と
+    // 完了時 (onComplete) の双方から呼べるよう冪等にする。
+    let phaseCDone = false;
     const runPhaseC = () => {{
+      if (phaseCDone) return;
+      phaseCDone = true;
       if (!overviewCy || !isLatestOverviewSync(token)) return;
       if (deferredMutedTargets.length > 0) {{
         overviewCy.batch(() => {{
@@ -3894,6 +3899,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
         anchorCenters,
         immediate,
         animatePositions: !(opts && opts.hideDuringUpdate),
+        // レイアウト確定後、位置アニメーション開始と同時に Phase C (興味対象外の
+        // 非強調) を反映し、エッジの強調/非強調切り替えがアニメーション完了まで
+        // 遅れないようにする。アニメーションが無い経路では onComplete 側で動く。
+        onBeforeAnimation: runPhaseC,
         onComplete: runPhaseC,
         deferPositions: true,
         syncToken: token
