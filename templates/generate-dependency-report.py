@@ -3269,7 +3269,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const immediate = Boolean(opts && opts.immediate) || !overviewLayoutInitialized;
     const layoutPasses = Math.max(1, Number((opts && opts.layoutPasses) || 1));
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
-    const onBeforeAnimation = opts && typeof opts.onBeforeAnimation === "function" ? opts.onBeforeAnimation : null;
     const layoutToken = opts && opts.layoutToken ? opts.layoutToken : ++overviewLayoutToken;
     const syncToken = opts && opts.syncToken ? opts.syncToken : null;
     const startPositions = overviewNodePositions();
@@ -3308,7 +3307,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
           if (onComplete) onComplete();
           return;
         }}
-        if (onBeforeAnimation) onBeforeAnimation();
         animateOverviewPositions(startPositions, targetPositions, {{ fit, onComplete }});
         return;
       }}
@@ -3884,34 +3882,57 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!isLatestOverviewSync(token)) return false;
 
     // --- Phase C 本体 ---
-    // Phase B のアニメーションと並行して動かすため、開始時 (onBeforeAnimation) と
-    // 完了時 (onComplete) の双方から呼べるよう冪等にする。
-    let phaseCDone = false;
-    const runPhaseC = () => {{
-      if (phaseCDone) return;
-      phaseCDone = true;
+    // レイアウト入力へ影響しないミュート クラスだけを、Phase B の cola tick と
+    // フレーム単位で並行処理する。完了通知は Phase B と Phase C の双方が終わってから行う。
+    let phaseCStarted = false;
+    let phaseCClassesDone = false;
+    let phaseCLayoutDone = true;
+    let phaseCFinalized = false;
+    const finishPhaseCIfReady = () => {{
+      if (phaseCFinalized || !phaseCClassesDone || !phaseCLayoutDone) return;
+      phaseCFinalized = true;
       if (!overviewCy || !isLatestOverviewSync(token)) return;
-      if (deferredMutedTargets.length > 0) {{
-        overviewCy.batch(() => {{
-          for (const target of deferredMutedTargets) {{
-            const element = overviewCy.getElementById(target.data.id);
-            if (!element.length) continue;
-            if (currentClassesDiffer(element, target.classes)) {{
-              element.classes(target.classes || "");
-            }}
-          }}
-        }});
-      }}
-      if (isLatestOverviewSync(token) && selectionSignature === overviewSelectionSignature()) {{
+      if (selectionSignature === overviewSelectionSignature()) {{
         overviewRenderedSelectionSignature = selectionSignature;
       }}
       if (onComplete) onComplete();
+    }};
+    const markPhaseCLayoutDone = () => {{
+      phaseCLayoutDone = true;
+      finishPhaseCIfReady();
+    }};
+    const startPhaseC = () => {{
+      if (phaseCStarted) return;
+      phaseCStarted = true;
+      if (!overviewCy || !isLatestOverviewSync(token)) return;
+      if (deferredMutedTargets.length === 0) {{
+        phaseCClassesDone = true;
+        finishPhaseCIfReady();
+        return;
+      }}
+      (async () => {{
+        const completed = await processOverviewChunks(deferredMutedTargets, token, (chunk) => {{
+          if (!overviewCy || !isLatestOverviewSync(token)) return;
+          overviewCy.batch(() => {{
+            for (const target of chunk) {{
+              const element = overviewCy.getElementById(target.data.id);
+              if (!element.length) continue;
+              if (currentClassesDiffer(element, target.classes)) {{
+                element.classes(target.classes || "");
+              }}
+            }}
+          }});
+        }});
+        if (!completed || !overviewCy || !isLatestOverviewSync(token)) return;
+        phaseCClassesDone = true;
+        finishPhaseCIfReady();
+      }})();
     }};
 
     // ドラッグ中はレイアウトを後回しにし、ドラッグ終了後 (handleOverviewNodeFree) に再同期する。
     if (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)) {{
       overviewSyncAfterDrag = true;
-      runPhaseC();
+      startPhaseC();
       return true;
     }}
 
@@ -3920,29 +3941,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
       restoreOverviewNodePositions(previousPositions);
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
       if (opts) opts.layoutStarted = true;
+      phaseCLayoutDone = false;
       runOverviewLayout({{
         movingNodeIds,
         anchorCenters,
         immediate,
         animatePositions: !(opts && opts.hideDuringUpdate),
-        // マップ表示中の選択切り替えでは、位置アニメーション開始と同時に Phase C
-        // (興味対象外の非強調) を反映し、エッジの強調/非強調切り替えがアニメーション
-        // 完了まで遅れないようにする。非表示更新ではアニメーションを行わず、
-        // onComplete 側で Phase C まで完了してから表示する。
-        onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,
-        onComplete: runPhaseC,
+        onComplete: markPhaseCLayoutDone,
         deferPositions: true,
         syncToken: token
       }});
+      requestOverviewFrame(startPhaseC);
       return true;
     }}
 
     // 構造変化なし: 興味対象の強調は反映済み。ミュートがあれば次フレームへ遅延し、
     // 強調の描画を先行させる。なければ即座に確定する。
     if (deferredMutedTargets.length > 0) {{
-      requestOverviewFrame(runPhaseC);
+      requestOverviewFrame(startPhaseC);
     }} else {{
-      runPhaseC();
+      startPhaseC();
     }}
     return true;
   }}

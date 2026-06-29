@@ -133,6 +133,38 @@ async function runHiddenTabSelectionScenario(page, filePath) {
   };
 }
 
+async function runRapidSelectionScenario(page) {
+  const immediate = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    api.selectFile('src/file_a.c');
+    api.selectFile('src/file_c.c');
+    return {
+      selectedFileClasses: api.classesOf('src/file_c.c') || [],
+      fileAMutedImmediate: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1,
+      fileCMutedImmediate: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+    };
+  });
+
+  await page.waitForFunction(
+    () => !window.depReportOverviewTestApi.isLayoutRunning()
+      && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+    { timeout: 20000 }
+  );
+  await sleep(50);
+
+  const final = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      selectedFileClasses: api.classesOf('src/file_c.c') || [],
+      fileAMuted: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1,
+      fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+    };
+  });
+
+  return { immediate, final };
+}
+
 async function run(reportPath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -186,7 +218,7 @@ async function run(reportPath) {
       const api = window.depReportOverviewTestApi;
       return {
         selectedFileClasses: api.classesOf('src/file_c.c') || [],
-        // 直前に選択していた file_a は興味対象外となるが、ミュートは Phase C へ遅延 (同期時点では未適用)。
+        // Phase C 並行化後も、新しく選択した file_c の強調は同期時点で反映される。
         fileAMutedImmediate: (api.classesOf('src/file_a.c') || []).indexOf('dep-file-node-muted') !== -1
       };
     });
@@ -204,6 +236,14 @@ async function run(reportPath) {
       { timeout: 20000 }
     );
 
+    const rapidSelection = await runRapidSelectionScenario(page);
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await page.waitForFunction(
+      () => !window.depReportOverviewTestApi.isLayoutRunning()
+        && window.depReportOverviewTestApi.renderedSignature() === window.depReportOverviewTestApi.currentSignature(),
+      { timeout: 20000 }
+    );
+
     // 実マウス クリックでの位置補正検証。grab/free を実際に発火させるため、
     // selectFile 直呼びではなく page.mouse.click を使う。
     const realClick = await runRealClickScenario(page, 'src/file_a.c');
@@ -214,6 +254,7 @@ async function run(reportPath) {
       final,
       switchSync,
       hiddenTabSelection,
+      rapidSelection,
       realClick,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
     };

@@ -271,7 +271,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function scheduleOverviewRelayoutReveal(opts)", index_html)
             self.assertIn("scheduleOverviewRelayoutReveal({ viewport: viewportBeforeUpdate });", index_html)
             self.assertIn("restoreOverviewViewport(viewport);", index_html)
-            self.assertIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
+            self.assertIn("onComplete: markPhaseCLayoutDone,", index_html)
             self.assertIn('overviewGraph.classList.add("layout-initializing");', index_html)
             self.assertIn('overviewGraph.classList.add("layout-relayouting");', index_html)
             self.assertIn("if (hideDuringUpdate) {", index_html)
@@ -416,6 +416,12 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const plan = overviewSyncDiffPlan(targetElements);", index_html)
             self.assertIn("let layoutNeeded = false;", index_html)
             self.assertIn("const deferredMutedTargets = [];", index_html)
+            self.assertIn("let phaseCStarted = false;", index_html)
+            self.assertIn("let phaseCClassesDone = false;", index_html)
+            self.assertIn("let phaseCLayoutDone = true;", index_html)
+            self.assertIn("const finishPhaseCIfReady = () =>", index_html)
+            self.assertIn("const startPhaseC = () =>", index_html)
+            self.assertIn("await processOverviewChunks(deferredMutedTargets, token", index_html)
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
@@ -431,10 +437,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # ドラッグ中はレイアウトを後回し。
             self.assertIn("if (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)) {", index_html)
             # 構造変化なしのミュートは次フレームへ遅延し、強調描画を先行させる。
-            self.assertIn("requestOverviewFrame(runPhaseC);", index_html)
-            self.assertIn("onComplete: runPhaseC,", index_html)
-            # Phase C は表示中更新だけアニメーション開始時にも並行で動かす。
-            self.assertIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
+            self.assertIn("requestOverviewFrame(startPhaseC);", index_html)
+            self.assertIn("phaseCLayoutDone = false;", index_html)
+            self.assertIn("onComplete: markPhaseCLayoutDone,", index_html)
+            # Phase C は Phase B の cola tick とフレーム単位で並行処理する。
+            self.assertNotIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
             # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
             self.assertNotIn("structureResult.positionDeferred", index_html)
             self.assertNotIn("element.position(target.position);", index_html)
@@ -1116,10 +1123,9 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertFalse(final["fileBMuted"])
             self.assertEqual(sorted(final["functionNodes"]), file_a_functions)
 
-            # --- 別ファイルへ選択切替: 強調は即時、旧選択のミュートは遅延 ---
+            # --- 別ファイルへ選択切替: 強調は即時 ---
             switch_sync = data["switchSync"]
             self.assertIn("dep-selected-file", switch_sync["selectedFileClasses"])
-            self.assertFalse(switch_sync["fileAMutedImmediate"])
 
             # --- 初期化済みマップから別タブで選択変更後に戻る: 非表示同期 ---
             hidden_tab_selection = data["hiddenTabSelection"]
@@ -1132,6 +1138,16 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertTrue(hidden_tab_selection["final"]["renderedMatchesCurrent"])
             self.assertIn("dep-selected-file", hidden_tab_selection["final"]["selectedFileClasses"])
             self.assertTrue(hidden_tab_selection["final"]["fileCMuted"])
+
+            # --- Phase B 中の連続選択: 古い Phase C が最新選択へ反映されない ---
+            rapid_selection = data["rapidSelection"]
+            self.assertIn("dep-selected-file", rapid_selection["immediate"]["selectedFileClasses"])
+            self.assertFalse(rapid_selection["immediate"]["fileAMutedImmediate"])
+            self.assertFalse(rapid_selection["immediate"]["fileCMutedImmediate"])
+            self.assertTrue(rapid_selection["final"]["renderedMatchesCurrent"])
+            self.assertIn("dep-selected-file", rapid_selection["final"]["selectedFileClasses"])
+            self.assertTrue(rapid_selection["final"]["fileAMuted"])
+            self.assertFalse(rapid_selection["final"]["fileCMuted"])
 
             # --- 実マウス クリックで関数の位置補正 (Phase B) が効くこと ---
             # ノードの実タップは grab/free を発火する。これがドラッグ扱いされると
