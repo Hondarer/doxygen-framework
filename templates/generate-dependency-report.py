@@ -1627,9 +1627,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       content: "初期化しています...";
     }}
     .dep-graph.layout-relayouting::after {{
-      content: "マップをレイアウトしています...";
+      content: "レイアウトしています...";
     }}
-    .dep-graph.layout-initializing::after {{
+    .dep-graph.layout-initializing::after,
+    .dep-graph.layout-relayouting::after {{
       inset: 0;
       transform: none;
       border: 0;
@@ -1640,7 +1641,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       align-items: center;
       justify-content: center;
     }}
-    .dep-graph.layout-initializing canvas {{
+    .dep-graph.layout-initializing canvas,
+    .dep-graph.layout-relayouting canvas {{
       opacity: 0;
     }}
     .dep-graph-note {{
@@ -1995,6 +1997,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewLayoutRunning = false;
   let overviewLayoutToken = 0;
   let overviewSyncToken = 0;
+  let overviewRenderedSelectionSignature = null;
   let overviewLayoutWatchdog = null;
   let overviewInteractionStateBeforeLayout = null;
   let overviewDraggingNodeIds = new Set();
@@ -2482,6 +2485,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (overviewCy) overviewCy.fit(overviewFitElements(), 30);
   }}
 
+  function overviewViewport() {{
+    if (!overviewCy) return null;
+    const pan = overviewCy.pan();
+    return {{
+      zoom: overviewCy.zoom(),
+      pan: {{ x: pan.x, y: pan.y }}
+    }};
+  }}
+
+  function restoreOverviewViewport(viewport) {{
+    if (!overviewCy || !viewport) return;
+    overviewCy.zoom(viewport.zoom);
+    overviewCy.pan(viewport.pan);
+  }}
+
   function requestOverviewFrame(callback) {{
     const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((fn) => window.setTimeout(() => fn(Date.now()), 16));
     requestFrame(callback);
@@ -2519,15 +2537,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewLayoutRunning = running;
     setOverviewControlsInert(running);
     setOverviewGraphInteractionLocked(running);
-    if (overviewGraph) overviewGraph.classList.toggle("layout-relayouting", running);
+    if (!running && overviewGraph) overviewGraph.classList.remove("layout-relayouting");
     if (!running && overviewLayoutWatchdog !== null) {{
       window.clearTimeout(overviewLayoutWatchdog);
       overviewLayoutWatchdog = null;
     }}
-  }}
-
-  function clearOverviewLayoutPendingLabel() {{
-    if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
   }}
 
   function relayoutOverviewGraph() {{
@@ -2546,7 +2560,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
         runOverviewLayout({{
           manual: true,
           layoutToken: layoutToken,
-          onBeforeAnimation: clearOverviewLayoutPendingLabel,
           onComplete: () => {{
             if (layoutToken === overviewLayoutToken) setOverviewLayoutRunning(false);
           }}
@@ -3179,6 +3192,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewCy) return;
     const fit = Boolean(opts && opts.fit);
     const manual = Boolean(opts && opts.manual);
+    const deferPositions = Boolean(opts && opts.deferPositions);
+    const animatePositions = !(opts && opts.animatePositions === false);
     const fullConvergence = Boolean(opts && opts.fullConvergence);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
     const anchorCenters = opts && opts.anchorCenters ? opts.anchorCenters : new Map();
@@ -3187,12 +3202,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
     const onBeforeAnimation = opts && typeof opts.onBeforeAnimation === "function" ? opts.onBeforeAnimation : null;
     const layoutToken = opts && opts.layoutToken ? opts.layoutToken : ++overviewLayoutToken;
+    const syncToken = opts && opts.syncToken ? opts.syncToken : null;
     const startPositions = overviewNodePositions();
     const lockedNodes = movingNodeIds ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
     overviewLayoutInitialized = true;
     stopOverviewPositionAnimation();
-    const finishLayout = () => {{
-      if (layoutToken !== overviewLayoutToken) {{
+    const isCurrentLayout = () => (
+      layoutToken === overviewLayoutToken && (!syncToken || isLatestOverviewSync(syncToken))
+    );
+    const finishLayout = async () => {{
+      if (!isCurrentLayout()) {{
         lockedNodes.unlock();
         return;
       }}
@@ -3204,26 +3223,46 @@ def write_html(output_dir: Path, category_id: str) -> None:
         setTimeout(() => runOverviewLayout(nextOpts), 50);
         return;
       }}
-      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
-      const targetPositions = overviewNodePositions();
-      stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
-      restoreOverviewNodePositions(startPositions);
-      lockedNodes.unlock();
-      if (immediate) {{
-        restoreOverviewNodePositions(targetPositions);
-        if (fit) fitOverviewGraph();
-        if (onComplete) onComplete();
+      if (animatePositions) {{
+        applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
+        const targetPositions = overviewNodePositions();
+        if (!isCurrentLayout()) {{
+          lockedNodes.unlock();
+          return;
+        }}
+        stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
+        restoreOverviewNodePositions(startPositions);
+        lockedNodes.unlock();
+        if (immediate) {{
+          restoreOverviewNodePositions(targetPositions);
+          if (fit) fitOverviewGraph();
+          if (onComplete) onComplete();
+          return;
+        }}
+        if (onBeforeAnimation) onBeforeAnimation();
+        animateOverviewPositions(startPositions, targetPositions, {{ fit, onComplete }});
         return;
       }}
-      if (onBeforeAnimation) onBeforeAnimation();
-      animateOverviewPositions(startPositions, targetPositions, {{ fit, onComplete }});
+      if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, syncToken))) {{
+        lockedNodes.unlock();
+        return;
+      }}
+      const targetPositions = await overviewNodePositionsAsync(syncToken);
+      if (!targetPositions || !isCurrentLayout()) {{
+        lockedNodes.unlock();
+        return;
+      }}
+      stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
+      lockedNodes.unlock();
+      if (fit) fitOverviewGraph();
+      if (onComplete) onComplete();
     }};
     if (typeof cytoscapeCola === "function") {{
       lockedNodes.lock();
       const layout = overviewCy.layout({{
         name: "cola",
         animate: false,
-        deferPositions: manual || immediate,
+        deferPositions: manual || immediate || deferPositions,
         refresh: 1,
         maxSimulationTime: manual ? 450 : (fullConvergence ? 2000 : 900),
         fit: false,
@@ -3271,6 +3310,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.nodes().forEach((node) => {{
       positions.set(node.id(), {{ x: node.position("x"), y: node.position("y") }});
     }});
+    return positions;
+  }}
+
+  async function overviewNodePositionsAsync(token) {{
+    const positions = new Map();
+    if (!overviewCy) return positions;
+    const nodes = overviewCy.nodes().toArray();
+    if (!(await processOverviewChunks(nodes, token, (chunk) => {{
+      for (const node of chunk) {{
+        positions.set(node.id(), {{ x: node.position("x"), y: node.position("y") }});
+      }}
+    }}))) return null;
     return positions;
   }}
 
@@ -3331,6 +3382,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
 
+  async function restoreOverviewNodePositionsAsync(positions, token) {{
+    if (!overviewCy) return false;
+    const nodes = overviewCy.nodes().toArray();
+    return processOverviewChunks(nodes, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        for (const node of chunk) {{
+          if (isOverviewNodeDragging(node)) continue;
+          const position = positions.get(node.id());
+          if (position) node.position(position);
+        }}
+      }});
+    }});
+  }}
+
   function applyOverviewAnchorCentersToCurrentPositions(anchorCenters) {{
     if (!overviewCy || !anchorCenters || anchorCenters.size === 0) return;
     for (const [id, anchor] of anchorCenters) {{
@@ -3348,6 +3413,30 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return {{ x: position.x + dx, y: position.y + dy }};
       }});
     }}
+  }}
+
+  async function applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token) {{
+    if (!overviewCy || !anchorCenters || anchorCenters.size === 0) return true;
+    const anchors = Array.from(anchorCenters.entries());
+    return processOverviewChunks(anchors, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        for (const [id, anchor] of chunk) {{
+          const node = overviewCy.getElementById(id);
+          if (!node || !node.length) continue;
+          if (isOverviewNodeDragging(node)) continue;
+          const current = node.position();
+          const dx = anchor.x - current.x;
+          const dy = anchor.y - current.y;
+          if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+          const movable = node.descendants().nodes(":unlocked");
+          movable.positions((child) => {{
+            if (isOverviewNodeDragging(child)) return undefined;
+            const position = child.position();
+            return {{ x: position.x + dx, y: position.y + dy }};
+          }});
+        }}
+      }});
+    }});
   }}
 
   function exponentialEaseOutProgress(t, impact) {{
@@ -3436,6 +3525,29 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function currentClassesDiffer(element, targetClasses) {{
     return classText(element.classes().join(" ")) !== classText(targetClasses || "");
+  }}
+
+  const OVERVIEW_STATE_CLASSES = new Set([
+    "dep-center-node",
+    "dep-selected-file",
+    "dep-selected-edge",
+    "dep-file-node-muted",
+    "dep-base-edge-muted"
+  ]);
+
+  function overviewStructuralClasses(classes) {{
+    return classText(classes || "")
+      .split(/\\s+/)
+      .filter((name) => name && !OVERVIEW_STATE_CLASSES.has(name))
+      .join(" ");
+  }}
+
+  function overviewStructureElement(element) {{
+    const result = {{ data: Object.assign({{}}, element.data || {{}}) }};
+    const classes = overviewStructuralClasses(element.classes || "");
+    if (classes) result.classes = classes;
+    if (element.position) result.position = {{ x: element.position.x, y: element.position.y }};
+    return result;
   }}
 
   function seedOverviewInitialPositions(elements) {{
@@ -3532,32 +3644,42 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return isLatestOverviewSync(token);
   }}
 
-  function anchorOverviewChildPositions(targetElements, anchorCenters) {{
-    if (!anchorCenters || anchorCenters.size === 0) return;
-    for (const [parentId, anchor] of anchorCenters) {{
-      const children = targetElements.filter((element) => (
-        !isEdgeElement(element) && element.data && element.data.parent === parentId
-      ));
-      if (children.length === 0) continue;
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minY = Infinity;
-      let maxY = -Infinity;
-      for (const child of children) {{
-        const position = child.position || anchor;
-        minX = Math.min(minX, position.x);
-        maxX = Math.max(maxX, position.x);
-        minY = Math.min(minY, position.y);
-        maxY = Math.max(maxY, position.y);
+  async function anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token) {{
+    if (!anchorCenters || anchorCenters.size === 0) return true;
+    const childrenByParent = new Map();
+    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
+      for (const element of chunk) {{
+        if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+        if (!anchorCenters.has(element.data.parent)) continue;
+        if (!childrenByParent.has(element.data.parent)) childrenByParent.set(element.data.parent, []);
+        childrenByParent.get(element.data.parent).push(element);
       }}
-      const center = {{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }};
-      const dx = anchor.x - center.x;
-      const dy = anchor.y - center.y;
-      for (const child of children) {{
-        const position = child.position || anchor;
-        child.position = {{ x: position.x + dx, y: position.y + dy }};
+    }}))) return false;
+    const groups = Array.from(childrenByParent.entries());
+    return processOverviewChunks(groups, token, (chunk) => {{
+      for (const [parentId, children] of chunk) {{
+        const anchor = anchorCenters.get(parentId);
+        if (!anchor || children.length === 0) continue;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (const child of children) {{
+          const position = child.position || anchor;
+          minX = Math.min(minX, position.x);
+          maxX = Math.max(maxX, position.x);
+          minY = Math.min(minY, position.y);
+          maxY = Math.max(maxY, position.y);
+        }}
+        const center = {{ x: (minX + maxX) / 2, y: (minY + maxY) / 2 }};
+        const dx = anchor.x - center.x;
+        const dy = anchor.y - center.y;
+        for (const child of children) {{
+          const position = child.position || anchor;
+          child.position = {{ x: position.x + dx, y: position.y + dy }};
+        }}
       }}
-    }}
+    }});
   }}
 
   function collectOverviewAnchorCenters(previousPositions, targetElements) {{
@@ -3583,6 +3705,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return token === overviewSyncToken;
   }}
 
+  function isOverviewSyncTokenActive(token) {{
+    return token === null || token === undefined || isLatestOverviewSync(token);
+  }}
+
   function targetElementIdSet(targetElements) {{
     return new Set(targetElements.map((element) => element.data.id));
   }}
@@ -3602,31 +3728,43 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }};
   }}
 
-  function applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds) {{
+  async function applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token) {{
     let layoutNeeded = false;
     let positionDeferred = false;
-    overviewCy.batch(() => {{
-      if (plan.stale.length > 0) {{
-        if (plan.stale.some((element) => element.isNode && element.isNode())) layoutNeeded = true;
-        overviewCy.remove(overviewCy.collection(plan.stale));
-      }}
-      if (plan.missingOrdered.length > 0) {{
-        const missingElements = plan.missingOrdered.map((element) => plan.targetById.get(element.data.id));
+    if (!(await processOverviewChunks(plan.stale, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        if (chunk.some((element) => element.isNode && element.isNode())) layoutNeeded = true;
+        overviewCy.remove(overviewCy.collection(chunk));
+      }});
+    }}))) return null;
+    if (!(await processOverviewChunks(plan.missingOrdered, token, (chunk) => {{
+      const missingElements = chunk
+        .map((element) => plan.targetById.get(element.data.id))
+        .filter(Boolean)
+        .map(overviewStructureElement);
+      overviewCy.batch(() => {{
         for (const element of missingElements) {{
           if (!isEdgeElement(element)) movingNodeIds.add(element.data.id);
         }}
         overviewCy.add(missingElements);
-        layoutNeeded = true;
-      }}
-      for (const target of targetElements) {{
-        if (!target.data || !target.data.parent) continue;
-        const element = overviewCy.getElementById(target.data.id);
-        if (!element.length || element.data("parent") === target.data.parent) continue;
-        element.move({{ parent: target.data.parent }});
-        movingNodeIds.add(target.data.id);
-        layoutNeeded = true;
-      }}
-      for (const target of targetElements) {{
+      }});
+      if (missingElements.length > 0) layoutNeeded = true;
+    }}))) return null;
+    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        for (const target of chunk) {{
+          if (!target.data || !target.data.parent) continue;
+          const element = overviewCy.getElementById(target.data.id);
+          if (!element.length || element.data("parent") === target.data.parent) continue;
+          element.move({{ parent: target.data.parent }});
+          movingNodeIds.add(target.data.id);
+          layoutNeeded = true;
+        }}
+      }});
+    }}))) return null;
+    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
+      overviewCy.batch(() => {{
+      for (const target of chunk) {{
         if (isEdgeElement(target) || !target.position) continue;
         const element = overviewCy.getElementById(target.data.id);
         if (!element.length) continue;
@@ -3640,36 +3778,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
         if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
         element.position(target.position);
       }}
-      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
-    }});
+      }});
+    }}))) return null;
+    if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token))) return null;
     return {{ layoutNeeded: layoutNeeded, positionDeferred: positionDeferred }};
   }}
 
   async function processOverviewChunks(items, token, callback) {{
     for (let index = 0; index < items.length; index += OVERVIEW_SYNC_CHUNK_SIZE) {{
-      if (!isLatestOverviewSync(token)) return false;
+      if (!isOverviewSyncTokenActive(token)) return false;
       callback(items.slice(index, index + OVERVIEW_SYNC_CHUNK_SIZE));
       await nextOverviewFrame();
     }}
-    return isLatestOverviewSync(token);
+    return isOverviewSyncTokenActive(token);
   }}
 
-  async function syncOverviewElementsAsync(targetElements, opts, token) {{
-    if (!overviewCy || !isLatestOverviewSync(token)) return false;
-    const immediate = Boolean(opts && opts.immediate);
-    const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
-    const previousPositions = overviewNodePositions();
-    const movingNodeIds = new Set();
-    const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
-    anchorOverviewChildPositions(targetElements, anchorCenters);
-    const plan = overviewSyncDiffPlan(targetElements);
-    const structureResult = applyOverviewStructureDiff(plan, targetElements, anchorCenters, movingNodeIds);
-    let layoutNeeded = structureResult.layoutNeeded;
-    const layoutStartPositions = overviewNodePositions();
-    const dragRevision = overviewDragRevision;
-    if (!isLatestOverviewSync(token)) return false;
-
-    if (!(await processOverviewChunks(targetElements, token, (chunk) => {{
+  async function applyOverviewDataAsync(targetElements, token) {{
+    return processOverviewChunks(targetElements, token, (chunk) => {{
       overviewCy.batch(() => {{
         for (const target of chunk) {{
           const element = overviewCy.getElementById(target.data.id);
@@ -3677,12 +3802,49 @@ def write_html(output_dir: Path, category_id: str) -> None:
           if (currentDataDiffers(element, target.data)) {{
             element.data(target.data);
           }}
+        }}
+      }});
+    }});
+  }}
+
+  async function applyOverviewClassesAsync(targetElements, token) {{
+    return processOverviewChunks(targetElements, token, (chunk) => {{
+      overviewCy.batch(() => {{
+        for (const target of chunk) {{
+          const element = overviewCy.getElementById(target.data.id);
+          if (!element.length) continue;
           if (currentClassesDiffer(element, target.classes)) {{
             element.classes(target.classes || "");
           }}
         }}
       }});
-    }}))) return false;
+    }});
+  }}
+
+  async function syncOverviewElementsAsync(targetElements, opts, token) {{
+    if (!overviewCy || !isLatestOverviewSync(token)) return false;
+    const immediate = Boolean(opts && opts.immediate);
+    const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
+    const selectionSignature = opts && opts.selectionSignature ? opts.selectionSignature : overviewSelectionSignature();
+    const completeSync = () => {{
+      if (isLatestOverviewSync(token) && selectionSignature === overviewSelectionSignature()) {{
+        overviewRenderedSelectionSignature = selectionSignature;
+      }}
+      if (onComplete) onComplete();
+    }};
+    const previousPositions = overviewNodePositions();
+    const movingNodeIds = new Set();
+    const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
+    if (!(await anchorOverviewChildPositionsAsync(targetElements, anchorCenters, token))) return false;
+    const plan = overviewSyncDiffPlan(targetElements);
+    const structureResult = await applyOverviewStructureDiffAsync(plan, targetElements, anchorCenters, movingNodeIds, token);
+    if (!structureResult) return false;
+    let layoutNeeded = structureResult.layoutNeeded;
+    const layoutStartPositions = overviewNodePositions();
+    const dragRevision = overviewDragRevision;
+    if (!isLatestOverviewSync(token)) return false;
+
+    if (!(await applyOverviewDataAsync(targetElements, token))) return false;
 
     if (!isLatestOverviewSync(token)) return false;
     if (structureResult.positionDeferred || (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision))) {{
@@ -3690,17 +3852,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (onComplete) onComplete();
       return true;
     }}
+    const completeStructureSync = async () => {{
+      if (!(await applyOverviewClassesAsync(targetElements, token))) return false;
+      completeSync();
+      return true;
+    }};
     if (layoutNeeded) {{
-      restoreOverviewNodePositions(layoutStartPositions);
-      applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
+      if (!(await restoreOverviewNodePositionsAsync(layoutStartPositions, token))) return false;
+      if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token))) return false;
       if (movingNodeIds.size > 0) {{
         if (opts) opts.layoutStarted = true;
-        runOverviewLayout({{ movingNodeIds, anchorCenters, immediate, onComplete }});
+        runOverviewLayout({{
+          movingNodeIds,
+          anchorCenters,
+          immediate,
+          animatePositions: !(opts && opts.hideDuringUpdate),
+          onComplete: () => {{
+            completeStructureSync();
+          }},
+          deferPositions: true,
+          syncToken: token
+        }});
         return true;
       }}
     }}
-    if (onComplete) onComplete();
-    return true;
+    return completeStructureSync();
   }}
 
   function syncOverviewElements(targetElements, opts) {{
@@ -3733,13 +3909,47 @@ def write_html(output_dir: Path, category_id: str) -> None:
     runLatestOverviewSync({{}}, buildOverviewElements());
   }}
 
+  function overviewSelectionSignature() {{
+    return JSON.stringify([selectedId, selectedFilePath, selectedEdgeKey]);
+  }}
+
+  function isOverviewRenderedSelectionCurrent() {{
+    return (
+      overviewCy &&
+      overviewCy.elements().length > 0 &&
+      overviewRenderedSelectionSignature === overviewSelectionSignature()
+    );
+  }}
+
   function renderOverviewGraph(opts) {{
     if (!overviewCy) return;
     if (overviewCy.elements().length === 0) {{
       resetOverviewGraph();
       return true;
     }}
-    syncOverviewElements(buildOverviewElements(), opts);
+    if (isOverviewRenderedSelectionCurrent()) {{
+      return false;
+    }}
+    const selectionSignature = overviewSelectionSignature();
+    const originalOnComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
+    const renderOpts = Object.assign({{}}, opts || {{}});
+    const hideDuringUpdate = Boolean(renderOpts.hideDuringUpdate);
+    const viewportBeforeUpdate = hideDuringUpdate ? overviewViewport() : null;
+    renderOpts.selectionSignature = selectionSignature;
+    renderOpts.hideDuringUpdate = hideDuringUpdate;
+    renderOpts.onComplete = () => {{
+      if (hideDuringUpdate) {{
+        restoreOverviewViewport(viewportBeforeUpdate);
+        if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
+        setOverviewControlsInert(false);
+      }}
+      if (originalOnComplete) originalOnComplete();
+    }};
+    if (hideDuringUpdate) {{
+      overviewGraph.classList.add("layout-relayouting");
+      setOverviewControlsInert(true);
+    }}
+    syncOverviewElements(buildOverviewElements(), renderOpts);
     return false;
   }}
 
@@ -3780,6 +3990,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     setOverviewGraphInteractionLocked(false);
     overviewCy.resize();
     fitOverviewGraph();
+    overviewRenderedSelectionSignature = overviewSelectionSignature();
     overviewGraph.classList.remove("layout-initializing");
     setOverviewControlsInert(false);
   }}
@@ -3788,6 +3999,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewCy) return;
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
+    overviewRenderedSelectionSignature = null;
     overviewGraph.classList.add("layout-initializing");
     setOverviewControlsInert(true);
     setOverviewGraphInteractionLocked(true);
@@ -3864,13 +4076,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       initOverviewGraph();
       const immediate = Boolean(opts && opts.immediate);
+      if (immediate && isOverviewRenderedSelectionCurrent()) {{
+        return;
+      }}
       if (immediate && overviewCy && overviewCy.elements().length > 0) {{
-        overviewGraph.classList.add("layout-initializing");
+        overviewGraph.classList.add("layout-relayouting");
         setOverviewControlsInert(true);
       }}
       const finishImmediateRefresh = () => {{
         if (!immediate) return;
-        if (overviewGraph) overviewGraph.classList.remove("layout-initializing");
+        if (overviewGraph) overviewGraph.classList.remove("layout-relayouting");
         setOverviewControlsInert(false);
       }};
       const requestFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(() => callback(Date.now()), 16));
@@ -3879,11 +4094,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
           finishImmediateRefresh();
           return;
         }}
-        const renderOpts = {{ immediate, onComplete: finishImmediateRefresh }};
+        const renderOpts = {{ immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature() }};
         const resetStarted = renderOverviewGraph(renderOpts);
         if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
-          overviewCy.resize();
-          fitOverviewGraph();
           finishImmediateRefresh();
         }}
       }};
