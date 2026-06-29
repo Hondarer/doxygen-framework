@@ -1908,8 +1908,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
         </div>
         <div id="overviewGraph" class="dep-graph"></div>
         <div id="overviewGraphMenu" class="dep-graph-context-menu" role="menu" aria-label="マップ操作">
+          <!-- SVG 保存は要素数が多い場合に不安定なため、拡張用コードだけを残す。
           <button type="button" role="menuitem" data-svg-scope="full">マップ全体を SVG で保存</button>
           <button type="button" role="menuitem" data-svg-scope="viewport">表示範囲を SVG で保存</button>
+          -->
+          <button type="button" role="menuitem" data-png-scope="full">マップ全体を PNG で保存</button>
+          <button type="button" role="menuitem" data-png-scope="viewport">表示範囲を PNG で保存</button>
           <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true"></div>
           <button type="button" role="menuitem" data-action="fit">Fit</button>
           <button type="button" role="menuitem" data-action="relayout">レイアウト再実行</button>
@@ -2768,6 +2772,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const svg = buildOverviewSvg(scope);
     if (!svg) return;
     downloadTextFile("dependency-map-" + safeCategory + "-" + suffix + ".svg", svg, "image/svg+xml;charset=utf-8");
+  }}
+
+  function downloadOverviewPng(scope) {{
+    if (!overviewCy) return;
+    stopOverviewPositionAnimation();
+    const safeCategory = safeFileNamePart(reportCategory);
+    const suffix = scope === "full" ? "full" : "viewport";
+    const colors = graphColors();
+    const png = overviewCy.png({{
+      full: scope === "full",
+      bg: colors.background,
+      output: "base64uri"
+    }});
+    if (!png) return;
+    const tmp = document.createElement("a");
+    tmp.href = png;
+    tmp.setAttribute("download", "dependency-map-" + safeCategory + "-" + suffix + ".png");
+    document.body.appendChild(tmp);
+    tmp.click();
+    document.body.removeChild(tmp);
   }}
 
   function renderOverviewDetail(filePath) {{
@@ -4597,8 +4621,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const button = event.target.closest("button");
       if (!button) return;
       const scope = button.getAttribute("data-svg-scope");
+      const pngScope = button.getAttribute("data-png-scope");
       if (scope) {{
         downloadOverviewSvg(scope);
+      }} else if (pngScope) {{
+        downloadOverviewPng(pngScope);
       }} else {{
         if (!handleOverviewGraphMenuAction(button.getAttribute("data-action"))) return;
       }}

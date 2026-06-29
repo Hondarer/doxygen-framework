@@ -6,6 +6,7 @@ import contextlib
 import io
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -284,14 +285,20 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("activateFunctionList", index_html)
             self.assertIn("activateFileList", index_html)
             self.assertIn('id="overviewGraphMenu"', index_html)
-            self.assertIn('data-svg-scope="viewport"', index_html)
-            self.assertIn('data-svg-scope="full"', index_html)
+            active_index_html = re.sub(r"<!--.*?-->", "", index_html, flags=re.DOTALL)
+            self.assertNotIn('<button type="button" role="menuitem" data-svg-scope="viewport"', active_index_html)
+            self.assertNotIn('<button type="button" role="menuitem" data-svg-scope="full"', active_index_html)
+            self.assertIn("SVG 保存は要素数が多い場合に不安定", index_html)
+            self.assertIn('data-png-scope="viewport"', index_html)
+            self.assertIn('data-png-scope="full"', index_html)
             self.assertIn('data-action="fit"', index_html)
             self.assertIn('data-action="relayout"', index_html)
             self.assertIn('data-action="reset"', index_html)
             self.assertIn('role="separator"', index_html)
             self.assertIn("function buildOverviewSvg(scope)", index_html)
             self.assertIn("function downloadOverviewSvg(scope)", index_html)
+            self.assertIn("function downloadOverviewPng(scope)", index_html)
+            self.assertIn("overviewCy.png({", index_html)
             self.assertIn("padding: 2px 6px;", index_html)
             self.assertIn('"text-margin-y": -2', index_html)
             self.assertIn("Math.max(14, fontSize - 2)", index_html)
