@@ -619,6 +619,8 @@ DEPENDENCY_LEVEL_BASES = {
     "cross-area-caller": 6000,
 }
 
+CYCLE_DEPENDENCY_LEVEL_BASE = 9000
+
 
 def path_area(file_path: str) -> str:
     parts = [part for part in normalize_path(file_path).split("/") if part]
@@ -761,7 +763,14 @@ def classify_function(info: FunctionInfo, functions: Dict[str, FunctionInfo], cy
     return call_kind
 
 
-def compute_dependency_level(info: FunctionInfo, dependency_class: str, dependency_depth: Optional[int]) -> Optional[int]:
+def compute_dependency_level(
+    info: FunctionInfo,
+    dependency_class: str,
+    dependency_depth: Optional[int],
+    cycle_group_size: Optional[int],
+) -> Optional[int]:
+    if dependency_class == "cycle" and cycle_group_size is not None:
+        return CYCLE_DEPENDENCY_LEVEL_BASE + cycle_group_size
     if dependency_depth is None:
         return None
     base = DEPENDENCY_LEVEL_BASES[dependency_class]
@@ -792,6 +801,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
                 functions[callee_id].callers.add(caller_id)
 
     cycle_map, sccs = detect_cycle_groups(functions)
+    cycle_group_sizes = {str(scc["id"]): int(scc["size"]) for scc in sccs}
     depths = compute_dependency_depths(functions, cycle_map)
     file_briefs = collect_file_briefs(xml_dir)
     file_compound_ids = collect_file_compound_ids(xml_dir)
@@ -804,7 +814,9 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
         dependency_class = classify_function(info, functions, cycle_map)
         dependency_rank = DEPENDENCY_RANKS[dependency_class]
         dependency_depth = depths[func_id]
-        dependency_level = compute_dependency_level(info, dependency_class, dependency_depth)
+        scc_id = cycle_map.get(func_id)
+        cycle_group_size = cycle_group_sizes.get(scc_id) if scc_id is not None else None
+        dependency_level = compute_dependency_level(info, dependency_class, dependency_depth, cycle_group_size)
         source_area = path_area(info.file)
         callee_areas = sorted({path_area(functions[callee_id].file) for callee_id in info.callees})
         max_callee_area = ""
@@ -837,7 +849,8 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
             "inScopeCallerCount": len(info.callers),
             "sameFileCalleeCount": same_file_callees,
             "crossFileCalleeCount": cross_file_callees,
-            "sccId": cycle_map.get(func_id),
+            "sccId": scc_id,
+            "cycleGroupSize": cycle_group_size,
             "htmlUrl": info.html_url,
             "sourceUrl": info.source_url,
             "brief": info.brief,
@@ -984,6 +997,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "sameFileCalleeCount",
         "crossFileCalleeCount",
         "sccId",
+        "cycleGroupSize",
         "id",
         "htmlUrl",
         "sourceUrl",
@@ -1916,8 +1930,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const functions = data.functions || [];
   const edges = data.edges || [];
   const files = data.files || [];
+  const sccs = data.sccs || [];
   const byId = new Map(functions.map((fn) => [fn.id, fn]));
   const baseOrder = new Map(functions.map((fn, index) => [fn.id, index]));
+  const sccById = new Map(sccs.map((scc) => [scc.id, scc]));
   const fileByPath = new Map(files.map((file) => [file.path, file]));
   const functionsByFile = new Map();
   const callees = new Map();
@@ -2834,6 +2850,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
       (fn.externalCallees && fn.externalCallees.length > 0 ? "<section><strong>呼び出し先 (外部)</strong>" + externalCalleeList(fn.externalCallees) + "</section>" : "") +
       "<section><strong>呼び出し元</strong>" + neighborList(callers.get(fn.id), "対象範囲内の呼び出し元はありません。") + "</section>" +
+      cycleGroupSection(fn) +
       "</div>";
     bindOverviewActions();
   }}
@@ -2980,6 +2997,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function visibleFunctionIdsForOverview() {{
     if (selectedId) {{
       const ids = new Set([selectedId]);
+      const selectedFn = byId.get(selectedId);
+      for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);
       for (const c of (callers.get(selectedId) || [])) ids.add(c);
       for (const c of (callees.get(selectedId) || [])) ids.add(c);
       return ids;
@@ -4317,6 +4336,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return "<ul>" + items.join("") + "</ul>";
   }}
 
+  function cycleGroupFunctionIds(fn) {{
+    if (!fn || fn.dependencyClass !== "cycle" || !fn.sccId) return [];
+    const scc = sccById.get(fn.sccId);
+    if (!scc || !Array.isArray(scc.functions)) return [];
+    return scc.functions;
+  }}
+
+  function cycleGroupSection(fn) {{
+    const ids = cycleGroupFunctionIds(fn);
+    if (ids.length === 0) return "";
+    return "<section><strong>循環グループ</strong>" + neighborList(ids, "同じ循環グループの関数はありません。") + "</section>";
+  }}
+
   function externalCalleeList(externalCallees) {{
     if (!externalCallees || externalCallees.length === 0) return "";
     const items = externalCallees.map((ec) =>
@@ -4362,6 +4394,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
       (fn.externalCallees && fn.externalCallees.length > 0 ? "<section><strong>呼び出し先 (外部)</strong>" + externalCalleeList(fn.externalCallees) + "</section>" : "") +
       "<section><strong>呼び出し元</strong>" + neighborList(callers.get(fn.id), "対象範囲内の呼び出し元はありません。") + "</section>" +
+      cycleGroupSection(fn) +
       "</div>";
     bindDetailActions();
   }}

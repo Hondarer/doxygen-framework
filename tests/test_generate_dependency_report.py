@@ -224,6 +224,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             with (output_dir / "dependency-functions.csv").open(encoding="utf-8", newline="") as f:
                 fieldnames = csv.DictReader(f).fieldnames
             self.assertIn("isExported", fieldnames)
+            self.assertIn("cycleGroupSize", fieldnames)
 
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
@@ -431,6 +432,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
             self.assertIn('id="themeToggle"', index_html)
             self.assertIn("function applyTheme(theme, persist)", index_html)
+            self.assertIn("const sccById = new Map(sccs.map((scc) => [scc.id, scc]));", index_html)
+            self.assertIn("function cycleGroupFunctionIds(fn)", index_html)
+            self.assertIn("function cycleGroupSection(fn)", index_html)
+            self.assertIn("for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);", index_html)
 
     def test_cycle_detection(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -456,6 +461,21 @@ class GenerateDependencyReportTest(unittest.TestCase):
         <references refid="cycle_a" compoundref="cycle_8c">cycle_a</references>
         <location file="src/cycle.c" line="20" bodyfile="src/cycle.c" bodystart="20"/>
       </memberdef>
+      <memberdef kind="function" id="cycle_c" static="yes">
+        <name>cycle_c</name>
+        <references refid="cycle_d" compoundref="cycle_8c">cycle_d</references>
+        <location file="src/cycle.c" line="30" bodyfile="src/cycle.c" bodystart="30"/>
+      </memberdef>
+      <memberdef kind="function" id="cycle_d" static="yes">
+        <name>cycle_d</name>
+        <references refid="cycle_e" compoundref="cycle_8c">cycle_e</references>
+        <location file="src/cycle.c" line="40" bodyfile="src/cycle.c" bodystart="40"/>
+      </memberdef>
+      <memberdef kind="function" id="cycle_e" static="yes">
+        <name>cycle_e</name>
+        <references refid="cycle_c" compoundref="cycle_8c">cycle_c</references>
+        <location file="src/cycle.c" line="50" bodyfile="src/cycle.c" bodystart="50"/>
+      </memberdef>
     </sectiondef>
   </compounddef>
 </doxygen>
@@ -465,11 +485,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
             data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
             by_id = {row["id"]: row for row in data["functions"]}
 
-            self.assertEqual(data["summary"]["cycleGroupCount"], 1)
-            self.assertIsNone(by_id["cycle_a"]["dependencyLevel"])
+            self.assertEqual(data["summary"]["cycleGroupCount"], 2)
+            self.assertEqual(by_id["cycle_a"]["dependencyLevel"], 9002)
+            self.assertEqual(by_id["cycle_a"]["cycleGroupSize"], 2)
             self.assertEqual(by_id["cycle_a"]["dependencyClass"], "cycle")
-            self.assertIsNone(by_id["cycle_b"]["dependencyLevel"])
+            self.assertEqual(by_id["cycle_b"]["dependencyLevel"], 9002)
+            self.assertEqual(by_id["cycle_b"]["cycleGroupSize"], 2)
             self.assertEqual(by_id["cycle_b"]["dependencyClass"], "cycle")
+            self.assertEqual(by_id["cycle_c"]["dependencyLevel"], 9003)
+            self.assertEqual(by_id["cycle_c"]["cycleGroupSize"], 3)
+            self.assertLess(by_id["cycle_a"]["dependencyLevel"], by_id["cycle_c"]["dependencyLevel"])
+            scc_sizes = sorted(scc["size"] for scc in data["sccs"])
+            self.assertEqual(scc_sizes, [2, 3])
 
     def test_include_definition_prefers_libsrc_and_ignores_src_call(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
