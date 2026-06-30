@@ -46,6 +46,90 @@ async function waitOverviewReady(page) {
   await sleep(100);
 }
 
+// page.evaluate に注入する、関数群のスナップショット (幅と中心からファイルへの距離) を返す式。
+const CHILD_SNAPSHOT_FN = `(function (p) {
+  const api = window.depReportOverviewTestApi;
+  const children = api.childPositions(p) || [];
+  if (!children.length) return { count: 0, span: 0, childCenterToFile: null };
+  const xs = children.map((c) => c.x);
+  const ys = children.map((c) => c.y);
+  const cc = {
+    x: children.reduce((a, c) => a + c.x, 0) / children.length,
+    y: children.reduce((a, c) => a + c.y, 0) / children.length
+  };
+  const fp = api.positionOf(p);
+  return {
+    count: children.length,
+    span: Math.max(...xs) - Math.min(...xs),
+    childCenterToFile: fp ? Math.hypot(fp.x - cc.x, fp.y - cc.y) : null
+  };
+})`;
+
+// 位置アニメーション窓 (cola 後) でファイルを実マウスでドラッグし、固着せずレイアウト結果が
+// 採用され、関数群がファイルへ追従しつつ収束することを確認する。
+async function runFileDragDuringAnimationScenario(page, filePath) {
+  const childSnapshot = (p) => page.evaluate(`(${CHILD_SNAPSHOT_FN})(${JSON.stringify(p)})`);
+
+  // 非ドラッグ時の関数群の広がり (収束の基準)。
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await waitOverviewReady(page);
+  const baseline = await childSnapshot(filePath);
+
+  // もう一度選択し直してアニメーション窓を捉える。
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const viewportBefore = await page.evaluate(() => window.depReportOverviewTestApi.viewport());
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  for (let i = 0; i < 600; i++) {
+    if (await page.evaluate(() => window.depReportOverviewTestApi.isPositionAnimationActive())) break;
+    if (!(await page.evaluate(() => window.depReportOverviewTestApi.isLayoutRunning()))) break;
+    await sleep(4);
+  }
+  const animationCaught = await page.evaluate(() => window.depReportOverviewTestApi.isPositionAnimationActive());
+  const grabPoint = await page.evaluate((p) => window.depReportOverviewTestApi.renderedPositionOf(p), filePath);
+
+  const dragSamples = [];
+  if (grabPoint) {
+    await page.mouse.move(grabPoint.x, grabPoint.y);
+    await page.mouse.down();
+    for (const step of [1, 2, 3, 4, 5, 6]) {
+      await page.mouse.move(grabPoint.x + step * 45, grabPoint.y + step * 28, { steps: 3 });
+      await sleep(70);
+      dragSamples.push(Object.assign({ step }, await childSnapshot(filePath)));
+    }
+    await page.mouse.up();
+  }
+
+  let stuck = true;
+  for (let i = 0; i < 320; i++) {
+    const s = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return { lr: api.isLayoutRunning(), m: api.renderedSignature() === api.currentSignature() };
+    });
+    if (!s.lr && s.m) { stuck = false; break; }
+    await sleep(25);
+  }
+  await sleep(150);
+
+  const finalChild = await childSnapshot(filePath);
+  const finalState = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(), viewport: api.viewport() };
+  });
+
+  return {
+    animationCaught,
+    baselineSpan: baseline.span,
+    dragSamples,
+    stuck,
+    final: Object.assign({}, finalChild, finalState),
+    viewportBefore,
+    viewportAfter: finalState.viewport
+  };
+}
+
 async function run(reportPath, filePath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -93,6 +177,8 @@ async function run(reportPath, filePath) {
       .filter((entry) => entry.delta !== null && entry.delta > 0.5)
       .sort((a, b) => b.delta - a.delta);
 
+    const fileDragDuringAnimation = await runFileDragDuringAnimationScenario(page, filePath);
+
     return {
       pageErrors: errors,
       childLayout: childLayoutStats(after.children || []),
@@ -102,7 +188,8 @@ async function run(reportPath, filePath) {
       viewportAfter: after.viewport,
       renderedMatchesCurrent: after.renderedMatchesCurrent,
       movedFileCount: moved.length,
-      movedTop: moved.slice(0, 5)
+      movedTop: moved.slice(0, 5),
+      fileDragDuringAnimation
     };
   } finally {
     await browser.close();

@@ -427,6 +427,30 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn("for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.add(id);", index_html)
             self.assertIn("Math.exp(-rate * clamped)", index_html)
             self.assertIn("const p = exponentialEaseOutProgress(t, impact);", index_html)
+            # seed 配置窓のアニメーション中にファイルを掴んでも、アニメーションを破棄せず親ファイルの
+            # 最新位置にアンカーした目標で関数を動かす (固着の修正)。
+            self.assertIn(
+                "overviewPositionAnimation = { active: true, frameId: null, targetPositions, opts: Object.assign({}, opts || {}) };",
+                index_html,
+            )
+            self.assertIn("const parentAnchored = parent && parent.length", index_html)
+            self.assertIn("return { x: pp.x + (c.x - pc.x), y: pp.y + (c.y - pc.y) };", index_html)
+            # start も live アンカーし、ドラッグ後の補間が「一瞬戻る」のを防ぐ。
+            self.assertIn("const liveStart = (node) => liveAnchored(node, startPositions);", index_html)
+            self.assertIn("const start = liveStart(node) || target;", index_html)
+            # 掴まれたルート ファイルだけをアニメーション対象から外す (compound の子は live アンカー)。
+            self.assertIn('if (node.grabbed() && !node.data("parent")) return undefined;', index_html)
+            # ファイルを seed 配置窓でドラッグして cola 完了前に離した場合、finishLayout の
+            # restoreOverviewNodePositions が子を古い seed 座標へ戻して「一瞬戻る」のを防ぐため、
+            # ユーザー移動分だけ子の start 座標も並進させる。
+            self.assertIn("if (previous && element.isParent()) {", index_html)
+            self.assertIn(
+                "if (childStart) startPositions.set(child.id(), { x: childStart.x + dx, y: childStart.y + dy });",
+                index_html,
+            )
+            # compound 親のドラッグで伝播する子イベントは関数操作と区別して無視する。
+            self.assertIn("function isOverviewChildOfGrabbedFile(node)", index_html)
+            self.assertIn("if (isOverviewChildOfGrabbedFile(node)) return;", index_html)
             self.assertIn("if (overviewFunctionGrabInterruptedLayout) {", index_html)
             self.assertIn("if (hasOverviewDraggingNodes()) {", index_html)
             self.assertIn("overviewDeferredPositionAnimation = {", index_html)
@@ -1431,6 +1455,51 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertAlmostEqual(data["viewportBefore"]["pan"]["x"], data["viewportAfter"]["pan"]["x"], delta=0.5)
             self.assertAlmostEqual(data["viewportBefore"]["pan"]["y"], data["viewportAfter"]["pan"]["y"], delta=0.5)
             self.assertEqual(data["movedFileCount"], 0, msg=str(data["movedTop"]))
+
+            # --- seed 配置窓のアニメーション中にファイルをドラッグ ---
+            # 修正前は grab で位置アニメーションが破棄され onComplete が失われて固着 (rendered が
+            # ["","",""] のまま) した。修正後はアニメーションを止めず、関数を親ファイルの最新位置に
+            # アンカーした目標で動かすため、ファイルへ追従しつつレイアウト結果へ収束して整定する。
+            seed_drag = data["fileDragDuringAnimation"]
+            self.assertTrue(
+                seed_drag["animationCaught"],
+                msg="位置アニメーション窓を再現できていない",
+            )
+            # 固着しない。
+            self.assertFalse(seed_drag["stuck"])
+            self.assertTrue(seed_drag["final"]["renderedMatchesCurrent"])
+            self.assertEqual(seed_drag["final"]["count"], 60)
+            # レイアウト結果が採用される: 関数群は seed のコンパクトな塊 (幅 ~256) ではなく、
+            # 非ドラッグ時と同等の広がりまで収束する (cola の再選択ばらつきを見込み下限で判定)。
+            self.assertGreaterEqual(seed_drag["baselineSpan"], 700.0)
+            self.assertGreaterEqual(seed_drag["final"]["span"], 700.0, msg=str(seed_drag))
+            self.assertGreaterEqual(
+                max(sample["span"] for sample in seed_drag["dragSamples"]),
+                700.0,
+                msg=str(seed_drag["dragSamples"]),
+            )
+            # 関数群はドラッグされたファイルへ追従し、近傍に留まる (散逸しない)。
+            self.assertIsNotNone(seed_drag["final"]["childCenterToFile"])
+            self.assertLessEqual(seed_drag["final"]["childCenterToFile"], 80.0, msg=str(seed_drag))
+            # ドラッグ中もファイルへ追従し続ける (補間の起点も live アンカーするため、ドラッグ前の
+            # 座標から始まって「一瞬戻る/取り残される」動きにならない)。
+            drag_dists = [
+                sample["childCenterToFile"]
+                for sample in seed_drag["dragSamples"]
+                if sample["childCenterToFile"] is not None
+            ]
+            self.assertTrue(drag_dists)
+            self.assertLessEqual(max(drag_dists), 120.0, msg=str(seed_drag["dragSamples"]))
+            # viewport (zoom/pan) は保持される。
+            self.assertAlmostEqual(
+                seed_drag["viewportBefore"]["zoom"], seed_drag["viewportAfter"]["zoom"], delta=0.001
+            )
+            self.assertAlmostEqual(
+                seed_drag["viewportBefore"]["pan"]["x"], seed_drag["viewportAfter"]["pan"]["x"], delta=0.5
+            )
+            self.assertAlmostEqual(
+                seed_drag["viewportBefore"]["pan"]["y"], seed_drag["viewportAfter"]["pan"]["y"], delta=0.5
+            )
 
     def test_overview_click_phases(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:

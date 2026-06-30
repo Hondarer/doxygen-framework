@@ -3877,9 +3877,25 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const [id, position] of overviewUserMovedNodePositions) {{
       const element = overviewCy.getElementById(id);
       if (!element || !element.length) continue;
+      const previous = startPositions.get(id);
       startPositions.set(id, {{ x: position.x, y: position.y }});
       if (anchorCenters && anchorCenters.has(id)) {{
         anchorCenters.set(id, {{ x: position.x, y: position.y }});
+      }}
+      // ファイル (compound) がドラッグされた分、その子 (関数) の start 座標も同じだけずらす。
+      // これをしないと、finishLayout の restoreOverviewNodePositions が子を古い seed 座標
+      // (ドラッグ前のファイル位置基準) へ戻し、seed 配置窓でドラッグした直後のアニメーションが
+      // 一瞬戻るように見える。ファイルのみのドラッグでは子の相対位置は変わらないため、同じ
+      // 並進を子の start にも適用するのが正しい。
+      if (previous && element.isParent()) {{
+        const dx = position.x - previous.x;
+        const dy = position.y - previous.y;
+        if (dx !== 0 || dy !== 0) {{
+          element.descendants().nodes().forEach((child) => {{
+            const childStart = startPositions.get(child.id());
+            if (childStart) startPositions.set(child.id(), {{ x: childStart.x + dx, y: childStart.y + dy }});
+          }});
+        }}
       }}
     }}
     overviewUserMovedNodePositions.clear();
@@ -4015,16 +4031,44 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     const raf = window.requestAnimationFrame || window.webkitRequestAnimationFrame || ((callback) => window.setTimeout(() => callback(Date.now()), 16));
     const startedAt = (window.performance && window.performance.now) ? window.performance.now() : Date.now();
-    overviewPositionAnimation = {{ active: true, frameId: null }};
+    overviewPositionAnimation = {{ active: true, frameId: null, targetPositions, opts: Object.assign({{}}, opts || {{}}) }};
+    // 与えた座標マップ上の「親ファイルからの相対オフセット」を親ファイルの最新位置へ加えて求める。
+    // start (補間の起点) と target (移動目標) の双方に使う。親ファイルが掴まれている (ドラッグ中) か
+    // ユーザー移動済みのときだけ live アンカーし、関数はファイルへ追従しつつレイアウト結果へ収束する。
+    // start も live アンカーするのが要点で、これによりドラッグ後の補間がドラッグ前 (seed) の座標から
+    // 始まって「一瞬戻る」動きになるのを防ぎ、常に現在のファイル位置を基準に補間する。通常 (非ドラッグ)
+    // は従来どおり絶対座標を使い挙動を変えない。ドラッグ済みのルート ファイルは現在位置に留める。
+    const liveAnchored = (node, posMap) => {{
+      const id = node.id();
+      const c = posMap.get(id);
+      const parent = node.parent();
+      const parentAnchored = parent && parent.length
+        && (parent.grabbed() || overviewUserMovedNodePositions.has(parent.id()))
+        && posMap.has(parent.id()) && c;
+      if (parentAnchored) {{
+        const pc = posMap.get(parent.id());
+        const pp = parent.position();
+        return {{ x: pp.x + (c.x - pc.x), y: pp.y + (c.y - pc.y) }};
+      }}
+      if ((!parent || !parent.length) && overviewUserMovedNodePositions.has(id)) {{
+        const cur = node.position();
+        return {{ x: cur.x, y: cur.y }};
+      }}
+      return c;
+    }};
+    const liveTarget = (node) => liveAnchored(node, targetPositions);
+    const liveStart = (node) => liveAnchored(node, startPositions);
     const frame = (now) => {{
       if (!overviewPositionAnimation || !overviewPositionAnimation.active) return;
       const elapsed = Math.max(0, now - startedAt);
       const t = Math.min(1, elapsed / duration);
       overviewCy.nodes().positions((node) => {{
-        if (isOverviewNodeDragging(node)) return undefined;
-        const target = targetPositions.get(node.id());
+        // 掴まれているルート ファイルだけはカーソル追従に任せて触らない。compound の子 (関数) は
+        // grabbed() が伝播するが、ここでは live アンカーで動かしたいのでスキップ対象から外す。
+        if (node.grabbed() && !node.data("parent")) return undefined;
+        const target = liveTarget(node);
         if (!target) return undefined;
-        const start = startPositions.get(node.id()) || target;
+        const start = liveStart(node) || target;
         const impact = (distances.get(node.id()) || 0) / maxDistance;
         const p = exponentialEaseOutProgress(t, impact);
         return {{
@@ -4036,7 +4080,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
         overviewPositionAnimation.frameId = raf(frame);
         return;
       }}
-      restoreOverviewNodePositions(targetPositions);
+      overviewCy.nodes().positions((node) => {{
+        if (node.grabbed() && !node.data("parent")) return undefined;
+        return liveTarget(node) || undefined;
+      }});
       const shouldFit = Boolean(opts && opts.fit);
       const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
       stopOverviewPositionAnimation();
@@ -4559,7 +4606,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (completed && isLatestOverviewSync(token) && opts && opts.onSyncComplete) opts.onSyncComplete();
   }}
 
+  // ファイル (compound) を掴むと、その子 (関数) ノードにも grab/drag が伝播する。親ファイルが
+  // 掴まれている子のイベントは、ファイル ドラッグの副作用であって関数の直接操作ではない。これを
+  // 関数の割り込みとして扱うと、ファイルを少し動かしただけで進行中の関数レイアウト (cola) が中止され、
+  // 関数が seed 位置のまま取り残される。子のイベントは親ファイル側の grab/drag で処理されるため、
+  // ここでは無視してよい。
+  function isOverviewChildOfGrabbedFile(node) {{
+    if (!node || !node.length || !node.data("parent")) return false;
+    const parent = node.parent();
+    return Boolean(parent && parent.length && parent.grabbed());
+  }}
+
   function handleOverviewNodeGrab(node) {{
+    if (isOverviewChildOfGrabbedFile(node)) return;
     // grab (mousedown) はタップでも発火する。ここでドラッグ集合へ登録すると、
     // タップ直後の選択 sync がドラッグ後回し分岐に入り Phase B (関数レイアウト) を
     // 取りこぼす。実際の移動 (drag) があって初めてドラッグ扱いとする。
@@ -4568,11 +4627,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
       overviewDeferredPositionAnimation = null;
       markOverviewFunctionLayoutInterrupted(node);
       overviewFunctionGrabInterruptedLayout = true;
+      stopOverviewPositionAnimation();
+      return;
+    }}
+    // ファイル (ルート) ノードを cola 後の位置アニメーション中に掴んでも止めない。アニメーションは
+    // 親ファイルの最新位置に追従して関数を動かすため、ドラッグ中もそのまま継続させる。止めると
+    // 完了通知 (onComplete) が失われ、レイアウト結果が採用されないまま固着する。
+    if (node && node.length && !node.data("parent")
+        && overviewPositionAnimation && overviewPositionAnimation.active) {{
+      return;
     }}
     stopOverviewPositionAnimation();
   }}
 
   function handleOverviewNodeDrag(node) {{
+    if (isOverviewChildOfGrabbedFile(node)) return;
     if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewFunctionGrabInterruptedLayout)) {{
       stopOverviewActiveLayout();
       markOverviewFunctionLayoutInterrupted(node);
