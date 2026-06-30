@@ -219,6 +219,110 @@ async function runRealClickScenario(page, filePath) {
   };
 }
 
+// 全体マップの操作ロック / inert / 実行フラグの断面を読む。
+function readOverviewRuntimeState(page) {
+  return page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const cy = document.getElementById('overviewGraph')._cyreg.cy;
+    const shell = document.querySelector('.dep-graph-shell');
+    return {
+      isLayoutRunning: api.isLayoutRunning(),
+      controlsInert: shell ? shell.classList.contains('controls-inert') : null,
+      panningEnabled: cy.panningEnabled(),
+      autoungrabify: cy.autoungrabify(),
+      current: api.currentSignature(),
+      rendered: api.renderedSignature()
+    };
+  });
+}
+
+async function waitOverviewSettledOrStuck(page) {
+  // 修正前は relayout 実行中の選択変更で固着し isLayoutRunning が戻らない。固着を検出するため
+  // 例外を握り潰して settled フラグで返す (watchdog 8s を超える余裕を持たせる)。
+  try {
+    await page.waitForFunction(
+      () => !window.depReportOverviewTestApi.isLayoutRunning(),
+      { timeout: 12000 }
+    );
+    await sleep(200);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// relayout が再び起動できるか (固着していないか) を確認する。ボタンを 1 回クリックし、
+// 実行状態に入るかどうかを返す。
+async function probeRelayoutWorksAfter(page, button) {
+  await page.mouse.click(button.x, button.y);
+  await sleep(250);
+  const running = await page.evaluate(() => window.depReportOverviewTestApi.isLayoutRunning());
+  return running;
+}
+
+function overviewRelayoutButtonCenter(page) {
+  return page.evaluate(() => {
+    const r = document.getElementById('overviewRelayout').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+}
+
+// ファイル選択中に「レイアウト再実行」ボタンを実マウスで素早く 2 回クリックする。修正前は
+// 2 回目が inert ツールバーを貫通して背景タップ (選択解除) を発火し、relayout の実行状態が
+// 孤児化して固着した。修正後は選択が保持され、relayout は 1 回だけ走り、待機後に復帰する。
+async function runRelayoutDoubleClickScenario(page, filePath) {
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await waitOverviewReady(page);
+  const button = await overviewRelayoutButtonCenter(page);
+  const selectionBefore = await page.evaluate(() => window.depReportOverviewTestApi.currentSignature());
+  await page.mouse.click(button.x, button.y);
+  await sleep(120);
+  await page.mouse.click(button.x, button.y);
+  await sleep(400);
+  const afterDblClick = await readOverviewRuntimeState(page);
+  const settled = await waitOverviewSettledOrStuck(page);
+  const afterSettle = await readOverviewRuntimeState(page);
+  const relayoutWorksAfter = await probeRelayoutWorksAfter(page, button);
+  return { available: true, selectionBefore, afterDblClick, settled, afterSettle, relayoutWorksAfter };
+}
+
+// ファイル選択中に relayout ボタンを 1 回クリックし、アニメーション開始前にノードを避けた背景を
+// 実マウスでクリックする。背景クリックなので選択解除は正しい挙動だが、修正前は relayout の
+// 実行状態が孤児化して固着した。修正後は固着せず復帰する。
+async function runRelayoutThenBackgroundScenario(page, filePath) {
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await waitOverviewReady(page);
+  const points = await page.evaluate(() => {
+    const cy = document.getElementById('overviewGraph')._cyreg.cy;
+    const rect = document.getElementById('overviewGraph').getBoundingClientRect();
+    const btn = document.getElementById('overviewRelayout').getBoundingClientRect();
+    const occupied = cy.nodes().map((n) => n.renderedBoundingBox());
+    function free(rx, ry) {
+      return !occupied.some((b) => rx >= b.x1 - 8 && rx <= b.x2 + 8 && ry >= b.y1 - 8 && ry <= b.y2 + 8);
+    }
+    let bg = null;
+    for (let gy = rect.height - 20; gy > 40 && !bg; gy -= 20) {
+      for (let gx = 20; gx < rect.width - 20; gx += 20) {
+        const cx = rect.left + gx;
+        const cyv = rect.top + gy;
+        if (cx >= btn.left - 40 && cx <= btn.right + 220 && cyv >= btn.top - 10 && cyv <= btn.bottom + 10) continue;
+        if (free(gx, gy)) { bg = { x: cx, y: cyv }; break; }
+      }
+    }
+    return { button: { x: btn.left + btn.width / 2, y: btn.top + btn.height / 2 }, bg };
+  });
+  if (!points.bg) return { available: false };
+  await page.mouse.click(points.button.x, points.button.y);
+  await sleep(60);
+  await page.mouse.click(points.bg.x, points.bg.y);
+  await sleep(400);
+  const afterBackground = await readOverviewRuntimeState(page);
+  const settled = await waitOverviewSettledOrStuck(page);
+  const afterSettle = await readOverviewRuntimeState(page);
+  const relayoutWorksAfter = await probeRelayoutWorksAfter(page, points.button);
+  return { available: true, afterBackground, settled, afterSettle, relayoutWorksAfter };
+}
+
 async function runHiddenTabSelectionScenario(page, filePath) {
   await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
   await page.waitForFunction(
@@ -911,6 +1015,16 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await waitOverviewReady(page);
 
+    // 「レイアウト再実行」実行中の選択変更で状態が固着しないことの検証。実マウス クリックで
+    // inert ツールバーの貫通も含めて再現する。
+    const relayoutDoubleClick = await runRelayoutDoubleClickScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
+    const relayoutThenBackground = await runRelayoutThenBackgroundScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
     const rapidSelection = await runRapidSelectionScenario(page);
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await waitOverviewReady(page);
@@ -970,6 +1084,8 @@ async function run(reportPath) {
       switchSync,
       clearSelection,
       hiddenTabSelection,
+      relayoutDoubleClick,
+      relayoutThenBackground,
       rapidSelection,
       seedInterruptFunction,
       seedInterruptClear,

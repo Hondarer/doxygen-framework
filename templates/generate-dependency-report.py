@@ -1663,8 +1663,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       align-items: center;
       gap: 8px;
     }}
-    .dep-graph-shell.controls-inert .dep-graph-toolbar {{
+    /* inert 時はツールバー コンテナを hit-test 可能なまま残し、ボタンだけ無効化する。
+       コンテナへ pointer-events:none を付けるとクリックが背後のグラフへ貫通し、レイアウト
+       中の物理クリックが背景タップ (選択解除) を発火させてしまうため、ボタンで吸収する。 */
+    .dep-graph-shell.controls-inert .dep-graph-toolbar button {{
       pointer-events: none;
+      cursor: default;
+      opacity: 0.55;
     }}
     .dep-graph-toolbar button {{
       min-height: 30px;
@@ -4445,6 +4450,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewCy) return;
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
+    // 手動レイアウト (relayoutOverviewGraph) の実行中にこの sync が割り込むと、進めた
+    // overviewLayoutToken により手動レイアウトの完了/watchdog の解除条件が二度と成立せず、
+    // overviewLayoutRunning と操作ロック/controls-inert が孤児化して固着する。差し替える側で
+    // 明示的に解放する。
+    if (overviewLayoutRunning) setOverviewLayoutRunning(false);
     stopOverviewPositionAnimation();
     stopOverviewActiveLayout();
     const completed = syncOverviewElementsCore(targetElements || buildOverviewElements(), opts || {{}}, token);
@@ -4625,6 +4635,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     updateOverviewHiddenNotice();
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
+    // 手動レイアウト実行中の初期化でも実行状態が孤児化しないよう、自前の再ロック前に解放する。
+    if (overviewLayoutRunning) setOverviewLayoutRunning(false);
     stopOverviewActiveLayout();
     overviewRenderedSelectionSignature = null;
     overviewPendingSelectionSignature = null;

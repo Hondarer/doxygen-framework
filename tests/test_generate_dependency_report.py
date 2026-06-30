@@ -333,6 +333,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 "const immediate = Boolean(opts && opts.immediate) && !alreadyLaidOut;",
                 index_html,
             )
+            # 「レイアウト再実行」実行中に選択が変わると relayout の実行状態が孤児化して固着する。
+            # 差し替え経路 (runLatestOverviewSync / resetOverviewGraph) で明示的に解放する。
+            self.assertIn(
+                "if (overviewLayoutRunning) setOverviewLayoutRunning(false);",
+                index_html,
+            )
+            # inert 時はツールバー コンテナでなくボタンに pointer-events:none を当て、クリックが
+            # 背後のグラフへ貫通して背景タップ (選択解除) を発火しないようにする。
+            self.assertIn(
+                ".dep-graph-shell.controls-inert .dep-graph-toolbar button {",
+                index_html,
+            )
             # 復活発生時 (revealed) はスキップせず再 sync を強制する。
             self.assertIn("if (!revealed && immediate && isOverviewSelectionPendingOrRendered())", index_html)
             self.assertIn("if (!(opts && opts.force) && isOverviewSelectionPendingOrRendered()) {\n      return false;\n    }", index_html)
@@ -1582,6 +1594,37 @@ class OverviewInteractionTest(unittest.TestCase):
                 hidden_tab_selection["movedCount"], 0, msg=str(hidden_tab_selection["movedTop"])
             )
             self.assertLessEqual(hidden_tab_selection["maxMovedDelta"], 0.5)
+
+            # --- 「レイアウト再実行」実行中の選択変更で状態が固着しない ---
+            # ボタン連打: 2 回目は inert ツールバーに吸収され、選択は保持され、relayout は
+            # 1 回だけ走り、待機後に操作ロック / inert が解除され、再度 relayout を起動できる。
+            relayout_double_click = data["relayoutDoubleClick"]
+            self.assertTrue(relayout_double_click["available"])
+            self.assertEqual(relayout_double_click["selectionBefore"], '["","src/file_a.c",""]')
+            # 連打中も選択は外れない (貫通による背景タップが起きない)。
+            self.assertEqual(
+                relayout_double_click["afterDblClick"]["current"], '["","src/file_a.c",""]'
+            )
+            # 固着せず収束する。
+            self.assertTrue(relayout_double_click["settled"])
+            after_settle = relayout_double_click["afterSettle"]
+            self.assertFalse(after_settle["isLayoutRunning"])
+            self.assertFalse(after_settle["controlsInert"])
+            self.assertTrue(after_settle["panningEnabled"])
+            self.assertFalse(after_settle["autoungrabify"])
+            self.assertEqual(after_settle["current"], '["","src/file_a.c",""]')
+            self.assertTrue(relayout_double_click["relayoutWorksAfter"])
+
+            # ボタン -> 背景: 背景クリックなので選択解除は正しい挙動。固着せず復帰する。
+            relayout_then_background = data["relayoutThenBackground"]
+            self.assertTrue(relayout_then_background["available"])
+            bg_settle = relayout_then_background["afterSettle"]
+            self.assertFalse(bg_settle["isLayoutRunning"])
+            self.assertFalse(bg_settle["controlsInert"])
+            self.assertTrue(bg_settle["panningEnabled"])
+            self.assertFalse(bg_settle["autoungrabify"])
+            self.assertEqual(bg_settle["current"], '["","",""]')
+            self.assertTrue(relayout_then_background["relayoutWorksAfter"])
 
             # --- Phase B 中の連続選択: 古い Phase C が最新選択へ反映されない ---
             rapid_selection = data["rapidSelection"]
