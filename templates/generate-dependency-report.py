@@ -1095,6 +1095,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-input-text: #1f2937;
       --dep-input-border: #b8c2d1;
       --dep-input-focus: #0e639c;
+      --dep-table-scrollbar-thumb: #888888;
+      --dep-table-scrollbar-thumb-hover: #757575;
       --dep-filter-warning-bg: #fef3c7;
       --dep-filter-warning-text: #713f12;
       --dep-badge-text: #111827;
@@ -1157,6 +1159,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-input-text: #d4d4d4;
       --dep-input-border: #3c3c3c;
       --dep-input-focus: #3794d8;
+      --dep-table-scrollbar-thumb: #676767;
+      --dep-table-scrollbar-thumb-hover: #787878;
       --dep-filter-warning-bg: #3a3314;
       --dep-filter-warning-text: #d7ba7d;
       --dep-badge-text: #d4d4d4;
@@ -1235,6 +1239,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
     .dep-table-wrap::-webkit-scrollbar-thumb:hover,
     .dep-detail::-webkit-scrollbar-thumb:hover {{
       background: color-mix(in srgb, var(--dep-accent) 75%, var(--dep-input-border));
+    }}
+    .dep-table-wrap::-webkit-scrollbar-thumb,
+    .dep-detail::-webkit-scrollbar-thumb {{
+      background: var(--dep-table-scrollbar-thumb);
+    }}
+    .dep-table-wrap::-webkit-scrollbar-thumb:hover,
+    .dep-detail::-webkit-scrollbar-thumb:hover {{
+      background: var(--dep-table-scrollbar-thumb-hover);
     }}
     main {{
       max-width: min(2000px, 96vw);
@@ -1414,6 +1426,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       white-space: nowrap;
     }}
     .dep-filter-clear:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
       border-color: var(--dep-input-focus);
       color: var(--dep-input-focus);
     }}
@@ -1422,7 +1435,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border: 1px solid var(--dep-border);
       border-radius: 6px;
       max-height: calc(100vh - 310px);
-      scrollbar-color: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border)) var(--dep-input-bg);
+      scrollbar-color: var(--dep-table-scrollbar-thumb) var(--dep-input-bg);
       scrollbar-width: auto;
     }}
     table {{
@@ -1661,6 +1674,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       font: inherit;
     }}
     .dep-graph-toolbar button:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
       border-color: var(--dep-input-focus);
       color: var(--dep-input-focus);
     }}
@@ -1830,8 +1844,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .dep-detail {{
         max-height: 100%;
         overflow: auto;
-        scrollbar-color: color-mix(in srgb, var(--dep-accent) 55%, var(--dep-input-border)) var(--dep-input-bg);
         scrollbar-width: auto;
+      }}
+      .dep-table-wrap {{
+        scrollbar-color: var(--dep-table-scrollbar-thumb) var(--dep-input-bg);
+      }}
+      .dep-detail {{
+        scrollbar-color: var(--dep-table-scrollbar-thumb) var(--dep-input-bg);
       }}
       .dep-table-wrap {{
         flex: 1 1 auto;
