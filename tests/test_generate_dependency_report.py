@@ -207,13 +207,19 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue((output_dir / "index.html").is_file())
             self.assertTrue((output_dir / "dependency-data.js").is_file())
             self.assertTrue((output_dir / "dependency-functions.csv").is_file())
+            self.assertTrue((output_dir / "dependency-functions-utf8-bom.csv").is_file())
             self.assertTrue((output_dir / "dependency-files.csv").is_file())
+            self.assertTrue((output_dir / "dependency-files-utf8-bom.csv").is_file())
             self.assertTrue((output_dir / "cytoscape.min.js").is_file())
             self.assertTrue((output_dir / "cytoscape.LICENSE.txt").is_file())
             self.assertTrue((output_dir / "webcola.min.js").is_file())
             self.assertTrue((output_dir / "webcola.LICENSE.txt").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.js").is_file())
             self.assertTrue((output_dir / "cytoscape-cola.LICENSE.txt").is_file())
+            self.assertFalse((output_dir / "dependency-functions.csv").read_bytes().startswith(b"\xef\xbb\xbf"))
+            self.assertFalse((output_dir / "dependency-files.csv").read_bytes().startswith(b"\xef\xbb\xbf"))
+            self.assertTrue((output_dir / "dependency-functions-utf8-bom.csv").read_bytes().startswith(b"\xef\xbb\xbf"))
+            self.assertTrue((output_dir / "dependency-files-utf8-bom.csv").read_bytes().startswith(b"\xef\xbb\xbf"))
             cola_js = (output_dir / "cytoscape-cola.js").read_text(encoding="utf-8")
             self.assertIn("options.animate || options.deferPositions", cola_js)
             self.assertIn("deferPositions: false", cola_js)
@@ -242,6 +248,31 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn('<p class="dep-meta">', index_html)
             self.assertIn("関数一覧", index_html)
             self.assertIn("ファイル一覧", index_html)
+            self.assertIn('<div class="dep-download-menu">', index_html)
+            self.assertIn(
+                '<button type="button" class="dep-download-menu-button" aria-expanded="false" title="関数一覧の CSV をダウンロード">関数 CSV</button>',
+                index_html,
+            )
+            self.assertIn(
+                '<button type="button" class="dep-download-menu-button" aria-expanded="false" title="ファイル一覧の CSV をダウンロード">ファイル CSV</button>',
+                index_html,
+            )
+            self.assertIn(".dep-download-menu-items .dep-download", index_html)
+            self.assertIn("border-color: transparent;", index_html)
+            self.assertIn('function closeDownloadMenus(exceptMenu)', index_html)
+            self.assertIn('if (event.target.closest(".dep-download-menu")) return;', index_html)
+            self.assertIn('href="dependency-functions-utf8-bom.csv"', index_html)
+            self.assertIn('href="dependency-functions.csv"', index_html)
+            self.assertIn('href="dependency-files-utf8-bom.csv"', index_html)
+            self.assertIn('href="dependency-files.csv"', index_html)
+            self.assertLess(
+                index_html.index('href="dependency-functions-utf8-bom.csv"'),
+                index_html.index('href="dependency-functions.csv"'),
+            )
+            self.assertLess(
+                index_html.index('href="dependency-files-utf8-bom.csv"'),
+                index_html.index('href="dependency-files.csv"'),
+            )
             self.assertIn('id="functionListPanel"', index_html)
             self.assertIn('id="fileListPanel"', index_html)
             self.assertIn('id="fileRows"', index_html)

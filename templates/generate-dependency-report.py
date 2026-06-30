@@ -979,6 +979,13 @@ def write_data_json(output_dir: Path, data: Dict[str, object]) -> None:
 
 
 def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
+    def write_dict_csv(file_name: str, encoding: str, fieldnames: List[str], rows: Iterable[Dict[str, object]]) -> None:
+        with (output_dir / file_name).open("w", encoding=encoding, newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({field: row.get(field, "") for field in fieldnames})
+
     function_fields = [
         "dependencyLevel",
         "dependencyRank",
@@ -1003,11 +1010,8 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "sourceUrl",
         "brief",
     ]
-    with (output_dir / "dependency-functions.csv").open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=function_fields)
-        writer.writeheader()
-        for row in data["functions"]:
-            writer.writerow({field: row.get(field, "") for field in function_fields})
+    write_dict_csv("dependency-functions.csv", "utf-8", function_fields, data["functions"])
+    write_dict_csv("dependency-functions-utf8-bom.csv", "utf-8-sig", function_fields, data["functions"])
 
     file_fields = [
         "path",
@@ -1023,26 +1027,26 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "htmlUrl",
         "sourceUrl",
     ]
-    with (output_dir / "dependency-files.csv").open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=file_fields)
-        writer.writeheader()
-        for row in data["files"]:
-            writer.writerow(
-                {
-                    "path": row["path"],
-                    "functionCount": row["functionCount"],
-                    "exportCount": row["exportCount"],
-                    "staticCount": row["staticCount"],
-                    "edgeCount": row["edgeCount"],
-                    "dominantArea": row["dominantArea"],
-                    "levels": json.dumps(row["levels"], ensure_ascii=False, sort_keys=True),
-                    "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
-                    "areas": json.dumps(row["areas"], ensure_ascii=False, sort_keys=True),
-                    "brief": row.get("brief", ""),
-                    "htmlUrl": row.get("htmlUrl", ""),
-                    "sourceUrl": row.get("sourceUrl", ""),
-                }
-            )
+    file_rows = []
+    for row in data["files"]:
+        file_rows.append(
+            {
+                "path": row["path"],
+                "functionCount": row["functionCount"],
+                "exportCount": row["exportCount"],
+                "staticCount": row["staticCount"],
+                "edgeCount": row["edgeCount"],
+                "dominantArea": row["dominantArea"],
+                "levels": json.dumps(row["levels"], ensure_ascii=False, sort_keys=True),
+                "classes": json.dumps(row["classes"], ensure_ascii=False, sort_keys=True),
+                "areas": json.dumps(row["areas"], ensure_ascii=False, sort_keys=True),
+                "brief": row.get("brief", ""),
+                "htmlUrl": row.get("htmlUrl", ""),
+                "sourceUrl": row.get("sourceUrl", ""),
+            }
+        )
+    write_dict_csv("dependency-files.csv", "utf-8", file_fields, file_rows)
+    write_dict_csv("dependency-files-utf8-bom.csv", "utf-8-sig", file_fields, file_rows)
 
 
 def write_html(output_dir: Path, category_id: str) -> None:
@@ -1278,7 +1282,38 @@ def write_html(output_dir: Path, category_id: str) -> None:
       flex-wrap: wrap;
       justify-content: flex-end;
     }}
+    .dep-download-menu {{
+      position: relative;
+    }}
+    .dep-download-menu.open > .dep-download-menu-button {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
+      border-color: var(--dep-accent);
+      color: var(--dep-accent);
+    }}
+    .dep-download-menu-items {{
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 20;
+      min-width: 160px;
+      display: grid;
+      gap: 4px;
+      padding: 6px;
+      border: 1px solid var(--dep-border);
+      border-radius: 4px;
+      background: var(--dep-bg);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    }}
+    .dep-download-menu-items[hidden] {{
+      display: none;
+    }}
+    .dep-download-menu-items .dep-download {{
+      border-color: transparent;
+      background: transparent;
+      justify-content: flex-start;
+    }}
     .dep-download,
+    .dep-download-menu-button,
     .dep-theme-toggle {{
       display: inline-flex;
       align-items: center;
@@ -1293,6 +1328,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       cursor: pointer;
     }}
     .dep-download:hover,
+    .dep-download-menu-button:hover,
     .dep-theme-toggle:hover {{
       background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
       border-color: var(--dep-accent);
@@ -1778,6 +1814,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .dep-downloads {{
         justify-content: flex-start;
       }}
+      .dep-download-menu-items {{
+        left: 0;
+        right: auto;
+      }}
       .dep-title-actions {{
         justify-content: flex-start;
       }}
@@ -1805,8 +1845,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       <button type="button" id="themeToggle" class="dep-theme-toggle" aria-pressed="false">ライト</button>
       <section class="dep-downloads" role="group" aria-label="ダウンロード">
         <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
-        <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV をダウンロード">関数 CSV</a>
-        <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV をダウンロード">ファイル CSV</a>
+        <div class="dep-download-menu">
+          <button type="button" class="dep-download-menu-button" aria-expanded="false" title="関数一覧の CSV をダウンロード">関数 CSV</button>
+          <div class="dep-download-menu-items" hidden>
+            <a class="dep-download" href="dependency-functions-utf8-bom.csv" download data-download-name="dependency-functions-utf8-bom.csv" title="関数一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
+            <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
+          </div>
+        </div>
+        <div class="dep-download-menu">
+          <button type="button" class="dep-download-menu-button" aria-expanded="false" title="ファイル一覧の CSV をダウンロード">ファイル CSV</button>
+          <div class="dep-download-menu-items" hidden>
+            <a class="dep-download" href="dependency-files-utf8-bom.csv" download data-download-name="dependency-files-utf8-bom.csv" title="ファイル一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
+            <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
+          </div>
+        </div>
       </section>
     </div>
   </div>
@@ -4809,8 +4861,40 @@ def write_html(output_dir: Path, category_id: str) -> None:
   clearHiddenFunctionFilters.addEventListener("click", clearFunctionFilters);
   clearFileFilters.addEventListener("click", clearFileListFilters);
   clearHiddenFileFilters.addEventListener("click", clearFileListFilters);
+
+  function closeDownloadMenus(exceptMenu) {{
+    for (const menu of document.querySelectorAll(".dep-download-menu.open")) {{
+      if (menu === exceptMenu) continue;
+      menu.classList.remove("open");
+      const button = menu.querySelector(".dep-download-menu-button");
+      const items = menu.querySelector(".dep-download-menu-items");
+      if (button) button.setAttribute("aria-expanded", "false");
+      if (items) items.hidden = true;
+    }}
+  }}
+
+  for (const menu of document.querySelectorAll(".dep-download-menu")) {{
+    const button = menu.querySelector(".dep-download-menu-button");
+    const items = menu.querySelector(".dep-download-menu-items");
+    if (!button || !items) continue;
+    button.addEventListener("click", () => {{
+      const willOpen = !menu.classList.contains("open");
+      closeDownloadMenus(menu);
+      menu.classList.toggle("open", willOpen);
+      button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      items.hidden = !willOpen;
+    }});
+  }}
+
+  document.addEventListener("click", (event) => {{
+    if (event.target.closest(".dep-download-menu")) return;
+    closeDownloadMenus(null);
+  }});
+
   for (const link of document.querySelectorAll(".dep-download")) {{
     link.addEventListener("click", (ev) => {{
+      const menu = link.closest(".dep-download-menu");
+      if (menu) closeDownloadMenus(null);
       if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return;
       const href = link.getAttribute("href");
       if (!href) return;
