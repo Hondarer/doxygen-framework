@@ -2406,6 +2406,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function activateTab(tabId) {{
+    const previousTab = activeTab;
     const immediateOverviewUpdate = tabId === "overviewPanel" && activeTab !== "overviewPanel";
     activeTab = tabId;
     for (const item of tabButtons) {{
@@ -2414,6 +2415,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const panel of tabPanels) {{
       panel.classList.toggle("active", panel.id === activeTab);
     }}
+    abortOverviewInitializationOnTabLeave(previousTab, activeTab);
     refreshActiveGraph({{ immediate: immediateOverviewUpdate }});
     if (activeTab === "functionListPanel" && pendingFunctionListScroll) {{
       syncSelectedRowScroll(true);
@@ -4635,6 +4637,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
     resetOverviewGraphAsync(token);
   }}
 
+  function abortOverviewInitializationOnTabLeave(previousTab, nextTab) {{
+    if (previousTab !== "overviewPanel" || nextTab === "overviewPanel") return;
+    if (!overviewCy || !overviewGraph || !overviewGraph.classList.contains("layout-initializing")) return;
+    ++overviewSyncToken;
+    ++overviewLayoutToken;
+    ++overviewRelayoutRevealToken;
+    stopOverviewActiveLayout();
+    stopOverviewPositionAnimation();
+    setOverviewLayoutRunning(false);
+    overviewCy.elements().remove();
+    overviewRenderedSelectionSignature = null;
+    overviewPendingSelectionSignature = null;
+    overviewLayoutInitialized = false;
+    overviewPendingRelayoutNodeIds.clear();
+    setOverviewControlsInert(true);
+    setOverviewGraphInteractionLocked(true);
+  }}
+
   function initOverviewGraph() {{
     if (overviewCy || !overviewGraph) return;
     if (typeof cytoscape !== "function") {{
@@ -5476,6 +5496,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     window.depReportOverviewTestApi = {{
       activateOverview: () => activateTab("overviewPanel"),
       isReady: () => Boolean(overviewCy) && overviewCy.elements().length > 0 && isOverviewRenderedSelectionCurrent(),
+      isInitializing: () => Boolean(overviewGraph && overviewGraph.classList.contains("layout-initializing")),
       isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewActiveLayout) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
@@ -5515,6 +5536,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return result;
       }},
       edgeIds: () => (overviewCy ? overviewCy.edges().map((edge) => edge.id()) : []),
+      elementCount: () => (overviewCy ? overviewCy.elements().length : 0),
       buildSvg: (scope) => buildOverviewSvg(scope || "full"),
       svgDrawOrder: () => overviewSvgOrderedElements().map((element) => element.id()),
       applyThemeForTest: (theme) => applyTheme(theme, false),

@@ -436,6 +436,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("async function seedOverviewInitialPositionsAsync(elements, token)", index_html)
             self.assertIn("async function resetOverviewGraphAsync(token)", index_html)
             self.assertIn("async function revealOverviewGraphAfterFit(token)", index_html)
+            self.assertIn("function abortOverviewInitializationOnTabLeave(previousTab, nextTab)", index_html)
             self.assertIn("async function overviewNodePositionsAsync(token)", index_html)
             self.assertIn("async function applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token)", index_html)
             self.assertIn("function stabilizeOverviewCompoundCenters(targetPositions, anchorCenters)", index_html)
@@ -472,6 +473,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("setOverviewGraphInteractionLocked(false);\n    overviewCy.resize();\n    fitOverviewGraph();", index_html)
             self.assertIn("overviewCy.fit(overviewFitElements(), 30);", index_html)
             self.assertIn("resetOverviewGraphAsync(token);", index_html)
+            self.assertIn("abortOverviewInitializationOnTabLeave(previousTab, activeTab);", index_html)
+            self.assertIn("overviewGraph.classList.contains(\"layout-initializing\")", index_html)
+            self.assertIn("overviewCy.elements().remove();", index_html)
             self.assertIn("stale: stale", index_html)
             self.assertIn("missingOrdered: parentNodes.concat(childNodes, edgeElements)", index_html)
             # Phase A は単一 batch の同期処理 (フレーム待機なし)。
@@ -1395,6 +1399,15 @@ class OverviewInteractionTest(unittest.TestCase):
                     "src/file_e.c",
                 ],
             )
+            initial_tab_interrupt = data["initialTabInterrupt"]
+            self.assertTrue(initial_tab_interrupt["initializing"])
+            self.assertEqual(initial_tab_interrupt["elementCount"], 0)
+            self.assertIsNone(initial_tab_interrupt["renderedSignature"])
+            self.assertIsNone(initial_tab_interrupt["pendingSignature"])
+            self.assertFalse(initial_tab_interrupt["afterReturn"]["initializing"])
+            self.assertGreater(initial_tab_interrupt["afterReturn"]["elementCount"], 0)
+            self.assertTrue(initial_tab_interrupt["afterReturn"]["renderedMatchesCurrent"])
+            self.assertTrue(initial_tab_interrupt["afterReturn"]["isReady"])
 
             # file_a の関数 (a_helper, a_util, a_h1..a_h5, a_main の 8 個)。
             file_a_functions = ["a_h1", "a_h2", "a_h3", "a_h4", "a_h5", "a_helper", "a_main", "a_util"]

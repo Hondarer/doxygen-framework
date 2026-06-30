@@ -798,8 +798,30 @@ async function run(reportPath) {
 
     await page.waitForFunction(() => window.depReportOverviewTestApi, { timeout: 15000 });
     await page.evaluate(() => window.depReportOverviewTestApi.activateOverview());
+    await page.waitForFunction(() => window.depReportOverviewTestApi.isInitializing(), { timeout: 5000 });
+    const initialTabInterrupt = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      api.activateFunctionList();
+      return {
+        initializing: api.isInitializing(),
+        elementCount: api.elementCount(),
+        renderedSignature: api.renderedSignature(),
+        pendingSignature: api.pendingSignature(),
+        layoutRunning: api.isLayoutRunning()
+      };
+    });
+    await page.evaluate(() => window.depReportOverviewTestApi.activateOverview());
     await page.waitForFunction(() => window.depReportOverviewTestApi.isReady(), { timeout: 20000 });
     await page.waitForFunction(() => !window.depReportOverviewTestApi.isLayoutRunning(), { timeout: 20000 });
+    initialTabInterrupt.afterReturn = await page.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        initializing: api.isInitializing(),
+        elementCount: api.elementCount(),
+        renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+        isReady: api.isReady()
+      };
+    });
 
     const initialNodeIds = await page.evaluate(() => window.depReportOverviewTestApi.nodeIds());
     const styleState = await runStyleScenario(page);
@@ -921,6 +943,7 @@ async function run(reportPath) {
 
     return {
       initialNodeIds,
+      initialTabInterrupt,
       styleState,
       sync,
       final,
