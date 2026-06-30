@@ -57,6 +57,41 @@ async function waitOverviewReady(page) {
   await sleep(50);
 }
 
+async function runPhaseTimingScenario(page, filePath, mutedFilePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const samples = await page.evaluate(async (args) => {
+    const api = window.depReportOverviewTestApi;
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    api.selectFile(args.filePath);
+    const immediate = {
+      selectedFileClasses: api.classesOf(args.filePath) || [],
+      mutedFileClasses: api.classesOf(args.mutedFilePath) || [],
+      classPlan: api.lastClassUpdatePlan()
+    };
+    await nextFrame();
+    const afterFrame = {
+      selectedFileClasses: api.classesOf(args.filePath) || [],
+      mutedFileClasses: api.classesOf(args.mutedFilePath) || [],
+      layoutRunning: api.isLayoutRunning()
+    };
+    return { immediate, afterFrame };
+  }, { filePath, mutedFilePath });
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      selectedFileClasses: api.classesOf(args.filePath) || [],
+      mutedFileClasses: api.classesOf(args.mutedFilePath) || [],
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+    };
+  }, { filePath, mutedFilePath });
+
+  return { samples, final };
+}
+
 async function runCenterStabilityScenario(page, filePath) {
   await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
   await waitOverviewReady(page);
@@ -491,6 +526,8 @@ async function run(reportPath) {
       };
     });
 
+    const phaseTiming = await runPhaseTimingScenario(page, 'src/file_a.c', 'src/file_c.c');
+
     // 別ファイル選択でも同期反映され、署名が確定すること。
     await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_c.c'));
     const switchSync = await page.evaluate(() => {
@@ -565,6 +602,7 @@ async function run(reportPath) {
       initialNodeIds,
       sync,
       final,
+      phaseTiming,
       switchSync,
       clearSelection,
       hiddenTabSelection,

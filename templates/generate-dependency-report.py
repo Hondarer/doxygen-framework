@@ -3787,6 +3787,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     "dep-file-node-muted",
     "dep-base-edge-muted"
   ]);
+  const OVERVIEW_DEFERRED_STATE_CLASSES = new Set([
+    "dep-file-node-muted",
+    "dep-base-edge-muted"
+  ]);
 
   function overviewStructuralClasses(classes) {{
     return classText(classes || "")
@@ -3802,8 +3806,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .join(" ");
   }}
 
-  function overviewMergeStructuralAndStateClasses(structuralClasses, stateClasses) {{
-    return classText([overviewStructuralClasses(structuralClasses), overviewStateClasses(stateClasses)].filter(Boolean).join(" "));
+  function overviewImmediateStateClasses(classes) {{
+    return classText(classes || "")
+      .split(/\\s+/)
+      .filter((name) => name && OVERVIEW_STATE_CLASSES.has(name) && !OVERVIEW_DEFERRED_STATE_CLASSES.has(name))
+      .join(" ");
+  }}
+
+  function overviewDeferredStateClasses(classes) {{
+    return classText(classes || "")
+      .split(/\\s+/)
+      .filter((name) => name && OVERVIEW_DEFERRED_STATE_CLASSES.has(name))
+      .join(" ");
+  }}
+
+  function overviewPhaseAClasses(targetClasses, currentClasses) {{
+    return classText([
+      overviewStructuralClasses(targetClasses),
+      overviewImmediateStateClasses(targetClasses),
+      overviewDeferredStateClasses(currentClasses)
+    ].filter(Boolean).join(" "));
   }}
 
   function overviewStructureElement(element) {{
@@ -4090,7 +4112,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const targetClasses = classText(target.classes || "");
         let phaseAClasses = targetClasses;
         if (deferStateClassChanges) {{
-          phaseAClasses = overviewMergeStructuralAndStateClasses(targetClasses, element.classes().join(" "));
+          phaseAClasses = overviewPhaseAClasses(targetClasses, element.classes().join(" "));
           if (classText(phaseAClasses) !== targetClasses) {{
             deferredClassTargets.push({{ id: target.data.id, classes: targetClasses }});
             overviewLastClassUpdatePlan.phaseC += 1;

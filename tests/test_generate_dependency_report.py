@@ -427,11 +427,12 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function syncOverviewElementsCore(targetElements, opts, token)", index_html)
             self.assertIn("function anchorOverviewChildPositions(targetElements, anchorCenters)", index_html)
             self.assertIn("function overviewStateClasses(classes)", index_html)
-            self.assertIn("function overviewMergeStructuralAndStateClasses(structuralClasses, stateClasses)", index_html)
+            self.assertIn("const OVERVIEW_DEFERRED_STATE_CLASSES = new Set([", index_html)
+            self.assertIn("function overviewImmediateStateClasses(classes)", index_html)
+            self.assertIn("function overviewDeferredStateClasses(classes)", index_html)
+            self.assertIn("function overviewPhaseAClasses(targetClasses, currentClasses)", index_html)
             self.assertIn("function selectionSignatureHasSelection(signature)", index_html)
             self.assertNotIn("function overviewFocusClasses(classes)", index_html)
-            self.assertNotIn("function overviewMutedClassList(classes)", index_html)
-            self.assertNotIn("const OVERVIEW_MUTED_CLASSES = new Set([", index_html)
             # 旧非同期パス (チャンク化された構造 diff / クラス適用) は Phase A 同期化に統合し廃止。
             self.assertNotIn("async function syncOverviewElementsAsync", index_html)
             self.assertNotIn("async function applyOverviewStructureDiffAsync", index_html)
@@ -474,9 +475,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
             self.assertIn(".map(overviewStructureElement)", index_html)
-            # 選択有無の境界をまたぐ場合だけ、状態 class 変更を Phase C へ送る。
+            # 選択有無の境界をまたぐ場合でも、active class は Phase A、muted class は Phase C へ送る。
             self.assertIn("if (deferStateClassChanges) {", index_html)
-            self.assertIn("phaseAClasses = overviewMergeStructuralAndStateClasses(targetClasses, element.classes().join(\" \"));", index_html)
+            self.assertIn("phaseAClasses = overviewPhaseAClasses(targetClasses, element.classes().join(\" \"));", index_html)
             self.assertIn("deferredClassTargets.push({ id: target.data.id, classes: targetClasses });", index_html)
             # Phase B 前に元位置へ戻し、グループ ノードをアンカーで固定する。
             self.assertIn("restoreOverviewNodePositions(previousPositions);", index_html)
@@ -1204,10 +1205,10 @@ class OverviewInteractionTest(unittest.TestCase):
 
             # --- Phase A: クリック同期完了直後 ---
             sync = data["sync"]
-            # 無選択から選択への状態 class 変更は Phase C へ送る。
-            self.assertNotIn("dep-selected-file", sync["selectedFileClasses"])
+            # 無選択から選択への境界でも、選択ファイルの active class は Phase A で即時反映する。
+            self.assertIn("dep-selected-file", sync["selectedFileClasses"])
             self.assertTrue(sync["classPlan"]["deferStateClassChanges"])
-            self.assertEqual(sync["classPlan"]["phaseA"], 0)
+            self.assertGreater(sync["classPlan"]["phaseA"], 0)
             self.assertGreater(sync["classPlan"]["phaseC"], 0)
             # グループ内の関数ノードが同期的に追加されている。
             self.assertEqual(sorted(sync["functionNodes"]), file_a_functions)
@@ -1223,6 +1224,15 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertFalse(final["fileBMuted"])
             self.assertEqual(sorted(final["functionNodes"]), file_a_functions)
 
+            # --- timing: active は同期、muted は後続フレームで反映 ---
+            phase_timing = data["phaseTiming"]
+            self.assertIn("dep-selected-file", phase_timing["samples"]["immediate"]["selectedFileClasses"])
+            self.assertNotIn("dep-file-node-muted", phase_timing["samples"]["immediate"]["mutedFileClasses"])
+            self.assertIn("dep-selected-file", phase_timing["samples"]["afterFrame"]["selectedFileClasses"])
+            self.assertTrue(phase_timing["samples"]["afterFrame"]["layoutRunning"])
+            self.assertTrue(phase_timing["final"]["renderedMatchesCurrent"])
+            self.assertIn("dep-file-node-muted", phase_timing["final"]["mutedFileClasses"])
+
             # --- 別ファイルへ選択切替: 選択中同士の変更は Phase A で同期反映 ---
             switch_sync = data["switchSync"]
             self.assertIn("dep-selected-file", switch_sync["selectedFileClasses"])
@@ -1233,9 +1243,9 @@ class OverviewInteractionTest(unittest.TestCase):
             # --- 選択解除: 状態 class 変更は Phase C へ送る ---
             clear_selection = data["clearSelection"]
             self.assertTrue(clear_selection["classPlan"]["deferStateClassChanges"])
-            self.assertEqual(clear_selection["classPlan"]["phaseA"], 0)
+            self.assertGreater(clear_selection["classPlan"]["phaseA"], 0)
             self.assertGreater(clear_selection["classPlan"]["phaseC"], 0)
-            self.assertIn("dep-selected-file", clear_selection["fileCClasses"])
+            self.assertNotIn("dep-selected-file", clear_selection["fileCClasses"])
             self.assertNotIn("dep-selected-file", clear_selection["final"]["fileCClasses"])
             self.assertNotIn("dep-file-node-muted", clear_selection["final"]["fileAClasses"])
 
@@ -1253,7 +1263,7 @@ class OverviewInteractionTest(unittest.TestCase):
 
             # --- Phase B 中の連続選択: 古い Phase C が最新選択へ反映されない ---
             rapid_selection = data["rapidSelection"]
-            self.assertNotIn("dep-selected-file", rapid_selection["immediate"]["selectedFileClasses"])
+            self.assertIn("dep-selected-file", rapid_selection["immediate"]["selectedFileClasses"])
             self.assertFalse(rapid_selection["immediate"]["fileAMutedImmediate"])
             self.assertFalse(rapid_selection["immediate"]["fileCMutedImmediate"])
             self.assertTrue(rapid_selection["immediate"]["classPlan"]["deferStateClassChanges"])
