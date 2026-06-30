@@ -351,6 +351,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("Math.max(14, fontSize - 2)", index_html)
             self.assertIn("function overviewFitElements()", index_html)
             self.assertIn("function fitOverviewGraph()", index_html)
+            self.assertNotIn("function fitSelectedOverviewFileIfNeeded()", index_html)
             self.assertIn("function overviewViewport()", index_html)
             self.assertIn("function restoreOverviewViewport(viewport)", index_html)
             self.assertIn("const OVERVIEW_STATE_CLASSES = new Set([", index_html)
@@ -367,6 +368,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function overviewNodeDragIds(node)", index_html)
             self.assertIn("function isOverviewNodeDragging(nodeOrId)", index_html)
             self.assertIn("function hasOverviewDraggingNodes()", index_html)
+            self.assertIn("function rememberOverviewUserMovedPositions(node)", index_html)
+            self.assertIn("function applyOverviewUserMovedPositions(startPositions, anchorCenters)", index_html)
             self.assertIn("function handleOverviewNodeGrab(node)", index_html)
             self.assertIn("function handleOverviewNodeDrag(node)", index_html)
             self.assertIn("function handleOverviewNodeFree(node)", index_html)
@@ -391,6 +394,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("let overviewRenderedSelectionSignature = null;", index_html)
             self.assertIn("let overviewInteractionStateBeforeLayout = null;", index_html)
             self.assertIn("let overviewDraggingNodeIds = new Set();", index_html)
+            self.assertIn("let overviewUserMovedNodePositions = new Map();", index_html)
             self.assertIn("let overviewDragRevision = 0;", index_html)
             self.assertIn("let overviewSyncAfterDrag = false;", index_html)
             self.assertIn("overviewCy.panningEnabled(false);", index_html)
@@ -484,6 +488,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # Phase B 前に元位置へ戻し、グループ ノードをアンカーで固定する。
             self.assertIn("restoreOverviewNodePositions(previousPositions);", index_html)
             self.assertIn("applyOverviewAnchorCentersToCurrentPositions(anchorCenters);", index_html)
+            self.assertIn("applyOverviewUserMovedPositions(startPositions, anchorCenters);", index_html)
             self.assertIn("stabilizeOverviewCompoundCenters(targetPositions, anchorCenters);", index_html)
             self.assertIn("const dragRevision = overviewDragRevision;", index_html)
             self.assertIn("if (isOverviewNodeDragging(node)) return;", index_html)
@@ -494,6 +499,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("phaseCLayoutDone = false;", index_html)
             self.assertIn("onComplete: markPhaseCLayoutDone,", index_html)
             self.assertIn("fullConvergence: true,", index_html)
+            self.assertIn("unlockAllDuringLayout: true,", index_html)
+            self.assertIn("const unlockAllDuringLayout = Boolean(opts && opts.unlockAllDuringLayout);", index_html)
             # Phase C は Phase B の cola tick とフレーム単位で並行処理する。
             self.assertNotIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
             # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
@@ -1028,6 +1035,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
 
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
+LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1174,6 +1182,62 @@ class OverviewInteractionTest(unittest.TestCase):
         generate_dependency_report.generate_report(xml_dir, output_dir, "test")
         return output_dir / "index.html"
 
+    def _generate_large_layout_report(self, temp_dir):
+        xml_dir = temp_dir / "xml"
+        output_dir = temp_dir / "report"
+        xml_dir.mkdir()
+        output_dir.mkdir()
+
+        members = []
+        for index in range(60):
+            fn_id = "f_{:02d}".format(index)
+            references = ""
+            if index == 0:
+                references = "".join(
+                    '        <references refid="f_{0:02d}" compoundref="big__file_8c">func_{0:02d}</references>\n'.format(i)
+                    for i in range(1, 60)
+                )
+            members.append(
+                """      <memberdef kind="function" id="{id}" static="yes">
+        <name>func_{index:02d}</name>
+{references}        <location file="src/big_file.c" line="{line}" bodyfile="src/big_file.c" bodystart="{line}"/>
+      </memberdef>
+""".format(id=fn_id, index=index, references=references, line=index + 10)
+            )
+        write_xml(
+            xml_dir,
+            "big_file.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="big__file_8c" kind="file">
+    <compoundname>big_file.c</compoundname>
+    <sectiondef>
+{members}    </sectiondef>
+  </compounddef>
+</doxygen>
+""".format(members="".join(members)),
+        )
+        for index in range(1, 5):
+            write_xml(
+                xml_dir,
+                "other_{}.xml".format(index),
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="other__{index}_8c" kind="file">
+    <compoundname>other_{index}.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="o_{index}" static="yes">
+        <name>other_{index}</name>
+        <location file="src/other_{index}.c" line="10" bodyfile="src/other_{index}.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""".format(index=index),
+            )
+        generate_dependency_report.generate_report(xml_dir, output_dir, "large-layout")
+        return output_dir / "index.html"
+
     def _run_probe(self, index_html):
         result = subprocess.run(
             [_node_binary(), str(PROBE_SCRIPT), str(index_html)],
@@ -1192,6 +1256,39 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_large_layout_probe(self, index_html):
+        result = subprocess.run(
+            [_node_binary(), str(LARGE_LAYOUT_PROBE_SCRIPT), str(index_html), "src/big_file.c"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="large layout probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_large_file_function_layout(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            data = self._run_large_layout_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            self.assertTrue(data["renderedMatchesCurrent"])
+            self.assertEqual(data["childLayout"]["count"], 60)
+            self.assertLessEqual(data["childLayout"]["aspectRatio"], 1.8)
+            self.assertAlmostEqual(data["viewportBefore"]["zoom"], data["viewportAfter"]["zoom"], delta=0.001)
+            self.assertAlmostEqual(data["viewportBefore"]["pan"]["x"], data["viewportAfter"]["pan"]["x"], delta=0.5)
+            self.assertAlmostEqual(data["viewportBefore"]["pan"]["y"], data["viewportAfter"]["pan"]["y"], delta=0.5)
+            self.assertEqual(data["movedFileCount"], 0, msg=str(data["movedTop"]))
 
     def test_overview_click_phases(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -1310,6 +1407,16 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertTrue(real_seed_fn["final"]["renderedMatchesCurrent"])
             self.assertEqual(real_seed_fn["movedCount"], 0, msg=str(real_seed_fn["movedTop"]))
             self.assertLessEqual(real_seed_fn["maxMovedDelta"], 0.5)
+
+            # --- seed 窓内でファイルをドラッグ: アニメーション直前の中心位置を使う ---
+            seed_drag = data["seedDragFile"]
+            self.assertTrue(seed_drag["seed"]["layoutRunning"], msg="ファイル ドラッグの seed 窓を再現できていない")
+            self.assertTrue(seed_drag["final"]["renderedMatchesCurrent"])
+            self.assertLessEqual(seed_drag["fileDriftFromDragged"], 8.0)
+            self.assertLessEqual(seed_drag["childCenterDriftFromFile"], 90.0)
+            self.assertAlmostEqual(seed_drag["seed"]["viewport"]["zoom"], seed_drag["final"]["viewport"]["zoom"], delta=0.001)
+            self.assertAlmostEqual(seed_drag["seed"]["viewport"]["pan"]["x"], seed_drag["final"]["viewport"]["pan"]["x"], delta=0.5)
+            self.assertAlmostEqual(seed_drag["seed"]["viewport"]["pan"]["y"], seed_drag["final"]["viewport"]["pan"]["y"], delta=0.5)
 
             # --- seed 窓内で無選択化へ割り込み (Problem 2): マップも完全に無選択へ整定 ---
             # 修正前は詳細ペインだけ無選択になりマップはファイル選択のまま残った。

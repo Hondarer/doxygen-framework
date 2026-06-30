@@ -296,6 +296,63 @@ async function runRealSeedInterruptFunctionStabilityScenario(page, filePath) {
   };
 }
 
+async function runSeedDragFileScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const seed = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    api.selectFile(p);
+    return {
+      layoutRunning: api.isLayoutRunning(),
+      viewport: api.viewport(),
+      filePosition: api.positionOf(p),
+      renderedFilePosition: api.renderedPositionOf(p)
+    };
+  }, filePath);
+
+  if (seed.renderedFilePosition) {
+    await page.mouse.move(seed.renderedFilePosition.x, seed.renderedFilePosition.y);
+    await page.mouse.down();
+    await page.mouse.move(seed.renderedFilePosition.x + 150, seed.renderedFilePosition.y + 90, { steps: 8 });
+    await page.mouse.up();
+  }
+
+  const afterDrag = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      filePosition: api.positionOf(p),
+      viewport: api.viewport()
+    };
+  }, filePath);
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    const children = api.childPositions(p);
+    const childCenter = children && children.length > 0
+      ? {
+          x: children.reduce((acc, child) => acc + child.x, 0) / children.length,
+          y: children.reduce((acc, child) => acc + child.y, 0) / children.length
+        }
+      : null;
+    return {
+      filePosition: api.positionOf(p),
+      childCenter,
+      viewport: api.viewport(),
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+    };
+  }, filePath);
+
+  return {
+    seed,
+    afterDrag,
+    final,
+    fileDriftFromDragged: distance(afterDrag.filePosition, final.filePosition),
+    childCenterDriftFromFile: distance(final.filePosition, final.childCenter)
+  };
+}
+
 // Problem 2: ファイル選択の seed 窓内に背景クリック相当の無選択化を行うと、以前は
 // 詳細ペインだけ無選択になりマップはファイル選択のまま残った。修正後はマップも完全に
 // 無選択へ整定することを検証する。
@@ -650,6 +707,10 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await waitOverviewReady(page);
 
+    const seedDragFile = await runSeedDragFileScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
     const seedInterruptClear = await runSeedInterruptClearScenario(page, 'src/file_a.c');
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
@@ -679,6 +740,7 @@ async function run(reportPath) {
       realClick,
       hidePersist,
       realSeedInterruptFunctionStability,
+      seedDragFile,
       hideRestoreBySelect,
       hideRestoreByFunction,
       hideRestoreByCycle,

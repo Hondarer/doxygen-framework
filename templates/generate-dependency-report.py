@@ -2110,6 +2110,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewLayoutWatchdog = null;
   let overviewInteractionStateBeforeLayout = null;
   let overviewDraggingNodeIds = new Set();
+  let overviewUserMovedNodePositions = new Map();
   let overviewDragRevision = 0;
   let overviewSyncAfterDrag = false;
   let overviewLastClassUpdatePlan = null;
@@ -3443,6 +3444,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const deferPositions = Boolean(opts && opts.deferPositions);
     const animatePositions = !(opts && opts.animatePositions === false);
     const fullConvergence = Boolean(opts && opts.fullConvergence);
+    const unlockAllDuringLayout = Boolean(opts && opts.unlockAllDuringLayout);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
     const anchorCenters = opts && opts.anchorCenters ? opts.anchorCenters : new Map();
     const immediate = Boolean(opts && opts.immediate) || !overviewLayoutInitialized;
@@ -3451,7 +3453,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const layoutToken = opts && opts.layoutToken ? opts.layoutToken : ++overviewLayoutToken;
     const syncToken = opts && opts.syncToken ? opts.syncToken : null;
     const startPositions = overviewNodePositions();
-    const lockedNodes = movingNodeIds ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
+    const lockedNodes = (!unlockAllDuringLayout && movingNodeIds) ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
     overviewLayoutInitialized = true;
     stopOverviewPositionAnimation();
     const isCurrentLayout = () => (
@@ -3475,6 +3477,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return;
       }}
       if (animatePositions) {{
+        applyOverviewUserMovedPositions(startPositions, anchorCenters);
         applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
         const targetPositions = overviewNodePositions();
         if (!isCurrentLayout()) {{
@@ -3649,6 +3652,29 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function hasOverviewDraggingNodes() {{
     return overviewDraggingNodeIds.size > 0;
+  }}
+
+  function rememberOverviewUserMovedPositions(node) {{
+    if (!overviewCy || !node || !node.length) return;
+    for (const id of overviewNodeDragIds(node)) {{
+      const element = overviewCy.getElementById(id);
+      if (!element || !element.length) continue;
+      const position = element.position();
+      overviewUserMovedNodePositions.set(id, {{ x: position.x, y: position.y }});
+    }}
+  }}
+
+  function applyOverviewUserMovedPositions(startPositions, anchorCenters) {{
+    if (!overviewCy || overviewUserMovedNodePositions.size === 0) return;
+    for (const [id, position] of overviewUserMovedNodePositions) {{
+      const element = overviewCy.getElementById(id);
+      if (!element || !element.length) continue;
+      startPositions.set(id, {{ x: position.x, y: position.y }});
+      if (anchorCenters && anchorCenters.has(id)) {{
+        anchorCenters.set(id, {{ x: position.x, y: position.y }});
+      }}
+    }}
+    overviewUserMovedNodePositions.clear();
   }}
 
   function restoreOverviewNodePositions(positions) {{
@@ -4215,6 +4241,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         onComplete: markPhaseCLayoutDone,
         deferPositions: true,
         fullConvergence: true,
+        unlockAllDuringLayout: true,
         syncToken: token
       }});
       requestOverviewFrame(startPhaseC);
@@ -4254,6 +4281,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function handleOverviewNodeDrag(node) {{
+    rememberOverviewUserMovedPositions(node);
     let added = false;
     for (const id of overviewNodeDragIds(node)) {{
       if (!overviewDraggingNodeIds.has(id)) {{
@@ -4265,6 +4293,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function handleOverviewNodeFree(node) {{
+    rememberOverviewUserMovedPositions(node);
     let removed = false;
     for (const id of overviewNodeDragIds(node)) {{
       if (overviewDraggingNodeIds.delete(id)) removed = true;
@@ -5165,6 +5194,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderedSignature: () => overviewRenderedSelectionSignature,
       pendingSignature: () => overviewPendingSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),
+      viewport: () => overviewViewport(),
       lastClassUpdatePlan: () => overviewLastClassUpdatePlan,
       activateFunctionList: () => activateTab("functionListPanel"),
       activateFileList: () => activateTab("fileListPanel"),
@@ -5193,6 +5223,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const rect = overviewGraph.getBoundingClientRect();
         return {{ x: rect.left + rendered.x, y: rect.top + rendered.y }};
       }},
+      renderedBoundingBoxOf: (id) => {{
+        if (!overviewCy) return null;
+        const element = overviewCy.getElementById(id);
+        if (!element || !element.length) return null;
+        const box = element.renderedBoundingBox({{ includeLabels: true, includeOverlays: false }});
+        return {{ x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2, w: box.w, h: box.h }};
+      }},
+      graphSize: () => overviewCy ? {{ width: overviewCy.width(), height: overviewCy.height() }} : null,
       positionOf: (id) => {{
         if (!overviewCy) return null;
         const element = overviewCy.getElementById(id);
