@@ -1198,12 +1198,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-danger-border: #f48771;
       --dep-graph-library-bg: #2d2a4a;
       --dep-graph-library-border: #9cdcfe;
-      --dep-graph-muted-library-bg: #171927;
-      --dep-graph-muted-library-border: #272d48;
+      --dep-graph-muted-library-bg: #171526;
+      --dep-graph-muted-library-border: #26233e;
       --dep-graph-source-bg: #3b2a4a;
       --dep-graph-source-border: #c586c0;
-      --dep-graph-muted-source-bg: #1b1421;
-      --dep-graph-muted-source-border: #35243d;
+      --dep-graph-muted-source-bg: #1e1526;
+      --dep-graph-muted-source-border: #31233e;
     }}
     body {{
       margin: 0;
@@ -2172,6 +2172,25 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }}
 
+  // #rgb / #rrggbb の前景色を背景色と alpha で混色し、不透明な #rrggbb を返す。
+  // エッジを opacity 1 で描いても、アルファ 0.7 で重ねたのと同じ見た目にするために使う。
+  // Cytoscape は opacity<1 の矢印を destination-out で切り抜くため、塊が不透明に浮く。
+  // see: https://github.com/cytoscape/cytoscape.js/blob/master/src/extensions/renderer/canvas/drawing-edges.js
+  function blendColor(fg, bg, alpha) {{
+    const toRgb = (value) => {{
+      if (typeof value !== "string") return null;
+      let hex = value.trim().replace(/^#/, "");
+      if (/^[0-9a-fA-F]{{3}}$/.test(hex)) hex = hex.replace(/(.)/g, "$1$1");
+      if (!/^[0-9a-fA-F]{{6}}$/.test(hex)) return null;
+      return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+    }};
+    const f = toRgb(fg);
+    const b = toRgb(bg);
+    if (!f || !b) return fg;
+    const mix = f.map((c, i) => Math.max(0, Math.min(255, Math.round(alpha * c + (1 - alpha) * b[i]))));
+    return "#" + mix.map((c) => c.toString(16).padStart(2, "0")).join("");
+  }}
+
   function updateThemeToggle() {{
     if (!themeToggle) return;
     const isDark = currentTheme === "dark";
@@ -2197,8 +2216,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function graphColors() {{
+    // エッジは opacity 1 で描くため、アルファ 0.7 で重ねた見た目を背景との混色で再現する。
+    const graphBackground = cssVar("--dep-graph-bg") || "#ffffff";
+    const flatEdge = (name, fallback) => blendColor(cssVar(name) || fallback, graphBackground, 0.7);
     return {{
-      background: cssVar("--dep-graph-bg") || "#ffffff",
+      background: graphBackground,
       labelBackground: cssVar("--dep-graph-label-bg") || "#ffffff",
       text: cssVar("--dep-graph-text") || "#111827",
       parentText: cssVar("--dep-graph-parent-text") || "#1f2937",
@@ -2210,10 +2232,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       mutedFileBorder: cssVar("--dep-graph-muted-file-border") || "#dbe4f0",
       mutedFileText: cssVar("--dep-graph-muted-file-text") || "#a8b4c3",
       parentBackground: cssVar("--dep-graph-parent-bg") || "#f1f5f9",
-      edge: cssVar("--dep-graph-edge") || "#64748b",
-      mutedEdge: cssVar("--dep-graph-muted-edge") || "#e2e8f0",
-      activeEdge: cssVar("--dep-graph-active-edge") || "#334155",
-      emphasisEdge: cssVar("--dep-graph-emphasis-edge") || "#111827",
+      edge: flatEdge("--dep-graph-edge", "#64748b"),
+      mutedEdge: flatEdge("--dep-graph-muted-edge", "#e2e8f0"),
+      activeEdge: flatEdge("--dep-graph-active-edge", "#334155"),
+      emphasisEdge: flatEdge("--dep-graph-emphasis-edge", "#111827"),
       leafBackground: cssVar("--dep-graph-leaf-bg") || "#dcfce7",
       leafBorder: cssVar("--dep-graph-leaf-border") || "#16a34a",
       localBackground: cssVar("--dep-graph-local-bg") || "#e0f2fe",
@@ -2481,7 +2503,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "target-arrow-shape": "triangle",
           "target-arrow-color": colors.edge,
           "line-color": colors.edge,
-          "opacity": 0.7,
+          "opacity": 1,
           "width": "mapData(weight, 1, 8, 1, 5)",
           "label": "data(label)",
           "font-size": 10,
@@ -2586,7 +2608,6 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "line-color": colors.emphasisEdge,
           "target-arrow-color": colors.emphasisEdge,
           "color": colors.emphasisEdge,
-          "opacity": 0.7,
           "z-compound-depth": "top",
           "z-index": 3
         }}

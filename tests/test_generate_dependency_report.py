@@ -532,12 +532,19 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("--dep-graph-muted-file-bg", index_html)
             self.assertIn("--dep-graph-muted-library-bg", index_html)
             self.assertIn("--dep-graph-muted-source-bg", index_html)
+            self.assertIn("--dep-graph-muted-library-bg: #171526;", index_html)
+            self.assertIn("--dep-graph-muted-library-border: #26233e;", index_html)
+            self.assertIn("--dep-graph-muted-source-bg: #1e1526;", index_html)
+            self.assertIn("--dep-graph-muted-source-border: #31233e;", index_html)
             self.assertIn("emphasisFileEdges", index_html)
             self.assertIn("function overviewSvgOrderedElements()", index_html)
             self.assertIn("styleOf: (id, names) =>", index_html)
             self.assertIn("svgDrawOrder: () => overviewSvgOrderedElements().map((element) => element.id()),", index_html)
             self.assertNotIn('"opacity": 0.3', index_html)
             self.assertNotIn('"opacity": 0.25', index_html)
+            # エッジはアルファでなく背景との混色で不透明に描く。矢印が下地を切り抜くのを防ぐため。
+            self.assertIn("function blendColor(fg, bg, alpha)", index_html)
+            self.assertIn("const flatEdge = (name, fallback) => blendColor(", index_html)
             self.assertIn("scrollbar-color:", index_html)
             self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
             self.assertIn('id="themeToggle"', index_html)
@@ -1389,12 +1396,17 @@ class OverviewInteractionTest(unittest.TestCase):
             outgoing_edge_style = light_style["edgeStyles"]["outgoing"]
             incoming_edge_style = light_style["edgeStyles"]["incoming"]
             muted_edge_style = light_style["edgeStyles"]["muted"]
-            self.assertAlmostEqual(_style_number(outgoing_edge_style, "opacity"), 0.7)
-            self.assertAlmostEqual(_style_number(incoming_edge_style, "opacity"), 0.7)
-            self.assertAlmostEqual(_style_number(muted_edge_style, "opacity"), 0.7)
+            # アルファを廃し不透明 (opacity 1) で描く。状態は色と z 順で表現する。
+            self.assertAlmostEqual(_style_number(outgoing_edge_style, "opacity"), 1.0)
+            self.assertAlmostEqual(_style_number(incoming_edge_style, "opacity"), 1.0)
+            self.assertAlmostEqual(_style_number(muted_edge_style, "opacity"), 1.0)
             self.assertEqual(outgoing_edge_style["color"], outgoing_edge_style["line-color"])
             self.assertEqual(incoming_edge_style["color"], incoming_edge_style["line-color"])
             self.assertEqual(muted_edge_style["color"], muted_edge_style["line-color"])
+            # 矢印を線と同じ見た目にする本修正の要: 矢印色は線色と一致する。
+            self.assertEqual(outgoing_edge_style["target-arrow-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(incoming_edge_style["target-arrow-color"], incoming_edge_style["line-color"])
+            self.assertEqual(muted_edge_style["target-arrow-color"], muted_edge_style["line-color"])
             self.assertLess(_style_number(muted_edge_style, "z-index"), _style_number(incoming_edge_style, "z-index"))
             self.assertEqual(incoming_edge_style["line-color"], outgoing_edge_style["line-color"])
             self.assertEqual(_style_number(incoming_edge_style, "z-index"), _style_number(outgoing_edge_style, "z-index"))
@@ -1415,9 +1427,10 @@ class OverviewInteractionTest(unittest.TestCase):
 
             selected_edge = style_state["selectedEdge"]
             self.assertIn("dep-selected-edge", selected_edge["classes"])
-            self.assertAlmostEqual(_style_number(selected_edge["style"], "opacity"), 0.7)
+            self.assertAlmostEqual(_style_number(selected_edge["style"], "opacity"), 1.0)
             self.assertEqual(selected_edge["style"]["line-color"], outgoing_edge_style["line-color"])
             self.assertEqual(selected_edge["style"]["color"], selected_edge["style"]["line-color"])
+            self.assertEqual(selected_edge["style"]["target-arrow-color"], selected_edge["style"]["line-color"])
 
             cycle_function = style_state["cycleFunction"]
             self.assertIn("dep-function-edge", cycle_function["edgeAClasses"])
