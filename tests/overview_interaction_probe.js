@@ -646,9 +646,22 @@ async function runSeedDragFileScenario(page, filePath) {
     const api = window.depReportOverviewTestApi;
     return {
       filePosition: api.positionOf(p),
-      viewport: api.viewport()
+      viewport: api.viewport(),
+      layoutRunning: api.isLayoutRunning(),
+      animationActive: api.isPositionAnimationActive()
     };
   }, filePath);
+
+  let animationSeenAfterDrag = afterDrag.animationActive;
+  for (let i = 0; i < 80; i++) {
+    const state = await page.evaluate(() => ({
+      layoutRunning: window.depReportOverviewTestApi.isLayoutRunning(),
+      animationActive: window.depReportOverviewTestApi.isPositionAnimationActive()
+    }));
+    if (state.animationActive) animationSeenAfterDrag = true;
+    if (!state.layoutRunning && animationSeenAfterDrag) break;
+    await sleep(25);
+  }
 
   await waitOverviewReady(page);
   const final = await page.evaluate((p) => {
@@ -672,6 +685,7 @@ async function runSeedDragFileScenario(page, filePath) {
     seed,
     afterDrag,
     final,
+    animationSeenAfterDrag,
     fileDriftFromDragged: distance(afterDrag.filePosition, final.filePosition),
     childCenterDriftFromFile: distance(final.filePosition, final.childCenter)
   };

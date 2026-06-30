@@ -2160,6 +2160,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewDraggingNodeIds = new Set();
   let overviewUserMovedNodePositions = new Map();
   let overviewFunctionGrabInterruptedLayout = false;
+  let overviewDeferredPositionAnimation = null;
   let overviewDragRevision = 0;
   let overviewSyncAfterDrag = false;
   let overviewLastClassUpdatePlan = null;
@@ -3884,6 +3885,35 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewUserMovedNodePositions.clear();
   }}
 
+  function applyOverviewDeferredDragPositions(deferred) {{
+    if (!overviewCy || !deferred || overviewUserMovedNodePositions.size === 0) return;
+    for (const [id] of overviewUserMovedNodePositions) {{
+      const node = overviewCy.getElementById(id);
+      if (!node || !node.length || node.data("parent")) continue;
+      const current = node.position();
+      deferred.startPositions.set(id, {{ x: current.x, y: current.y }});
+      const targetParent = deferred.targetPositions.get(id);
+      let dx = 0;
+      let dy = 0;
+      if (targetParent) {{
+        dx = current.x - targetParent.x;
+        dy = current.y - targetParent.y;
+        targetParent.x += dx;
+        targetParent.y += dy;
+      }}
+      node.descendants().nodes().forEach((child) => {{
+        const childCurrent = child.position();
+        deferred.startPositions.set(child.id(), {{ x: childCurrent.x, y: childCurrent.y }});
+        const targetChild = deferred.targetPositions.get(child.id());
+        if (targetChild) {{
+          targetChild.x += dx;
+          targetChild.y += dy;
+        }}
+      }});
+    }}
+    overviewUserMovedNodePositions.clear();
+  }}
+
   function restoreOverviewNodePositions(positions) {{
     if (!overviewCy) return;
     overviewCy.nodes().forEach((node) => {{
@@ -3959,11 +3989,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function animateOverviewPositions(startPositions, targetPositions, opts) {{
     if (!overviewCy) return;
     stopOverviewPositionAnimation();
-    if (overviewFunctionGrabInterruptedLayout || hasOverviewDraggingNodes()) {{
+    if (overviewFunctionGrabInterruptedLayout) {{
       const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
       if (onComplete) onComplete();
       return;
     }}
+    if (hasOverviewDraggingNodes()) {{
+      overviewDeferredPositionAnimation = {{
+        startPositions,
+        targetPositions,
+        opts: Object.assign({{}}, opts || {{}})
+      }};
+      overviewSyncAfterDrag = true;
+      return;
+    }}
+    overviewDeferredPositionAnimation = null;
     const duration = 430;
     const distances = new Map();
     let maxDistance = 1;
@@ -4512,6 +4552,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // overviewLayoutRunning と操作ロック/controls-inert が孤児化して固着する。差し替える側で
     // 明示的に解放する。
     if (overviewLayoutRunning) setOverviewLayoutRunning(false);
+    overviewDeferredPositionAnimation = null;
     stopOverviewPositionAnimation();
     stopOverviewActiveLayout();
     const completed = syncOverviewElementsCore(targetElements || buildOverviewElements(), opts || {{}}, token);
@@ -4524,6 +4565,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // 取りこぼす。実際の移動 (drag) があって初めてドラッグ扱いとする。
     if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewPositionAnimation)) {{
       if (overviewActiveLayout) stopOverviewActiveLayout();
+      overviewDeferredPositionAnimation = null;
       markOverviewFunctionLayoutInterrupted(node);
       overviewFunctionGrabInterruptedLayout = true;
     }}
@@ -4554,8 +4596,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (overviewDraggingNodeIds.delete(id)) removed = true;
     }}
     if (removed) overviewDragRevision += 1;
+    if (hasOverviewDraggingNodes()) return;
+    if (overviewDeferredPositionAnimation && !overviewFunctionGrabInterruptedLayout) {{
+      const deferred = overviewDeferredPositionAnimation;
+      overviewDeferredPositionAnimation = null;
+      overviewSyncAfterDrag = false;
+      applyOverviewDeferredDragPositions(deferred);
+      animateOverviewPositions(deferred.startPositions, deferred.targetPositions, deferred.opts);
+      return;
+    }}
     overviewFunctionGrabInterruptedLayout = false;
-    if (hasOverviewDraggingNodes() || !overviewSyncAfterDrag) return;
+    overviewDeferredPositionAnimation = null;
+    if (!overviewSyncAfterDrag) return;
     overviewSyncAfterDrag = false;
     runLatestOverviewSync({{ relayoutPending: true }}, buildOverviewElements());
   }}
