@@ -2014,11 +2014,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewCy = null;
   let overviewLayoutInitialized = false;
   let overviewPositionAnimation = null;
+  let overviewActiveLayout = null;
   let overviewLayoutRunning = false;
   let overviewLayoutToken = 0;
   let overviewSyncToken = 0;
   let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
+  let overviewPendingSelectionSignature = null;
   let overviewLayoutWatchdog = null;
   let overviewInteractionStateBeforeLayout = null;
   let overviewDraggingNodeIds = new Set();
@@ -3258,8 +3260,26 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return maxLength - (maxLength - minLength) * normalized;
   }}
 
+  // 進行中のレイアウト (cola / cose) を実際に停止する。layout.stop() は
+  // adaptor.stop() を呼ぶが layoutstop の発火は非同期になり得るため、ロックの解除は
+  // ここで即座に行い、停止由来の遅延 layoutstop は finishLayout 側の isCurrentLayout()
+  // ガードで無害化する。これを呼ばないと、新しい選択で別レイアウトを起動しても旧 cola が
+  // maxSimulationTime まで走り続け、同一 overviewCy 上で位置を奪い合って全体が暴れる。
+  function stopOverviewActiveLayout() {{
+    if (!overviewActiveLayout) return;
+    const active = overviewActiveLayout;
+    overviewActiveLayout = null;
+    if (active.lockedNodes) {{
+      try {{ active.lockedNodes.unlock(); }} catch (err) {{ /* 解除済みは無視 */ }}
+    }}
+    if (active.layout && typeof active.layout.stop === "function") {{
+      try {{ active.layout.stop(); }} catch (err) {{ /* 停止済みは無視 */ }}
+    }}
+  }}
+
   function runOverviewLayout(opts) {{
     if (!overviewCy) return;
+    stopOverviewActiveLayout();
     const fit = Boolean(opts && opts.fit);
     const manual = Boolean(opts && opts.manual);
     const deferPositions = Boolean(opts && opts.deferPositions);
@@ -3279,7 +3299,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const isCurrentLayout = () => (
       layoutToken === overviewLayoutToken && (!syncToken || isLatestOverviewSync(syncToken))
     );
+    let startedLayout = null;
     const finishLayout = async () => {{
+      // layoutstop が発火した時点でこのレイアウトは終了。アクティブ ハンドルが
+      // 自分自身を指しているなら解放する (別レイアウトに更新済みなら触らない)。
+      if (overviewActiveLayout && overviewActiveLayout.layout === startedLayout) overviewActiveLayout = null;
       if (!isCurrentLayout()) {{
         lockedNodes.unlock();
         return;
@@ -3348,6 +3372,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
         userConstIter: fullConvergence ? undefined : (manual ? 4 : 8),
         allConstIter: fullConvergence ? undefined : (manual ? 6 : 12)
       }});
+      startedLayout = layout;
+      overviewActiveLayout = {{ layout, lockedNodes }};
       layout.one("layoutstop", () => {{
         finishLayout();
       }});
@@ -3368,6 +3394,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       numIter: manual ? 500 : 1500,
       randomize: false
     }});
+    startedLayout = layout;
+    overviewActiveLayout = {{ layout, lockedNodes }};
     layout.one("layoutstop", () => {{
       finishLayout();
     }});
@@ -3843,6 +3871,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const immediate = Boolean(opts && opts.immediate);
     const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
     const selectionSignature = opts && opts.selectionSignature ? opts.selectionSignature : overviewSelectionSignature();
+    // この sync が目指す選択署名を進行中 (pending) として記録する。完了前 (Phase B/C 進行中)
+    // でも「マップが現在の選択へ向かっているか」を判定できるようにし、選択が変わったら
+    // 確実に再 sync させる。完了時に finishPhaseCIfReady が rendered と一致させる。
+    overviewPendingSelectionSignature = selectionSignature;
     const previousPositions = overviewNodePositions();
     const movingNodeIds = new Set();
     const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
@@ -3926,6 +3958,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (!overviewCy || !isLatestOverviewSync(token)) return;
       if (selectionSignature === overviewSelectionSignature()) {{
         overviewRenderedSelectionSignature = selectionSignature;
+        overviewPendingSelectionSignature = selectionSignature;
       }}
       if (onComplete) onComplete();
     }};
@@ -4007,6 +4040,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
     stopOverviewPositionAnimation();
+    stopOverviewActiveLayout();
     const completed = syncOverviewElementsCore(targetElements || buildOverviewElements(), opts || {{}}, token);
     if (completed && isLatestOverviewSync(token) && opts && opts.onSyncComplete) opts.onSyncComplete();
   }}
@@ -4052,13 +4086,25 @@ def write_html(output_dir: Path, category_id: str) -> None:
     );
   }}
 
+  // 「マップが現在の選択を反映済み、または進行中の sync が現在の選択を対象にしているか」。
+  // rendered だけを見る isOverviewRenderedSelectionCurrent と異なり、未完了 (Phase B/C 進行中) の
+  // pending も考慮する。これにより、進行中 sync が現在選択と異なる対象を目指している間は、
+  // 現在選択が偶然 rendered と一致しても再 sync をスキップせず、状態の食い違いを防ぐ。
+  function isOverviewSelectionPendingOrRendered() {{
+    return (
+      overviewCy &&
+      overviewCy.elements().length > 0 &&
+      overviewPendingSelectionSignature === overviewSelectionSignature()
+    );
+  }}
+
   function renderOverviewGraph(opts) {{
     if (!overviewCy) return;
     if (overviewCy.elements().length === 0) {{
       resetOverviewGraph();
       return true;
     }}
-    if (isOverviewRenderedSelectionCurrent()) {{
+    if (isOverviewSelectionPendingOrRendered()) {{
       return false;
     }}
     const selectionSignature = overviewSelectionSignature();
@@ -4121,6 +4167,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.resize();
     fitOverviewGraph();
     overviewRenderedSelectionSignature = overviewSelectionSignature();
+    overviewPendingSelectionSignature = overviewRenderedSelectionSignature;
     overviewGraph.classList.remove("layout-initializing");
     setOverviewControlsInert(false);
   }}
@@ -4129,7 +4176,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewCy) return;
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
+    stopOverviewActiveLayout();
     overviewRenderedSelectionSignature = null;
+    overviewPendingSelectionSignature = null;
     overviewGraph.classList.add("layout-initializing");
     setOverviewControlsInert(true);
     setOverviewGraphInteractionLocked(true);
@@ -4210,7 +4259,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       initOverviewGraph();
       const immediate = Boolean(opts && opts.immediate);
-      if (immediate && isOverviewRenderedSelectionCurrent()) {{
+      if (immediate && isOverviewSelectionPendingOrRendered()) {{
         return;
       }}
       if (immediate && overviewCy && overviewCy.elements().length > 0) {{
@@ -4795,11 +4844,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     window.depReportOverviewTestApi = {{
       activateOverview: () => activateTab("overviewPanel"),
       isReady: () => Boolean(overviewCy) && overviewCy.elements().length > 0 && isOverviewRenderedSelectionCurrent(),
-      isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
+      isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewActiveLayout) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
       clearSelection: () => clearOverviewSelection(),
       renderedSignature: () => overviewRenderedSelectionSignature,
+      pendingSignature: () => overviewPendingSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),
       lastClassUpdatePlan: () => overviewLastClassUpdatePlan,
       activateFunctionList: () => activateTab("functionListPanel"),

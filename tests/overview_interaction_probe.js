@@ -169,6 +169,82 @@ async function runHiddenTabSelectionScenario(page, filePath) {
   };
 }
 
+// Phase B の seed 配置直後 (cola 計算中・layoutstop 前) に選択を別の対象へ変えたとき、
+// 進行中レイアウトが破棄され、新しい選択に対応した状態へ整定することを検証する。
+// selectFile 直後に同一 JS ターンで割り込むことで、cola の layoutstop (非同期) より前に
+// 確実に割り込み、グラフ規模に依らず seed 窓内の競合を再現する。
+async function runSeedInterruptFunctionScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const interrupt = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    api.selectFile(p);
+    // seed 窓内 (Phase B 進行中) であることの確認材料。
+    const mid = {
+      layoutRunning: api.isLayoutRunning(),
+      pending: api.pendingSignature(),
+      rendered: api.renderedSignature()
+    };
+    const fnIds = api.nodeIds().filter((id) => id.indexOf('src/') === -1);
+    const fnId = fnIds.length > 0 ? fnIds[0] : '';
+    if (fnId) api.selectFunction(fnId);
+    return {
+      fnId,
+      mid,
+      afterPending: api.pendingSignature()
+    };
+  }, filePath);
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      currentSignature: api.currentSignature(),
+      fnIsCenter: (api.classesOf(args.fnId) || []).indexOf('dep-center-node') !== -1,
+      fileSelectedFile: (api.classesOf(args.filePath) || []).indexOf('dep-selected-file') !== -1,
+      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('src/') === -1).length
+    };
+  }, { fnId: interrupt.fnId, filePath });
+
+  return { interrupt, final };
+}
+
+// Problem 2: ファイル選択の seed 窓内に背景クリック相当の無選択化を行うと、以前は
+// 詳細ペインだけ無選択になりマップはファイル選択のまま残った。修正後はマップも完全に
+// 無選択へ整定することを検証する。
+async function runSeedInterruptClearScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const interrupt = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    api.selectFile(p);
+    const mid = {
+      layoutRunning: api.isLayoutRunning(),
+      pending: api.pendingSignature(),
+      rendered: api.renderedSignature(),
+      fileSelectedFile: (api.classesOf(p) || []).indexOf('dep-selected-file') !== -1
+    };
+    api.clearSelection();
+    return { mid, afterPending: api.pendingSignature() };
+  }, filePath);
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      currentSignature: api.currentSignature(),
+      fileSelectedFile: (api.classesOf(p) || []).indexOf('dep-selected-file') !== -1,
+      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('src/') === -1).length
+    };
+  }, filePath);
+
+  return { interrupt, final };
+}
+
 async function runRapidSelectionScenario(page) {
   const immediate = await page.evaluate(() => {
     const api = window.depReportOverviewTestApi;
@@ -291,7 +367,20 @@ async function run(reportPath) {
 
     // 実マウス クリックでの位置補正検証。grab/free を実際に発火させるため、
     // selectFile 直呼びではなく page.mouse.click を使う。
+    // renderedPositionOf 由来の座標クリックは現在のズーム/パンに敏感なため、
+    // ビューポートを変えうる seed 窓割り込み シナリオより前に実施する。
     const realClick = await runRealClickScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
+    // seed 窓内割り込み (API 直呼びのためビューポート非依存)。realClick の後に実施する。
+    const seedInterruptFunction = await runSeedInterruptFunctionScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
+    const seedInterruptClear = await runSeedInterruptClearScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
 
     return {
       initialNodeIds,
@@ -301,6 +390,8 @@ async function run(reportPath) {
       clearSelection,
       hiddenTabSelection,
       rapidSelection,
+      seedInterruptFunction,
+      seedInterruptClear,
       centerStability,
       realClick,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)

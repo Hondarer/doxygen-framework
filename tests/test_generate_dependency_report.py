@@ -275,9 +275,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('overviewGraph.classList.add("layout-initializing");', index_html)
             self.assertIn('overviewGraph.classList.add("layout-relayouting");', index_html)
             self.assertIn("if (hideDuringUpdate) {", index_html)
-            self.assertIn("if (immediate && isOverviewRenderedSelectionCurrent())", index_html)
-            self.assertIn("if (isOverviewRenderedSelectionCurrent()) {\n      return false;\n    }", index_html)
-            self.assertIn("if (immediate && isOverviewRenderedSelectionCurrent()) {\n        return;\n      }", index_html)
+            # 選択変更のスキップ判定は、完了済み (rendered) だけでなく進行中 (pending) の
+            # 対象も考慮する。これにより seed 窓内の選択変更で再 sync が確実に走る。
+            self.assertIn("function isOverviewSelectionPendingOrRendered()", index_html)
+            self.assertIn("overviewPendingSelectionSignature === overviewSelectionSignature()", index_html)
+            self.assertIn("if (immediate && isOverviewSelectionPendingOrRendered())", index_html)
+            self.assertIn("if (isOverviewSelectionPendingOrRendered()) {\n      return false;\n    }", index_html)
+            self.assertIn("if (immediate && isOverviewSelectionPendingOrRendered()) {\n        return;\n      }", index_html)
+            # reveal 待ちは完了 (rendered) を待つ必要があるため rendered ベースのまま。
+            self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
+            # 進行中レイアウトの実停止 (旧 cola の churn を止める)。
+            self.assertIn("function stopOverviewActiveLayout()", index_html)
+            self.assertIn("overviewPendingSelectionSignature = selectionSignature;", index_html)
             self.assertNotIn(
                 "if (isOverviewRenderedSelectionCurrent()) {\n      overviewCy.resize();",
                 index_html,
@@ -1174,6 +1183,42 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertIn("dep-selected-file", rapid_selection["final"]["selectedFileClasses"])
             self.assertTrue(rapid_selection["final"]["fileAMuted"])
             self.assertFalse(rapid_selection["final"]["fileCMuted"])
+
+            # --- seed 窓内で関数選択へ割り込み: 進行中レイアウトを破棄し関数選択へ整定 ---
+            # selectFile 直後 (Phase B 進行中) に selectFunction で割り込む。修正前は停止されない
+            # 旧 cola が走り続け全体が暴れたが、修正後は新しい選択へ clean に整定する。
+            seed_fn = data["seedInterruptFunction"]
+            self.assertTrue(
+                seed_fn["interrupt"]["mid"]["layoutRunning"],
+                msg="selectFile 直後にレイアウトが進行中でない (seed 窓を再現できていない)",
+            )
+            fn_id = seed_fn["interrupt"]["fnId"]
+            self.assertTrue(fn_id, msg="file_a の関数ノードが取得できていない")
+            self.assertTrue(seed_fn["final"]["renderedMatchesCurrent"])
+            expected_fn_sig = json.dumps([fn_id, "src/file_a.c", ""], separators=(",", ":"))
+            self.assertEqual(seed_fn["final"]["currentSignature"], expected_fn_sig)
+            # 選択した関数が中心ノードとして強調され、ファイル選択強調は外れている。
+            # 関数選択ビューは選択関数とその呼び出し関係に絞り込まれるため、ファイル全関数では
+            # なく関係する関数のみを対象にレイアウトされる (進行中の旧レイアウトは破棄済み)。
+            self.assertTrue(seed_fn["final"]["fnIsCenter"])
+            self.assertFalse(seed_fn["final"]["fileSelectedFile"])
+            self.assertGreaterEqual(seed_fn["final"]["functionNodeCount"], 1)
+
+            # --- seed 窓内で無選択化へ割り込み (Problem 2): マップも完全に無選択へ整定 ---
+            # 修正前は詳細ペインだけ無選択になりマップはファイル選択のまま残った。
+            seed_clear = data["seedInterruptClear"]
+            self.assertTrue(
+                seed_clear["interrupt"]["mid"]["layoutRunning"],
+                msg="selectFile 直後にレイアウトが進行中でない (seed 窓を再現できていない)",
+            )
+            self.assertTrue(seed_clear["final"]["renderedMatchesCurrent"])
+            self.assertEqual(
+                seed_clear["final"]["currentSignature"],
+                json.dumps(["", "", ""], separators=(",", ":")),
+            )
+            # マップ側も無選択へ整定: ファイル選択強調が外れ、関数ノードも消えていること。
+            self.assertFalse(seed_clear["final"]["fileSelectedFile"])
+            self.assertEqual(seed_clear["final"]["functionNodeCount"], 0)
 
             # --- ファイル選択 -> 選択解除の往復で、ファイル グループ中心を維持する ---
             center_stability = data["centerStability"]
