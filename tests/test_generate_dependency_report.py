@@ -273,6 +273,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 index_html.index('href="dependency-files-utf8-bom.csv"'),
                 index_html.index('href="dependency-files.csv"'),
             )
+            self.assertIn('data-download-kind="json"', index_html)
+            self.assertIn('data-download-kind="functions-csv" data-download-bom="true"', index_html)
+            self.assertIn('data-download-kind="functions-csv"', index_html)
+            self.assertIn('data-download-kind="files-csv" data-download-bom="true"', index_html)
+            self.assertIn('data-download-kind="files-csv"', index_html)
+            self.assertIn("const FUNCTION_CSV_FIELDS = [", index_html)
+            self.assertIn("const FILE_CSV_FIELDS = [", index_html)
+            self.assertIn("function csvCell(value)", index_html)
+            self.assertIn("function generatedDownloadBlob(link)", index_html)
+            self.assertIn("function triggerBlobDownload(blob, name)", index_html)
+            self.assertIn('if (window.location.protocol !== "http:" && window.location.protocol !== "https:") {\n        fallbackDownload();', index_html)
+            self.assertIn('text = "\\ufeff" + text;', index_html)
             self.assertIn('id="functionListPanel"', index_html)
             self.assertIn('id="fileListPanel"', index_html)
             self.assertIn('id="fileRows"', index_html)

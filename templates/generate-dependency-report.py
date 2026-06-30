@@ -1902,19 +1902,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <div class="dep-title-actions">
       <button type="button" id="themeToggle" class="dep-theme-toggle" aria-pressed="false">ライト</button>
       <section class="dep-downloads" role="group" aria-label="ダウンロード">
-        <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" title="JSON 形式の全データをダウンロード">JSON</a>
+        <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" data-download-kind="json" title="JSON 形式の全データをダウンロード">JSON</a>
         <div class="dep-download-menu">
           <button type="button" class="dep-download-menu-button" aria-expanded="false" title="関数一覧の CSV をダウンロード">関数 CSV</button>
           <div class="dep-download-menu-items" hidden>
-            <a class="dep-download" href="dependency-functions-utf8-bom.csv" download data-download-name="dependency-functions-utf8-bom.csv" title="関数一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
-            <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" title="関数一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
+            <a class="dep-download" href="dependency-functions-utf8-bom.csv" download data-download-name="dependency-functions-utf8-bom.csv" data-download-kind="functions-csv" data-download-bom="true" title="関数一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
+            <a class="dep-download" href="dependency-functions.csv" download data-download-name="dependency-functions.csv" data-download-kind="functions-csv" title="関数一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
           </div>
         </div>
         <div class="dep-download-menu">
           <button type="button" class="dep-download-menu-button" aria-expanded="false" title="ファイル一覧の CSV をダウンロード">ファイル CSV</button>
           <div class="dep-download-menu-items" hidden>
-            <a class="dep-download" href="dependency-files-utf8-bom.csv" download data-download-name="dependency-files-utf8-bom.csv" title="ファイル一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
-            <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" title="ファイル一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
+            <a class="dep-download" href="dependency-files-utf8-bom.csv" download data-download-name="dependency-files-utf8-bom.csv" data-download-kind="files-csv" data-download-bom="true" title="ファイル一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
+            <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" data-download-kind="files-csv" title="ファイル一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
           </div>
         </div>
       </section>
@@ -5315,32 +5315,153 @@ def write_html(output_dir: Path, category_id: str) -> None:
     closeDownloadMenus(null);
   }});
 
+  const FUNCTION_CSV_FIELDS = [
+    "dependencyLevel",
+    "dependencyRank",
+    "dependencyDepth",
+    "dependencyClass",
+    "sourceArea",
+    "maxCalleeArea",
+    "dominantCallKind",
+    "isExported",
+    "isStatic",
+    "name",
+    "file",
+    "line",
+    "inScopeCalleeCount",
+    "inScopeCallerCount",
+    "sameFileCalleeCount",
+    "crossFileCalleeCount",
+    "sccId",
+    "cycleGroupSize",
+    "id",
+    "htmlUrl",
+    "sourceUrl",
+    "brief"
+  ];
+
+  const FILE_CSV_FIELDS = [
+    "path",
+    "functionCount",
+    "exportCount",
+    "staticCount",
+    "edgeCount",
+    "dominantArea",
+    "levels",
+    "classes",
+    "areas",
+    "brief",
+    "htmlUrl",
+    "sourceUrl"
+  ];
+
+  function stableJsonText(value) {{
+    const source = value && typeof value === "object" && !Array.isArray(value) ? value : {{}};
+    const sorted = {{}};
+    for (const key of Object.keys(source).sort()) {{
+      sorted[key] = source[key];
+    }}
+    return JSON.stringify(sorted);
+  }}
+
+  function csvCell(value) {{
+    if (value === null || value === undefined) return "";
+    const textValue = String(value);
+    if (/[",\\r\\n]/.test(textValue)) {{
+      return "\\"" + textValue.replace(/"/g, "\\"\\"") + "\\"";
+    }}
+    return textValue;
+  }}
+
+  function csvText(fieldNames, rows) {{
+    const lines = [fieldNames.map(csvCell).join(",")];
+    for (const row of rows || []) {{
+      lines.push(fieldNames.map((field) => csvCell(row[field])).join(","));
+    }}
+    return lines.join("\\r\\n") + "\\r\\n";
+  }}
+
+  function generatedFileCsvRows() {{
+    return files.map((file) => ({{
+      path: file.path,
+      functionCount: file.functionCount,
+      exportCount: file.exportCount,
+      staticCount: file.staticCount,
+      edgeCount: file.edgeCount,
+      dominantArea: file.dominantArea,
+      levels: stableJsonText(file.levels),
+      classes: stableJsonText(file.classes),
+      areas: stableJsonText(file.areas),
+      brief: file.brief || "",
+      htmlUrl: file.htmlUrl || "",
+      sourceUrl: file.sourceUrl || ""
+    }}));
+  }}
+
+  function generatedDownloadText(kind) {{
+    if (kind === "json") {{
+      return JSON.stringify(data, null, 2) + "\\n";
+    }}
+    if (kind === "functions-csv") {{
+      return csvText(FUNCTION_CSV_FIELDS, functions);
+    }}
+    if (kind === "files-csv") {{
+      return csvText(FILE_CSV_FIELDS, generatedFileCsvRows());
+    }}
+    return null;
+  }}
+
+  function generatedDownloadBlob(link) {{
+    const kind = link.getAttribute("data-download-kind") || "";
+    let text = generatedDownloadText(kind);
+    if (text === null) return null;
+    if (link.getAttribute("data-download-bom") === "true") {{
+      text = "\\ufeff" + text;
+    }}
+    return new Blob([text], {{ type: "application/octet-stream" }});
+  }}
+
+  function triggerBlobDownload(blob, name) {{
+    const url = URL.createObjectURL(new Blob([blob], {{ type: "application/octet-stream" }}));
+    const tmp = document.createElement("a");
+    tmp.href = url;
+    tmp.setAttribute("download", name);
+    document.body.appendChild(tmp);
+    tmp.click();
+    document.body.removeChild(tmp);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }}
+
   for (const link of document.querySelectorAll(".dep-download")) {{
     link.addEventListener("click", (ev) => {{
       const menu = link.closest(".dep-download-menu");
       if (menu) closeDownloadMenus(null);
-      if (window.location.protocol !== "http:" && window.location.protocol !== "https:") return;
       const href = link.getAttribute("href");
       if (!href) return;
       const name = link.getAttribute("data-download-name") || href.split("/").pop();
+      const fallbackDownload = () => {{
+        const generatedBlob = generatedDownloadBlob(link);
+        if (generatedBlob) {{
+          triggerBlobDownload(generatedBlob, name);
+          return;
+        }}
+        window.location.href = href;
+      }};
       ev.preventDefault();
+      if (window.location.protocol !== "http:" && window.location.protocol !== "https:") {{
+        fallbackDownload();
+        return;
+      }}
       fetch(href, {{ cache: "no-store" }})
         .then((res) => {{
           if (!res.ok) throw new Error("HTTP " + res.status);
           return res.blob();
         }})
         .then((blob) => {{
-          const url = URL.createObjectURL(new Blob([blob], {{ type: "application/octet-stream" }}));
-          const tmp = document.createElement("a");
-          tmp.href = url;
-          tmp.setAttribute("download", name);
-          document.body.appendChild(tmp);
-          tmp.click();
-          document.body.removeChild(tmp);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          triggerBlobDownload(blob, name);
         }})
         .catch(() => {{
-          window.location.href = href;
+          fallbackDownload();
         }});
     }});
   }}
