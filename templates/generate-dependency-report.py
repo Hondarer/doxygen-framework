@@ -2493,6 +2493,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "width": "mapData(weight, 1, 12, 42, 86)",
           "height": "mapData(weight, 1, 12, 42, 86)",
           "z-index": 1,
+          "z-index-compare": "manual",
           "z-compound-depth": "bottom"
         }}
       }},
@@ -2512,6 +2513,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "text-background-opacity": 0.85,
           "text-background-padding": 2,
           "z-compound-depth": "bottom",
+          "z-index-compare": "manual",
           "z-index": 0
         }}
       }},
@@ -2558,7 +2560,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "background-color": colors.mutedFileBackground,
           "border-color": colors.mutedFileBorder,
           "color": colors.mutedFileText,
-          "z-index": 0
+          "z-index": -1
         }}
       }},
       {{
@@ -2581,7 +2583,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "line-color": colors.mutedEdge,
           "target-arrow-color": colors.mutedEdge,
           "color": colors.mutedEdge,
-          "z-index": -1
+          "z-index": -2
         }}
       }},
       {{

@@ -1407,6 +1407,9 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertEqual(outgoing_edge_style["target-arrow-color"], outgoing_edge_style["line-color"])
             self.assertEqual(incoming_edge_style["target-arrow-color"], incoming_edge_style["line-color"])
             self.assertEqual(muted_edge_style["target-arrow-color"], muted_edge_style["line-color"])
+            self.assertEqual(outgoing_edge_style["z-index-compare"], "manual")
+            self.assertEqual(incoming_edge_style["z-index-compare"], "manual")
+            self.assertEqual(muted_edge_style["z-index-compare"], "manual")
             self.assertLess(_style_number(muted_edge_style, "z-index"), _style_number(incoming_edge_style, "z-index"))
             self.assertEqual(incoming_edge_style["line-color"], outgoing_edge_style["line-color"])
             self.assertEqual(_style_number(incoming_edge_style, "z-index"), _style_number(outgoing_edge_style, "z-index"))
@@ -1419,6 +1422,11 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertAlmostEqual(_style_number(source_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
             self.assertAlmostEqual(_style_number(library_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
             self.assertAlmostEqual(_style_number(default_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
+            self.assertEqual(selected_node_style["z-index-compare"], "manual")
+            self.assertEqual(related_node_style["z-index-compare"], "manual")
+            self.assertEqual(source_muted_style["z-index-compare"], "manual")
+            self.assertLess(_style_number(muted_edge_style, "z-index"), _style_number(source_muted_style, "z-index"))
+            self.assertLess(_style_number(source_muted_style, "z-index"), _style_number(incoming_edge_style, "z-index"))
             self.assertLess(_style_number(source_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
             self.assertLess(_style_number(library_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
             self.assertLess(_style_number(default_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
@@ -1439,6 +1447,7 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertEqual(cycle_function["edgeBStyle"]["line-color"], outgoing_edge_style["line-color"])
             self.assertEqual(cycle_function["edgeAStyle"]["color"], cycle_function["edgeAStyle"]["line-color"])
             self.assertEqual(cycle_function["edgeBStyle"]["color"], cycle_function["edgeBStyle"]["line-color"])
+            self.assertLess(_style_number(source_muted_style, "z-index"), _style_number(cycle_function["edgeAStyle"], "z-index"))
 
             function_relation = style_state["functionRelation"]
             self.assertIn("dep-function-edge", function_relation["selectedEdgeClasses"])
@@ -1447,6 +1456,7 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertEqual(function_relation["selectedEdgeStyle"]["color"], function_relation["selectedEdgeStyle"]["line-color"])
             self.assertEqual(function_relation["relatedEdgeStyle"]["color"], function_relation["relatedEdgeStyle"]["line-color"])
             self.assertNotEqual(function_relation["relatedEdgeStyle"]["line-color"], function_relation["selectedEdgeStyle"]["line-color"])
+            self.assertLess(_style_number(function_relation["relatedEdgeStyle"], "z-index"), _style_number(related_node_style, "z-index"))
             self.assertLess(
                 _style_color_luminance(function_relation["selectedEdgeStyle"]["line-color"]),
                 _style_color_luminance(function_relation["relatedEdgeStyle"]["line-color"]),
@@ -1459,6 +1469,8 @@ class OverviewInteractionTest(unittest.TestCase):
             )
 
             svg_order = light_style["svgOrder"]
+            self.assertLess(svg_order.index("src/file_c.c"), svg_order.index("src/file_b.c\nsrc/file_a.c"))
+            self.assertLess(svg_order.index("src/file_c.c"), svg_order.index("src/file_a.c\nsrc/file_b.c"))
             self.assertLess(svg_order.index("src/file_d.c\nsrc/file_e.c"), svg_order.index("src/file_b.c\nsrc/file_a.c"))
             self.assertLess(svg_order.index("src/file_d.c\nsrc/file_e.c"), svg_order.index("src/file_a.c\nsrc/file_b.c"))
             self.assertLess(svg_order.index("src/file_b.c\nsrc/file_a.c"), svg_order.index("a_main"))

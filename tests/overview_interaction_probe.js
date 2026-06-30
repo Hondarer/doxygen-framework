@@ -58,8 +58,8 @@ async function waitOverviewReady(page) {
 }
 
 async function runStyleScenario(page) {
-  const edgeStyleNames = ['line-color', 'target-arrow-color', 'color', 'opacity', 'z-index'];
-  const nodeStyleNames = ['background-color', 'border-color', 'color', 'opacity', 'z-index'];
+  const edgeStyleNames = ['line-color', 'target-arrow-color', 'color', 'opacity', 'z-index', 'z-index-compare', 'z-compound-depth'];
+  const nodeStyleNames = ['background-color', 'border-color', 'color', 'opacity', 'z-index', 'z-index-compare', 'z-compound-depth'];
   const outgoingEdge = 'src/file_a.c\nsrc/file_b.c';
   const incomingEdge = 'src/file_b.c\nsrc/file_a.c';
   const mutedEdge = 'src/file_d.c\nsrc/file_e.c';
