@@ -2105,6 +2105,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let hiddenOverviewFiles = new Map();
   // 復活させるファイルへ、次の sync で与える元位置を一時的に保持する。
   let overviewRestorePositions = new Map();
+  // 操作割り込みで中止されたレイアウトの移動対象 (seed のままになった関数ノード id) を一時的に
+  // 保持する。中止 (stopOverviewActiveLayout) 時に記録し、次の sync で movingNodeIds へ再投入して
+  // Phase B をやり直す。自然完了したレイアウトは記録しないため、grab によるアニメーション中断など
+  // 中止を伴わないケースには影響しない。再投入した sync で消費・クリアする。
+  let overviewPendingRelayoutNodeIds = new Set();
   // 右クリック対象のファイル ノード (メニューの「このファイルを非表示」で使う)。
   let overviewMenuTargetFile = "";
   let overviewLayoutWatchdog = null;
@@ -2606,6 +2611,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function hideOverviewFile(filePath) {{
     if (!filePath || hiddenOverviewFiles.has(filePath)) return;
+    // レイアウト計算中 (seed の窓内) の非表示は、実行中レイアウトを中止して操作を反映した上で、
+    // 取り残された seed 関数を再レイアウトする。定常状態の通常非表示では再 sync せず、不要な
+    // 再レイアウトとちらつきを避ける。
+    const resyncForInterrupt = Boolean(overviewActiveLayout ||
+      (overviewPositionAnimation && overviewPositionAnimation.active));
     let savedPosition = null;
     if (overviewCy) {{
       const node = overviewCy.getElementById(filePath);
@@ -2613,14 +2623,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const position = node.position();
         savedPosition = {{ x: position.x, y: position.y }};
         // UI 用語は「非表示」だが、描画を軽くするため実体を削除する。compound 子の
-        // 関数ノードと接続エッジは Cytoscape が連動して削除する。
-        overviewCy.batch(() => {{
-          node.remove();
-        }});
+        // 関数ノードと接続エッジは Cytoscape が連動して削除する。割り込み時はここで削除せず、
+        // 再 sync の stale 削除に委ねる (layoutNeeded が立ち、中止された関数が Phase B へ再投入される)。
+        if (!resyncForInterrupt) {{
+          overviewCy.batch(() => {{
+            node.remove();
+          }});
+        }}
       }}
     }}
     hiddenOverviewFiles.set(filePath, savedPosition);
     updateOverviewHiddenNotice();
+    if (resyncForInterrupt) forceRenderOverviewGraph();
   }}
 
   // 非表示ファイルをすべて元の位置に再表示する。選択状態や詳細ペインは変えない。
@@ -3428,6 +3442,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!overviewActiveLayout) return;
     const active = overviewActiveLayout;
     overviewActiveLayout = null;
+    // 中止するレイアウトの移動対象は seed のまま取り残されるため、再レイアウト保留として記録する。
+    // 次の sync で現存するものを movingNodeIds へ再投入し Phase B をやり直す。
+    if (active.movingNodeIds) {{
+      for (const id of active.movingNodeIds) overviewPendingRelayoutNodeIds.add(id);
+    }}
     if (active.lockedNodes) {{
       try {{ active.lockedNodes.unlock(); }} catch (err) {{ /* 解除済みは無視 */ }}
     }}
@@ -3467,6 +3486,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (!isCurrentLayout()) {{
         lockedNodes.unlock();
         return;
+      }}
+      // このレイアウトは中止されず完了した。レイアウト対象を再レイアウト保留から外す
+      // (中止時に stopOverviewActiveLayout が登録するのと対称。これで pending は「最後の
+      // レイアウト試行が中止されたノード」だけを保持する)。
+      if (movingNodeIds) {{
+        for (const id of movingNodeIds) overviewPendingRelayoutNodeIds.delete(id);
       }}
       if (immediate && layoutPasses > 1) {{
         lockedNodes.unlock();
@@ -3534,7 +3559,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         allConstIter: fullConvergence ? undefined : (manual ? 6 : 12)
       }});
       startedLayout = layout;
-      overviewActiveLayout = {{ layout, lockedNodes }};
+      overviewActiveLayout = {{ layout, lockedNodes, movingNodeIds }};
       layout.one("layoutstop", () => {{
         finishLayout();
       }});
@@ -4169,6 +4194,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
     }});
 
+    // 中止されたレイアウトで seed のまま取り残された関数を今回の移動対象へ再投入する。直前の
+    // レイアウトが操作割り込み (reveal/hide) で中止されたケースで、取り残された関数を Phase B で
+    // 再レイアウトするための再開ロジック。
+    // 再投入は force render 経路 (revealAllOverviewFiles / hide 割り込みが forceRenderOverviewGraph
+    // 経由で渡す opts.force) の sync に限定する。通常の選択 sync には影響させない。これにより、
+    // 選択操作のレイアウト挙動・ノード位置を変えず、座標依存のクリック判定などを乱さない。
+    // pending への登録/削除は中止時 (stopOverviewActiveLayout) と自然完了時 (finishLayout) で対称に
+    // 行うため、ここではクリアしない (再投入した関数は新レイアウト完了時に finishLayout が削除する)。
+    if (opts && opts.force && layoutNeeded && overviewPendingRelayoutNodeIds.size > 0) {{
+      for (const id of overviewPendingRelayoutNodeIds) {{
+        const node = overviewCy.getElementById(id);
+        if (node && node.length) movingNodeIds.add(id);
+      }}
+    }}
+
     if (!isLatestOverviewSync(token)) return false;
 
     // --- Phase C 本体 ---
@@ -4443,6 +4483,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // 初期化では非表示を解除し、全ファイルを元の状態へ戻す。
     hiddenOverviewFiles.clear();
     overviewRestorePositions.clear();
+    overviewPendingRelayoutNodeIds.clear();
     updateOverviewHiddenNotice();
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;

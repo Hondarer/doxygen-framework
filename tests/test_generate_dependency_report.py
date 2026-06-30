@@ -1523,6 +1523,37 @@ class OverviewInteractionTest(unittest.TestCase):
                 json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
             )
 
+            # --- seed 窓内で再表示に割り込み: 中止された関数レイアウトをやり直す ---
+            # 非表示ファイルがある状態で表示中ファイルを選択し、seed の cola 計算中に再表示すると、
+            # 進行中レイアウトは中止される。修正前は選択ファイルの関数が再レイアウトされず seed
+            # 円形配置のまま残った。修正後は未整定の関数を再投入し Phase B をやり直す。
+            seed_reveal = data["seedInterruptReveal"]
+            self.assertTrue(seed_reveal["available"])
+            self.assertTrue(
+                seed_reveal["revealLayoutRunningBefore"],
+                msg="再表示の時点でレイアウトが進行中でない (seed 窓を再現できていない)",
+            )
+            self.assertEqual(seed_reveal["total"], len(file_a_functions))
+            self.assertEqual(seed_reveal["hiddenCount"], 0)
+            self.assertTrue(seed_reveal["fileCRevealed"])
+            self.assertTrue(seed_reveal["renderedMatchesCurrent"])
+            self.assertTrue(seed_reveal["isReady"])
+            # 過半数の関数が seed から移動している (レイアウトがやり直された)。
+            self.assertGreater(seed_reveal["moved"], len(file_a_functions) // 2)
+
+            # --- seed 窓内で別ファイルの非表示に割り込み: 同様に関数レイアウトをやり直す ---
+            seed_hide = data["seedInterruptHide"]
+            self.assertTrue(seed_hide["available"])
+            self.assertTrue(
+                seed_hide["hideLayoutRunningBefore"],
+                msg="非表示の時点でレイアウトが進行中でない (seed 窓を再現できていない)",
+            )
+            self.assertEqual(seed_hide["total"], len(file_a_functions))
+            self.assertTrue(seed_hide["fileBHidden"])
+            self.assertTrue(seed_hide["renderedMatchesCurrent"])
+            self.assertTrue(seed_hide["isReady"])
+            self.assertGreater(seed_hide["moved"], len(file_a_functions) // 2)
+
 
 if __name__ == "__main__":
     unittest.main()

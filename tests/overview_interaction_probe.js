@@ -601,6 +601,102 @@ async function runRevealAllScenario(page) {
   return { afterHide, afterReveal };
 }
 
+// seed 窓内 (Phase B の cola 計算中) に非表示ファイルを再表示して割り込んだとき、
+// 中止された選択ファイルの関数レイアウトがやり直され、seed 円形配置から整定移動することを検証する。
+async function runSeedInterruptRevealScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  // 選択対象 (file_a) と無関係なファイルを 1 つ非表示にしておく (再表示の対象)。
+  await page.evaluate(() => window.depReportOverviewTestApi.hideFile('src/file_c.c'));
+  await waitOverviewReady(page);
+
+  // ファイルを実マウスでクリックし、Phase B (cola) を seed から起動させる。
+  const pos = await page.evaluate((p) => window.depReportOverviewTestApi.renderedPositionOf(p), filePath);
+  if (!pos) return { available: false };
+  await page.mouse.click(pos.x, pos.y);
+  // seed 窓内 (Phase B 進行中) の断面と seed 配置。
+  await sleep(60);
+  const seedInfo = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return { layoutRunning: api.isLayoutRunning(), children: api.childPositions(p) };
+  }, filePath);
+  // seed 窓内で再表示を起動する (実行中レイアウトを割り込む)。
+  const revealStarted = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const before = api.isLayoutRunning();
+    const notice = document.getElementById('overviewHiddenNotice');
+    if (notice) notice.click();
+    return { layoutRunningBeforeReveal: before };
+  });
+  await sleep(3500);
+  const settled = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      children: api.childPositions(p),
+      hiddenFiles: api.hiddenFiles(),
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      isReady: api.isReady()
+    };
+  }, filePath);
+  return {
+    available: true,
+    seedLayoutRunning: seedInfo.layoutRunning,
+    revealLayoutRunningBefore: revealStarted.layoutRunningBeforeReveal,
+    total: settled.children ? settled.children.length : 0,
+    moved: countMoved(seedInfo.children, settled.children),
+    fileCRevealed: settled.fileCExists,
+    hiddenCount: settled.hiddenFiles.length,
+    renderedMatchesCurrent: settled.renderedMatchesCurrent,
+    isReady: settled.isReady
+  };
+}
+
+// seed 窓内 (Phase B の cola 計算中) に別ファイルを非表示にして割り込んだとき、
+// 中止された選択ファイルの関数レイアウトがやり直され、seed から整定移動することを検証する。
+async function runSeedInterruptHideScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+
+  const pos = await page.evaluate((p) => window.depReportOverviewTestApi.renderedPositionOf(p), filePath);
+  if (!pos) return { available: false };
+  await page.mouse.click(pos.x, pos.y);
+  await sleep(60);
+  const seedInfo = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return { layoutRunning: api.isLayoutRunning(), children: api.childPositions(p) };
+  }, filePath);
+  // seed 窓内で別ファイル (選択ファイルではない) を非表示にして割り込む。
+  const hideStarted = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const before = api.isLayoutRunning();
+    api.hideFile('src/file_b.c');
+    return { layoutRunningBeforeHide: before };
+  });
+  await sleep(3500);
+  const settled = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      children: api.childPositions(p),
+      hiddenFiles: api.hiddenFiles(),
+      fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
+      isReady: api.isReady()
+    };
+  }, filePath);
+  return {
+    available: true,
+    seedLayoutRunning: seedInfo.layoutRunning,
+    hideLayoutRunningBefore: hideStarted.layoutRunningBeforeHide,
+    total: settled.children ? settled.children.length : 0,
+    moved: countMoved(seedInfo.children, settled.children),
+    fileBHidden: !settled.fileBExists,
+    hiddenCount: settled.hiddenFiles.length,
+    renderedMatchesCurrent: settled.renderedMatchesCurrent,
+    isReady: settled.isReady
+  };
+}
+
 async function run(reportPath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -725,6 +821,14 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
 
+    // seed 窓内の表示/非表示割り込みで、選択ファイルの関数レイアウトがやり直されることを検証する。
+    const seedInterruptReveal = await runSeedInterruptRevealScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+    await waitOverviewReady(page);
+    const seedInterruptHide = await runSeedInterruptHideScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+    await waitOverviewReady(page);
+
     return {
       initialNodeIds,
       sync,
@@ -745,6 +849,8 @@ async function run(reportPath) {
       hideRestoreByFunction,
       hideRestoreByCycle,
       revealAll,
+      seedInterruptReveal,
+      seedInterruptHide,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
     };
   } finally {
