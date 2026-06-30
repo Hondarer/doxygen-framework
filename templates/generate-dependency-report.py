@@ -1657,6 +1657,29 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border-radius: 6px;
       background: var(--dep-graph-bg);
     }}
+    .dep-graph-hidden-notice {{
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      z-index: 30;
+      display: none;
+      padding: 4px 10px;
+      border: 1px solid var(--dep-border);
+      border-radius: 4px;
+      background: var(--dep-input-bg);
+      color: var(--dep-input-text);
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }}
+    .dep-graph-hidden-notice.visible {{
+      display: block;
+    }}
+    .dep-graph-hidden-notice:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-input-bg));
+      color: var(--dep-accent);
+      border-color: var(--dep-accent);
+    }}
     .dep-graph.layout-initializing::after,
     .dep-graph.layout-relayouting::after {{
       position: absolute;
@@ -1958,18 +1981,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" id="overviewRelayout">レイアウト再実行</button>
           <button type="button" id="overviewReset">初期化</button>
         </div>
-        <div id="overviewGraph" class="dep-graph"></div>
+        <div id="overviewGraph" class="dep-graph">
+          <button type="button" id="overviewHiddenNotice" class="dep-graph-hidden-notice">非表示ファイルの再表示</button>
+        </div>
         <div id="overviewGraphMenu" class="dep-graph-context-menu" role="menu" aria-label="マップ操作">
+          <button type="button" role="menuitem" data-action="hide-file" data-menu-scope="node">このファイルを非表示</button>
           <!-- SVG 保存は要素数が多い場合に不安定なため、拡張用コードだけを残す。
           <button type="button" role="menuitem" data-svg-scope="full">マップ全体を SVG で保存</button>
           <button type="button" role="menuitem" data-svg-scope="viewport">表示範囲を SVG で保存</button>
           -->
-          <button type="button" role="menuitem" data-png-scope="full">マップ全体を PNG で保存</button>
-          <button type="button" role="menuitem" data-png-scope="viewport">表示範囲を PNG で保存</button>
-          <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true"></div>
-          <button type="button" role="menuitem" data-action="fit">Fit</button>
-          <button type="button" role="menuitem" data-action="relayout">レイアウト再実行</button>
-          <button type="button" role="menuitem" data-action="reset">初期化</button>
+          <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="full">マップ全体を PNG で保存</button>
+          <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="viewport">表示範囲を PNG で保存</button>
+          <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true" data-menu-scope="background"></div>
+          <button type="button" role="menuitem" data-menu-scope="background" data-action="fit">Fit</button>
+          <button type="button" role="menuitem" data-menu-scope="background" data-action="relayout">レイアウト再実行</button>
+          <button type="button" role="menuitem" data-menu-scope="background" data-action="reset">初期化</button>
         </div>
       </div>
       <aside class="dep-detail dep-graph-detail" id="overviewDetail">
@@ -2053,6 +2079,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   const overviewRelayout = document.getElementById("overviewRelayout");
   const overviewReset = document.getElementById("overviewReset");
   const overviewGraphMenu = document.getElementById("overviewGraphMenu");
+  const overviewHiddenNotice = document.getElementById("overviewHiddenNotice");
   const themeToggle = document.getElementById("themeToggle");
   const reportCategory = {js_category};
   const themeStorageKey = "doxyfw-dependency-theme";
@@ -2073,6 +2100,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
   let overviewPendingSelectionSignature = null;
+  // 全体マップで「非表示」にしたファイル。UI 用語は非表示だが実体はノード・エッジを
+  // 削除し描画を軽くする。値は非表示時のファイル ノード位置 (復活時の元位置復元用)。
+  let hiddenOverviewFiles = new Map();
+  // 復活させるファイルへ、次の sync で与える元位置を一時的に保持する。
+  let overviewRestorePositions = new Map();
+  // 右クリック対象のファイル ノード (メニューの「このファイルを非表示」で使う)。
+  let overviewMenuTargetFile = "";
   let overviewLayoutWatchdog = null;
   let overviewInteractionStateBeforeLayout = null;
   let overviewDraggingNodeIds = new Set();
@@ -2539,8 +2573,19 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewGraphMenu.classList.remove("visible");
   }}
 
-  function showOverviewGraphMenu(clientX, clientY) {{
+  function applyOverviewGraphMenuScope(scope) {{
     if (!overviewGraphMenu) return;
+    // 各項目は data-menu-scope を持つ。背景の右クリックでは background、ファイル ノードの
+    // 右クリックでは node の項目だけ表示する。未指定の項目は常に表示する。
+    for (const item of overviewGraphMenu.querySelectorAll("[data-menu-scope]")) {{
+      const itemScope = item.getAttribute("data-menu-scope");
+      item.style.display = !itemScope || itemScope === scope ? "" : "none";
+    }}
+  }}
+
+  function showOverviewGraphMenu(clientX, clientY, scope) {{
+    if (!overviewGraphMenu) return;
+    applyOverviewGraphMenuScope(scope || "background");
     const margin = 8;
     overviewGraphMenu.classList.add("visible");
     overviewGraphMenu.style.left = "0px";
@@ -2550,6 +2595,41 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const top = Math.min(Math.max(margin, clientY), Math.max(margin, window.innerHeight - rect.height - margin));
     overviewGraphMenu.style.left = left + "px";
     overviewGraphMenu.style.top = top + "px";
+  }}
+
+  function updateOverviewHiddenNotice() {{
+    if (!overviewHiddenNotice) return;
+    overviewHiddenNotice.classList.toggle("visible", hiddenOverviewFiles.size > 0);
+  }}
+
+  function hideOverviewFile(filePath) {{
+    if (!filePath || hiddenOverviewFiles.has(filePath)) return;
+    let savedPosition = null;
+    if (overviewCy) {{
+      const node = overviewCy.getElementById(filePath);
+      if (node && node.length) {{
+        const position = node.position();
+        savedPosition = {{ x: position.x, y: position.y }};
+        // UI 用語は「非表示」だが、描画を軽くするため実体を削除する。compound 子の
+        // 関数ノードと接続エッジは Cytoscape が連動して削除する。
+        overviewCy.batch(() => {{
+          node.remove();
+        }});
+      }}
+    }}
+    hiddenOverviewFiles.set(filePath, savedPosition);
+    updateOverviewHiddenNotice();
+  }}
+
+  // 非表示ファイルをすべて元の位置に再表示する。選択状態や詳細ペインは変えない。
+  function revealAllOverviewFiles() {{
+    if (hiddenOverviewFiles.size === 0) return;
+    for (const [path, position] of hiddenOverviewFiles) {{
+      if (position) overviewRestorePositions.set(path, position);
+    }}
+    hiddenOverviewFiles.clear();
+    updateOverviewHiddenNotice();
+    forceRenderOverviewGraph();
   }}
 
   function overviewFitElements() {{
@@ -2684,6 +2764,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     if (action === "reset") {{
       resetOverviewGraphState();
+      return true;
+    }}
+    if (action === "hide-file") {{
+      if (overviewMenuTargetFile) hideOverviewFile(overviewMenuTargetFile);
       return true;
     }}
     return false;
@@ -3059,6 +3143,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const selectionState = overviewSelectionState(fileEdgeByKey);
     const elements = [];
     for (const file of files) {{
+      if (hiddenOverviewFiles.has(file.path)) continue;
       const classes = ["dep-file-node"];
       const areaClass = graphFileClassFor(file.dominantArea);
       if (areaClass) classes.push(areaClass);
@@ -3066,7 +3151,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (selectionState.hasSelection && !selectionState.activeFiles.has(file.path)) {{
         classes.push("dep-file-node-muted");
       }}
-      elements.push({{
+      const fileElement = {{
         data: {{
           id: file.path,
           label: shortPath(file.path),
@@ -3074,9 +3159,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
           path: file.path
         }},
         classes: classes.join(" ")
-      }});
+      }};
+      const restorePosition = overviewRestorePositions.get(file.path);
+      if (restorePosition) fileElement.position = {{ x: restorePosition.x, y: restorePosition.y }};
+      elements.push(fileElement);
     }}
     for (const edge of fileEdges) {{
+      if (hiddenOverviewFiles.has(edge.fromFile) || hiddenOverviewFiles.has(edge.toFile)) continue;
       const classes = [];
       if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
       if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
@@ -3122,11 +3211,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
+      .filter((fn) => !hiddenOverviewFiles.has(fn.file))
       .sort((a, b) => {{
         if (a.id === selectedId) return -1;
         if (b.id === selectedId) return 1;
         return compareBaseOrder(a, b);
       }});
+    const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
     const childrenByFile = new Map();
     for (let index = 0; index < visibleFns.length; index++) {{
       const fn = visibleFns[index];
@@ -3147,7 +3238,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
     if (selectedId) {{
       for (const edge of edges) {{
-        if (!visibleFnIds.has(edge.caller) || !visibleFnIds.has(edge.callee)) continue;
+        if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
         elements.push({{
           data: {{
             id: edge.caller + "->" + edge.callee,
@@ -3182,6 +3273,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const elements = [];
     if (!(await processOverviewChunks(files, token, (chunk) => {{
       for (const file of chunk) {{
+        if (hiddenOverviewFiles.has(file.path)) continue;
         const classes = ["dep-file-node"];
         const areaClass = graphFileClassFor(file.dominantArea);
         if (areaClass) classes.push(areaClass);
@@ -3202,6 +3294,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}))) return null;
     if (!(await processOverviewChunks(fileEdges, token, (chunk) => {{
       for (const edge of chunk) {{
+        if (hiddenOverviewFiles.has(edge.fromFile) || hiddenOverviewFiles.has(edge.toFile)) continue;
         const classes = [];
         if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
         if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
@@ -3226,11 +3319,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
+      .filter((fn) => !hiddenOverviewFiles.has(fn.file))
       .sort((a, b) => {{
         if (a.id === selectedId) return -1;
         if (b.id === selectedId) return 1;
         return compareBaseOrder(a, b);
       }});
+    const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
     const childrenByFile = new Map();
     let fnIndex = 0;
     if (!(await processOverviewChunks(visibleFns, token, (chunk) => {{
@@ -3256,7 +3351,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (selectedId) {{
       if (!(await processOverviewChunks(edges, token, (chunk) => {{
         for (const edge of chunk) {{
-          if (!visibleFnIds.has(edge.caller) || !visibleFnIds.has(edge.callee)) continue;
+          if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
           elements.push({{
             data: {{
               id: edge.caller + "->" + edge.callee,
@@ -3858,6 +3953,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
         anchorCenters.set(parentId, previousPositions.get(parentId));
       }}
     }}
+    // 非表示から復活したファイルは previousPositions に存在しない。保存した元位置を
+    // アンカーに加え、再表示後もレイアウトで流されず元の場所へ戻るようにする。
+    for (const [path, position] of overviewRestorePositions) {{
+      if (position) anchorCenters.set(path, position);
+    }}
     return anchorCenters;
   }}
 
@@ -3931,6 +4031,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const movingNodeIds = new Set();
     const anchorCenters = collectOverviewAnchorCenters(previousPositions, targetElements);
     anchorOverviewChildPositions(targetElements, anchorCenters);
+    // 復活させるファイル ノードは元位置に固定したい。movingNodeIds から除外することで
+    // ロック対象 (非移動) となり、レイアウトで element.position (復活位置) から流されない。
+    const restoredFilePaths = new Set(overviewRestorePositions.keys());
+    // 復活位置はこの sync が消費した (要素 position とアンカーへ反映済み)。次回以降に
+    // 残さないようクリアする。
+    if (overviewRestorePositions.size > 0) overviewRestorePositions.clear();
     const plan = overviewSyncDiffPlan(targetElements);
     const previousSelectionSignature = overviewRenderedSelectionSignature || JSON.stringify(["", "", ""]);
     const previousHasSelection = selectionSignatureHasSelection(previousSelectionSignature);
@@ -3960,7 +4066,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
           .filter(Boolean)
           .map(overviewStructureElement);
         for (const element of missingElements) {{
-          if (!isEdgeElement(element)) movingNodeIds.add(element.data.id);
+          if (isEdgeElement(element)) continue;
+          // 復活ファイル ノードはロックして元位置に固定する。
+          if (restoredFilePaths.has(element.data.id)) continue;
+          movingNodeIds.add(element.data.id);
         }}
         if (missingElements.length > 0) {{
           overviewCy.add(missingElements);
@@ -4150,13 +4259,49 @@ def write_html(output_dir: Path, category_id: str) -> None:
     );
   }}
 
+  // 選択操作に応じて、非表示ファイルのうち復活条件を満たすものを再表示する。
+  // 復活条件: 選択中ファイル自身、選択中関数の所属ファイル、循環参照の関数選択時に限り
+  // 循環グループ各関数の所属ファイル。「関連ファイル」や「関連関数の所属ファイル」だけでは
+  // 復活しない。戻り値は復活が発生したか。
+  function reconcileHiddenOverviewFiles() {{
+    if (hiddenOverviewFiles.size === 0) return false;
+    const reveal = new Set();
+    if (selectedFilePath && hiddenOverviewFiles.has(selectedFilePath)) {{
+      reveal.add(selectedFilePath);
+    }}
+    if (selectedId) {{
+      const fn = byId.get(selectedId);
+      if (fn) {{
+        if (hiddenOverviewFiles.has(fn.file)) reveal.add(fn.file);
+        if (fn.dependencyClass === "cycle") {{
+          for (const cycleId of cycleGroupFunctionIds(fn)) {{
+            const cycleFn = byId.get(cycleId);
+            if (cycleFn && hiddenOverviewFiles.has(cycleFn.file)) reveal.add(cycleFn.file);
+          }}
+        }}
+      }}
+    }}
+    if (reveal.size === 0) return false;
+    for (const path of reveal) {{
+      const position = hiddenOverviewFiles.get(path);
+      hiddenOverviewFiles.delete(path);
+      if (position) overviewRestorePositions.set(path, position);
+    }}
+    updateOverviewHiddenNotice();
+    return true;
+  }}
+
+  function forceRenderOverviewGraph() {{
+    if (activeTab === "overviewPanel") renderOverviewGraph({{ force: true }});
+  }}
+
   function renderOverviewGraph(opts) {{
     if (!overviewCy) return;
     if (overviewCy.elements().length === 0) {{
       resetOverviewGraph();
       return true;
     }}
-    if (isOverviewSelectionPendingOrRendered()) {{
+    if (!(opts && opts.force) && isOverviewSelectionPendingOrRendered()) {{
       return false;
     }}
     const selectionSignature = overviewSelectionSignature();
@@ -4226,6 +4371,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function resetOverviewGraph() {{
     if (!overviewCy) return;
+    // 初期化では非表示を解除し、全ファイルを元の状態へ戻す。
+    hiddenOverviewFiles.clear();
+    overviewRestorePositions.clear();
+    updateOverviewHiddenNotice();
     const token = ++overviewSyncToken;
     ++overviewLayoutToken;
     stopOverviewActiveLayout();
@@ -4278,8 +4427,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.on("free", "node", (event) => {{
       handleOverviewNodeFree(event.target);
     }});
-    overviewCy.on("cxttap", (event) => {{
-      if (event.target !== overviewCy) return;
+    function overviewCxtMenuCoords(event) {{
       const originalEvent = event.originalEvent || {{}};
       if (originalEvent.preventDefault) originalEvent.preventDefault();
       let clientX = Number(originalEvent.clientX);
@@ -4289,8 +4437,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
         clientX = rect.left + event.renderedPosition.x;
         clientY = rect.top + event.renderedPosition.y;
       }}
-      if (Number.isFinite(clientX) && Number.isFinite(clientY)) {{
-        showOverviewGraphMenu(clientX, clientY);
+      return {{ clientX, clientY }};
+    }}
+    overviewCy.on("cxttap", (event) => {{
+      if (event.target !== overviewCy) return;
+      const coords = overviewCxtMenuCoords(event);
+      if (Number.isFinite(coords.clientX) && Number.isFinite(coords.clientY)) {{
+        overviewMenuTargetFile = "";
+        showOverviewGraphMenu(coords.clientX, coords.clientY, "background");
+      }}
+    }});
+    overviewCy.on("cxttap", "node.dep-file-node", (event) => {{
+      const coords = overviewCxtMenuCoords(event);
+      if (Number.isFinite(coords.clientX) && Number.isFinite(coords.clientY)) {{
+        overviewMenuTargetFile = event.target.id();
+        showOverviewGraphMenu(coords.clientX, coords.clientY, "node");
       }}
     }});
     overviewGraph.addEventListener("contextmenu", (event) => {{
@@ -4310,8 +4471,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function refreshActiveGraph(opts) {{
     if (activeTab === "overviewPanel") {{
       initOverviewGraph();
+      // 他タブで選択変更後に全体マップへ遷移した場合も復活条件を評価する。
+      const revealed = reconcileHiddenOverviewFiles();
       const immediate = Boolean(opts && opts.immediate);
-      if (immediate && isOverviewSelectionPendingOrRendered()) {{
+      if (!revealed && immediate && isOverviewSelectionPendingOrRendered()) {{
         return;
       }}
       if (immediate && overviewCy && overviewCy.elements().length > 0) {{
@@ -4333,7 +4496,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           finishImmediateRefresh();
           return;
         }}
-        const renderOpts = {{ immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature() }};
+        const renderOpts = {{ immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed }};
         const resetStarted = renderOverviewGraph(renderOpts);
         if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
           finishImmediateRefresh();
@@ -4626,6 +4789,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (id === selectedId && !selectedEdgeKey) {{
       ensureFunctionRowSelectionRendered();
       renderNotice();
+      if (reconcileHiddenOverviewFiles()) forceRenderOverviewGraph();
       if (opts && opts.activateFunctionList) {{
         pendingFunctionListScroll = true;
         activateTab("functionListPanel");
@@ -4637,6 +4801,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedId = id;
     selectedFilePath = fn.file;
     selectedEdgeKey = "";
+    reconcileHiddenOverviewFiles();
     renderDetail(fn);
     renderFileDetail(fn.file);
     renderOverviewFunctionDetail(fn);
@@ -4655,6 +4820,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (path === selectedFilePath && selectedId === "" && selectedEdgeKey === "") {{
       ensureFileRowSelectionRendered();
       renderFileNotice();
+      if (reconcileHiddenOverviewFiles()) forceRenderOverviewGraph();
       if (opts && opts.activateFileList) {{
         pendingFileListScroll = true;
         activateTab("fileListPanel");
@@ -4666,6 +4832,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     selectedFilePath = path;
     selectedId = "";
     selectedEdgeKey = "";
+    reconcileHiddenOverviewFiles();
     renderDetail(null);
     renderFileDetail(path);
     renderOverviewDetail(path);
@@ -4806,6 +4973,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   overviewReset.addEventListener("click", () => {{
     resetOverviewGraphState();
   }});
+  if (overviewHiddenNotice) {{
+    overviewHiddenNotice.addEventListener("click", () => {{
+      revealAllOverviewFiles();
+    }});
+  }}
   if (themeToggle) {{
     updateThemeToggle();
     themeToggle.addEventListener("click", () => {{
@@ -4932,6 +5104,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
       clearSelection: () => clearOverviewSelection(),
+      hideFile: (path) => hideOverviewFile(path),
+      hiddenFiles: () => Array.from(hiddenOverviewFiles.keys()),
+      hiddenNoticeVisible: () => Boolean(overviewHiddenNotice && overviewHiddenNotice.classList.contains("visible")),
+      resetGraph: () => resetOverviewGraphState(),
       renderedSignature: () => overviewRenderedSelectionSignature,
       pendingSignature: () => overviewPendingSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),

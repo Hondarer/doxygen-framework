@@ -296,7 +296,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function overviewSelectionSignature()", index_html)
             self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
             self.assertIn("function renderOverviewGraph(opts)", index_html)
-            self.assertIn("const renderOpts = { immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature() };", index_html)
+            self.assertIn("const renderOpts = { immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed };", index_html)
             self.assertIn("const resetStarted = renderOverviewGraph(renderOpts);", index_html)
             self.assertIn("const viewportBeforeUpdate = hideDuringUpdate ? overviewViewport() : null;", index_html)
             self.assertIn("function scheduleOverviewRelayoutReveal(opts)", index_html)
@@ -310,9 +310,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 対象も考慮する。これにより seed 窓内の選択変更で再 sync が確実に走る。
             self.assertIn("function isOverviewSelectionPendingOrRendered()", index_html)
             self.assertIn("overviewPendingSelectionSignature === overviewSelectionSignature()", index_html)
-            self.assertIn("if (immediate && isOverviewSelectionPendingOrRendered())", index_html)
-            self.assertIn("if (isOverviewSelectionPendingOrRendered()) {\n      return false;\n    }", index_html)
-            self.assertIn("if (immediate && isOverviewSelectionPendingOrRendered()) {\n        return;\n      }", index_html)
+            # 復活発生時 (revealed) はスキップせず再 sync を強制する。
+            self.assertIn("if (!revealed && immediate && isOverviewSelectionPendingOrRendered())", index_html)
+            self.assertIn("if (!(opts && opts.force) && isOverviewSelectionPendingOrRendered()) {\n      return false;\n    }", index_html)
+            self.assertIn("if (!revealed && immediate && isOverviewSelectionPendingOrRendered()) {\n        return;\n      }", index_html)
             # reveal 待ちは完了 (rendered) を待つ必要があるため rendered ベースのまま。
             self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
             # 進行中レイアウトの実停止 (旧 cola の churn を止める)。
@@ -526,6 +527,23 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function cycleGroupFunctionIds(fn)", index_html)
             self.assertIn("function cycleGroupSection(fn)", index_html)
             self.assertIn("for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);", index_html)
+            # ファイル非表示 (右クリック) 機能の埋め込み確認。
+            self.assertIn("function hideOverviewFile(filePath)", index_html)
+            self.assertIn("function reconcileHiddenOverviewFiles()", index_html)
+            self.assertIn("function updateOverviewHiddenNotice()", index_html)
+            self.assertIn('overviewCy.on("cxttap", "node.dep-file-node"', index_html)
+            self.assertIn('data-action="hide-file"', index_html)
+            # 非表示ファイルの再表示ボタン (押せるボタンとして全件復活する)。
+            self.assertIn('<button type="button" id="overviewHiddenNotice"', index_html)
+            self.assertIn("非表示ファイルの再表示", index_html)
+            self.assertIn(".dep-graph-hidden-notice", index_html)
+            self.assertIn("function revealAllOverviewFiles()", index_html)
+            self.assertIn("revealAllOverviewFiles();", index_html)
+            # 非表示ファイルは要素生成から除外する。
+            self.assertIn("if (hiddenOverviewFiles.has(file.path)) continue;", index_html)
+            self.assertIn(".filter((fn) => !hiddenOverviewFiles.has(fn.file))", index_html)
+            # 初期化で全復活。
+            self.assertIn("hiddenOverviewFiles.clear();", index_html)
 
     def test_cycle_detection(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -1100,6 +1118,36 @@ OVERVIEW_FIXTURE = {
   </compounddef>
 </doxygen>
 """,
+    # file_d と file_e はファイルをまたぐ循環参照 (d_cyc <-> e_cyc)。循環関数の選択時に
+    # 限り、循環相手の所属ファイルが非表示でも復活させる例外条件の検証に使う。
+    "file_d.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__d_8c" kind="file">
+    <compoundname>file_d.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="d_cyc" static="no">
+        <name>d_cyc</name>
+        <references refid="e_cyc" compoundref="file__e_8c">e_cyc</references>
+        <location file="src/file_d.c" line="10" bodyfile="src/file_d.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+    "file_e.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__e_8c" kind="file">
+    <compoundname>file_e.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="e_cyc" static="no">
+        <name>e_cyc</name>
+        <references refid="d_cyc" compoundref="file__d_8c">d_cyc</references>
+        <location file="src/file_e.c" line="10" bodyfile="src/file_e.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
 }
 
 
@@ -1148,7 +1196,7 @@ class OverviewInteractionTest(unittest.TestCase):
             # 初期はファイル ノードのみ。
             self.assertEqual(
                 sorted(data["initialNodeIds"]),
-                ["src/file_a.c", "src/file_b.c", "src/file_c.c"],
+                ["src/file_a.c", "src/file_b.c", "src/file_c.c", "src/file_d.c", "src/file_e.c"],
             )
 
             # file_a の関数 (a_helper, a_util, a_h1..a_h5, a_main の 8 個)。
@@ -1267,6 +1315,75 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertEqual(real_click["total"], len(file_a_functions))
             # 過半数の関数が初期配置 (seed) から移動していること。
             self.assertGreater(real_click["moved"], len(file_a_functions) // 2)
+
+            # --- 右クリック非表示: 一般的な選択変更・背景クリックでは復活せず初期化で全復活 ---
+            hide_persist = data["hidePersist"]
+            # 非表示直後: ノードが消え、非表示集合とラベルに反映される。
+            self.assertFalse(hide_persist["afterHide"]["fileCExists"])
+            self.assertEqual(hide_persist["afterHide"]["hiddenFiles"], ["src/file_c.c"])
+            self.assertTrue(hide_persist["afterHide"]["noticeVisible"])
+            # 背景クリック相当の無選択化では復活しない (要件どおり維持)。
+            self.assertFalse(hide_persist["afterBgClear"]["fileCExists"])
+            self.assertEqual(hide_persist["afterBgClear"]["hiddenFiles"], ["src/file_c.c"])
+            # 別ファイル選択でも復活しない (関連扱いに留まる)。
+            self.assertFalse(hide_persist["afterOtherSelect"]["fileCExists"])
+            self.assertEqual(hide_persist["afterOtherSelect"]["hiddenFiles"], ["src/file_c.c"])
+            # 初期化で全復活し、ラベルも消える。
+            self.assertTrue(hide_persist["afterReset"]["fileCExists"])
+            self.assertEqual(hide_persist["afterReset"]["hiddenFiles"], [])
+            self.assertFalse(hide_persist["afterReset"]["noticeVisible"])
+
+            # --- 非表示ファイル自身の選択で復活し、元の位置近傍へ再表示 ---
+            restore_select = data["hideRestoreBySelect"]
+            self.assertTrue(restore_select["restored"]["fileCExists"])
+            self.assertEqual(restore_select["restored"]["hiddenFiles"], [])
+            self.assertFalse(restore_select["restored"]["noticeVisible"])
+            self.assertIsNotNone(restore_select["beforeHide"])
+            self.assertIsNotNone(restore_select["restoreDrift"])
+            # 元の位置近傍 (アンカー復元) へ戻ること。
+            self.assertLess(restore_select["restoreDrift"], 2.0)
+
+            # --- 非表示ファイルの関数選択で復活、ただし非循環の関連先では復活しない ---
+            restore_fn = data["hideRestoreByFunction"]
+            # a_main は b_entry を呼ぶが、関連先になっただけでは file_b は復活しない。
+            self.assertFalse(restore_fn["afterRelated"]["fileBExists"])
+            self.assertFalse(restore_fn["afterRelated"]["bEntryExists"])
+            self.assertEqual(restore_fn["afterRelated"]["hiddenFiles"], ["src/file_b.c"])
+            # file_b 自身の関数 (b_entry) を選択すると復活する。
+            self.assertTrue(restore_fn["afterOwn"]["fileBExists"])
+            self.assertEqual(restore_fn["afterOwn"]["hiddenFiles"], [])
+
+            # --- 循環参照の例外: 循環関数選択で循環相手の所属ファイルを復活 ---
+            restore_cycle = data["hideRestoreByCycle"]
+            self.assertFalse(restore_cycle["afterHide"]["fileEExists"])
+            self.assertEqual(restore_cycle["afterHide"]["hiddenFiles"], ["src/file_e.c"])
+            self.assertTrue(restore_cycle["afterCycleSelect"]["fileEExists"])
+            self.assertTrue(restore_cycle["afterCycleSelect"]["eCycExists"])
+            self.assertEqual(restore_cycle["afterCycleSelect"]["hiddenFiles"], [])
+
+            # --- 「非表示ファイルの再表示」ボタン: 選択を変えず全件復活 ---
+            reveal_all = data["revealAll"]
+            # ボタンとして押せる状態 (透過・hit test 無効ではない)。
+            self.assertTrue(reveal_all["afterHide"]["noticeIsButton"])
+            self.assertTrue(reveal_all["afterHide"]["noticeClickable"])
+            self.assertTrue(reveal_all["afterHide"]["noticeVisible"])
+            self.assertEqual(
+                sorted(reveal_all["afterHide"]["hiddenFiles"]),
+                ["src/file_b.c", "src/file_c.c"],
+            )
+            self.assertFalse(reveal_all["afterHide"]["fileBExists"])
+            self.assertFalse(reveal_all["afterHide"]["fileCExists"])
+            # クリックで全件復活し、ラベルも消える。
+            self.assertEqual(reveal_all["afterReveal"]["hiddenFiles"], [])
+            self.assertFalse(reveal_all["afterReveal"]["noticeVisible"])
+            self.assertTrue(reveal_all["afterReveal"]["fileBExists"])
+            self.assertTrue(reveal_all["afterReveal"]["fileCExists"])
+            # 選択状態 (file_a) は変わらない。
+            self.assertTrue(reveal_all["afterReveal"]["selectedFileStillA"])
+            self.assertEqual(
+                reveal_all["afterReveal"]["currentSignature"],
+                json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
+            )
 
 
 if __name__ == "__main__":

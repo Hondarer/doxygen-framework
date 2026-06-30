@@ -278,6 +278,175 @@ async function runRapidSelectionScenario(page) {
   return { immediate, final };
 }
 
+// ファイルを非表示にした後、一般的な選択変更では復活せず、背景クリック相当の無選択でも
+// 維持され、初期化 (resetGraph) でのみ全復活することを検証する。
+async function runHidePersistScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_a.c'));
+  await waitOverviewReady(page);
+
+  const afterHide = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    api.hideFile('src/file_c.c');
+    return {
+      hiddenFiles: api.hiddenFiles(),
+      noticeVisible: api.hiddenNoticeVisible(),
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1
+    };
+  });
+
+  // 背景クリック相当の無選択化 (clearOverviewSelection) では復活しない。
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const afterBgClear = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1, hiddenFiles: api.hiddenFiles() };
+  });
+
+  // 別ファイルを選択しても復活しない (関連扱いに留まる)。
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_b.c'));
+  await waitOverviewReady(page);
+  const afterOtherSelect = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1, hiddenFiles: api.hiddenFiles() };
+  });
+
+  // 初期化で全復活し、ラベルも消える。
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  const afterReset = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      hiddenFiles: api.hiddenFiles(),
+      noticeVisible: api.hiddenNoticeVisible()
+    };
+  });
+
+  return { afterHide, afterBgClear, afterOtherSelect, afterReset };
+}
+
+// 非表示ファイル自身を選択対象にすると復活し、元の位置近傍へ再表示されることを検証する。
+async function runHideRestoreBySelectScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  const beforeHide = await page.evaluate(() => window.depReportOverviewTestApi.positionOf('src/file_c.c'));
+
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_a.c'));
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.hideFile('src/file_c.c'));
+
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_c.c'));
+  await waitOverviewReady(page);
+  const restored = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      hiddenFiles: api.hiddenFiles(),
+      noticeVisible: api.hiddenNoticeVisible(),
+      position: api.positionOf('src/file_c.c')
+    };
+  });
+  return { beforeHide, restored, restoreDrift: distance(beforeHide, restored.position) };
+}
+
+// 非表示ファイルの関数を選択すると復活するが、関連関数の所属ファイルになっただけ
+// (非循環の呼び出し先) では復活しないことを検証する。
+async function runHideRestoreByFunctionScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.hideFile('src/file_b.c'));
+
+  // a_main (file_a, 非循環) は b_entry (file_b) を呼ぶが、関連先になっただけでは復活しない。
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFunction('a_main'));
+  await waitOverviewReady(page);
+  const afterRelated = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
+      bEntryExists: api.nodeIds().indexOf('b_entry') !== -1,
+      hiddenFiles: api.hiddenFiles()
+    };
+  });
+
+  // file_b 自身の関数 (b_entry) を選択すると復活する。
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFunction('b_entry'));
+  await waitOverviewReady(page);
+  const afterOwn = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1, hiddenFiles: api.hiddenFiles() };
+  });
+
+  return { afterRelated, afterOwn };
+}
+
+// 循環参照の関数を選択したとき、循環相手の所属ファイルが非表示でも復活させる例外条件。
+async function runHideRestoreByCycleScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.hideFile('src/file_e.c'));
+  const afterHide = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { fileEExists: api.nodeIds().indexOf('src/file_e.c') !== -1, hiddenFiles: api.hiddenFiles() };
+  });
+
+  // d_cyc (file_d) は e_cyc (file_e) と循環。循環関数選択で file_e を復活させる。
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFunction('d_cyc'));
+  await waitOverviewReady(page);
+  const afterCycleSelect = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      fileEExists: api.nodeIds().indexOf('src/file_e.c') !== -1,
+      eCycExists: api.nodeIds().indexOf('e_cyc') !== -1,
+      hiddenFiles: api.hiddenFiles()
+    };
+  });
+  return { afterHide, afterCycleSelect };
+}
+
+// 「非表示ファイルの再表示」ボタンで、選択状態を変えずに全非表示ファイルを復活させる。
+async function runRevealAllScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_a.c'));
+  await waitOverviewReady(page);
+
+  const afterHide = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    api.hideFile('src/file_b.c');
+    api.hideFile('src/file_c.c');
+    const notice = document.getElementById('overviewHiddenNotice');
+    const style = notice ? window.getComputedStyle(notice) : null;
+    return {
+      hiddenFiles: api.hiddenFiles(),
+      noticeVisible: api.hiddenNoticeVisible(),
+      noticeIsButton: Boolean(notice) && notice.tagName.toLowerCase() === 'button',
+      noticeClickable: Boolean(style) && style.pointerEvents !== 'none',
+      fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1
+    };
+  });
+
+  // ボタンをクリックして全件復活させる。
+  await page.evaluate(() => document.getElementById('overviewHiddenNotice').click());
+  await waitOverviewReady(page);
+  const afterReveal = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      hiddenFiles: api.hiddenFiles(),
+      noticeVisible: api.hiddenNoticeVisible(),
+      fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      // 選択状態 (file_a) は変えない。
+      selectedFileStillA: (api.classesOf('src/file_a.c') || []).indexOf('dep-selected-file') !== -1,
+      currentSignature: api.currentSignature()
+    };
+  });
+
+  return { afterHide, afterReveal };
+}
+
 async function run(reportPath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -379,7 +548,17 @@ async function run(reportPath) {
     await waitOverviewReady(page);
 
     const seedInterruptClear = await runSeedInterruptClearScenario(page, 'src/file_a.c');
-    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+    await waitOverviewReady(page);
+
+    // 右クリックによる「このファイルを非表示」と復活条件の検証。各シナリオは冒頭で
+    // resetGraph により非表示を含む全状態を初期化してから開始する。
+    const hidePersist = await runHidePersistScenario(page);
+    const hideRestoreBySelect = await runHideRestoreBySelectScenario(page);
+    const hideRestoreByFunction = await runHideRestoreByFunctionScenario(page);
+    const hideRestoreByCycle = await runHideRestoreByCycleScenario(page);
+    const revealAll = await runRevealAllScenario(page);
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
 
     return {
@@ -394,6 +573,11 @@ async function run(reportPath) {
       seedInterruptClear,
       centerStability,
       realClick,
+      hidePersist,
+      hideRestoreBySelect,
+      hideRestoreByFunction,
+      hideRestoreByCycle,
+      revealAll,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
     };
   } finally {
