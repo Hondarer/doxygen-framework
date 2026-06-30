@@ -2113,6 +2113,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewDragRevision = 0;
   let overviewSyncAfterDrag = false;
   let overviewLastClassUpdatePlan = null;
+  let overviewSuppressBackgroundTapUntil = 0;
   let previousSelectedRowVisible = false;
   let previousSelectedFileRowVisible = false;
   let pendingFunctionListScroll = false;
@@ -2630,6 +2631,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
     hiddenOverviewFiles.clear();
     updateOverviewHiddenNotice();
     forceRenderOverviewGraph();
+  }}
+
+  function suppressOverviewBackgroundTap() {{
+    const now = window.performance && typeof window.performance.now === "function" ? window.performance.now() : Date.now();
+    overviewSuppressBackgroundTapUntil = now + 500;
+  }}
+
+  function isOverviewBackgroundTapSuppressed() {{
+    const now = window.performance && typeof window.performance.now === "function" ? window.performance.now() : Date.now();
+    return now <= overviewSuppressBackgroundTapUntil;
   }}
 
   function overviewFitElements() {{
@@ -4438,6 +4449,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
     overviewCy.on("tap", (event) => {{
       if (event.target !== overviewCy) return;
+      if (isOverviewBackgroundTapSuppressed()) return;
       clearOverviewSelection();
     }});
     overviewCy.on("grab", "node", (event) => {{
@@ -4996,7 +5008,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
     resetOverviewGraphState();
   }});
   if (overviewHiddenNotice) {{
-    overviewHiddenNotice.addEventListener("click", () => {{
+    for (const eventName of ["pointerdown", "mousedown", "touchstart", "pointerup", "mouseup"]) {{
+      overviewHiddenNotice.addEventListener(eventName, (event) => {{
+        event.stopPropagation();
+      }});
+    }}
+    overviewHiddenNotice.addEventListener("click", (event) => {{
+      event.preventDefault();
+      event.stopPropagation();
+      suppressOverviewBackgroundTap();
       revealAllOverviewFiles();
     }});
   }}
@@ -5129,6 +5149,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
       hideFile: (path) => hideOverviewFile(path),
       hiddenFiles: () => Array.from(hiddenOverviewFiles.keys()),
       hiddenNoticeVisible: () => Boolean(overviewHiddenNotice && overviewHiddenNotice.classList.contains("visible")),
+      hiddenNoticeRect: () => {{
+        if (!overviewHiddenNotice) return null;
+        const rect = overviewHiddenNotice.getBoundingClientRect();
+        return {{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }};
+      }},
       resetGraph: () => resetOverviewGraphState(),
       renderedSignature: () => overviewRenderedSelectionSignature,
       pendingSignature: () => overviewPendingSelectionSignature,

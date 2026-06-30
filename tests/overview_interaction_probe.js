@@ -458,21 +458,33 @@ async function runRevealAllScenario(page) {
       noticeVisible: api.hiddenNoticeVisible(),
       noticeIsButton: Boolean(notice) && notice.tagName.toLowerCase() === 'button',
       noticeClickable: Boolean(style) && style.pointerEvents !== 'none',
+      noticeRect: api.hiddenNoticeRect(),
       fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
       fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1
     };
   });
 
-  // ボタンをクリックして全件復活させる。
-  await page.evaluate(() => document.getElementById('overviewHiddenNotice').click());
+  // DOM click ではなく実マウスで押し、ボタン消滅後の背後クリック扱いを検証する。
+  if (afterHide.noticeRect) {
+    await page.mouse.click(
+      afterHide.noticeRect.left + afterHide.noticeRect.width / 2,
+      afterHide.noticeRect.top + afterHide.noticeRect.height / 2
+    );
+  } else {
+    await page.evaluate(() => document.getElementById('overviewHiddenNotice').click());
+  }
   await waitOverviewReady(page);
   const afterReveal = await page.evaluate(() => {
     const api = window.depReportOverviewTestApi;
+    const fileBClasses = api.classesOf('src/file_b.c') || [];
+    const fileCClasses = api.classesOf('src/file_c.c') || [];
     return {
       hiddenFiles: api.hiddenFiles(),
       noticeVisible: api.hiddenNoticeVisible(),
       fileBExists: api.nodeIds().indexOf('src/file_b.c') !== -1,
       fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      fileBMuted: fileBClasses.indexOf('dep-file-node-muted') !== -1,
+      fileCMuted: fileCClasses.indexOf('dep-file-node-muted') !== -1,
       // 選択状態 (file_a) は変えない。
       selectedFileStillA: (api.classesOf('src/file_a.c') || []).indexOf('dep-selected-file') !== -1,
       currentSignature: api.currentSignature()

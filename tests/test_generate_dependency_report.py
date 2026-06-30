@@ -539,7 +539,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("非表示ファイルの再表示", index_html)
             self.assertIn(".dep-graph-hidden-notice", index_html)
             self.assertIn("function revealAllOverviewFiles()", index_html)
+            self.assertIn("function suppressOverviewBackgroundTap()", index_html)
+            self.assertIn("function isOverviewBackgroundTapSuppressed()", index_html)
             self.assertIn("revealAllOverviewFiles();", index_html)
+            self.assertIn("event.stopPropagation();", index_html)
+            self.assertIn("if (isOverviewBackgroundTapSuppressed()) return;", index_html)
             # 非表示ファイルは要素生成から除外する。
             self.assertIn("if (hiddenOverviewFiles.has(file.path)) continue;", index_html)
             self.assertIn(".filter((fn) => !hiddenOverviewFiles.has(fn.file))", index_html)
@@ -1388,6 +1392,9 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertFalse(reveal_all["afterReveal"]["noticeVisible"])
             self.assertTrue(reveal_all["afterReveal"]["fileBExists"])
             self.assertTrue(reveal_all["afterReveal"]["fileCExists"])
+            # 現在の選択状況に応じ、関連ファイルは通常表示、無関係ファイルは控えめ表示。
+            self.assertFalse(reveal_all["afterReveal"]["fileBMuted"])
+            self.assertTrue(reveal_all["afterReveal"]["fileCMuted"])
             # 選択状態 (file_a) は変わらない。
             self.assertTrue(reveal_all["afterReveal"]["selectedFileStillA"])
             self.assertEqual(
