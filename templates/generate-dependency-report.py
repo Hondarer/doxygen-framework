@@ -3976,6 +3976,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function collectOverviewAnchorCenters(previousPositions, targetElements) {{
     const anchorCenters = new Map();
+    for (const element of targetElements) {{
+      if (isEdgeElement(element) || !element.data || element.data.parent) continue;
+      if (previousPositions.has(element.data.id)) {{
+        anchorCenters.set(element.data.id, previousPositions.get(element.data.id));
+      }}
+    }}
     if (selectedFilePath && previousPositions.has(selectedFilePath)) {{
       anchorCenters.set(selectedFilePath, previousPositions.get(selectedFilePath));
     }}
@@ -4208,6 +4214,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         animatePositions: !(opts && opts.hideDuringUpdate),
         onComplete: markPhaseCLayoutDone,
         deferPositions: true,
+        fullConvergence: true,
         syncToken: token
       }});
       requestOverviewFrame(startPhaseC);

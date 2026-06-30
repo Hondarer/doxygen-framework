@@ -246,6 +246,56 @@ async function runSeedInterruptFunctionScenario(page, filePath) {
   return { interrupt, final };
 }
 
+// ファイル選択で関数が seed 表示された直後に実マウスで関数をクリックしても、
+// 選択ファイル以外のファイル ノードがローカル関数レイアウトに巻き込まれないことを検証する。
+async function runRealSeedInterruptFunctionStabilityScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const seed = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    const fileIds = api.nodeIds().filter((id) => id.indexOf('src/') === 0);
+    const positions = (ids) => Object.fromEntries(ids.map((id) => [id, api.positionOf(id)]));
+    api.selectFile(p);
+    const functionIds = api.nodeIds().filter((id) => id.indexOf('src/') !== 0 && id.indexOf('pull-') !== 0);
+    const fnId = functionIds.length > 0 ? functionIds[0] : '';
+    return {
+      fileIds,
+      filePositionsAfterSelect: positions(fileIds),
+      fnId,
+      fnRenderedPosition: fnId ? api.renderedPositionOf(fnId) : null,
+      layoutRunning: api.isLayoutRunning()
+    };
+  }, filePath);
+
+  if (seed.fnRenderedPosition) {
+    await page.mouse.click(seed.fnRenderedPosition.x, seed.fnRenderedPosition.y);
+  }
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((fileIds) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      filePositions: Object.fromEntries(fileIds.map((id) => [id, api.positionOf(id)])),
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+    };
+  }, seed.fileIds);
+
+  const moved = seed.fileIds
+    .filter((id) => id !== filePath)
+    .map((id) => ({ id, delta: distance(seed.filePositionsAfterSelect[id], final.filePositions[id]) }))
+    .filter((entry) => entry.delta !== null && entry.delta > 0.5)
+    .sort((a, b) => b.delta - a.delta);
+
+  return {
+    seed,
+    final,
+    movedCount: moved.length,
+    maxMovedDelta: moved.length > 0 ? moved[0].delta : 0,
+    movedTop: moved.slice(0, 5)
+  };
+}
+
 // Problem 2: ファイル選択の seed 窓内に背景クリック相当の無選択化を行うと、以前は
 // 詳細ペインだけ無選択になりマップはファイル選択のまま残った。修正後はマップも完全に
 // 無選択へ整定することを検証する。
@@ -596,6 +646,10 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await waitOverviewReady(page);
 
+    const realSeedInterruptFunctionStability = await runRealSeedInterruptFunctionStabilityScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
     const seedInterruptClear = await runSeedInterruptClearScenario(page, 'src/file_a.c');
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
@@ -624,6 +678,7 @@ async function run(reportPath) {
       centerStability,
       realClick,
       hidePersist,
+      realSeedInterruptFunctionStability,
       hideRestoreBySelect,
       hideRestoreByFunction,
       hideRestoreByCycle,

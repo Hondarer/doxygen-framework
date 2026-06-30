@@ -461,6 +461,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("anchorOverviewChildPositions(targetElements, anchorCenters);", index_html)
             self.assertIn("const plan = overviewSyncDiffPlan(targetElements);", index_html)
             self.assertIn("let layoutNeeded = false;", index_html)
+            self.assertIn("if (isEdgeElement(element) || !element.data || element.data.parent) continue;", index_html)
+            self.assertIn("anchorCenters.set(element.data.id, previousPositions.get(element.data.id));", index_html)
             self.assertIn("const previousSelectionSignature = overviewRenderedSelectionSignature || JSON.stringify([\"\", \"\", \"\"]);", index_html)
             self.assertIn("const deferStateClassChanges = previousHasSelection !== nextHasSelection;", index_html)
             self.assertIn("let overviewLastClassUpdatePlan = null;", index_html)
@@ -491,6 +493,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("requestOverviewFrame(startPhaseC);", index_html)
             self.assertIn("phaseCLayoutDone = false;", index_html)
             self.assertIn("onComplete: markPhaseCLayoutDone,", index_html)
+            self.assertIn("fullConvergence: true,", index_html)
             # Phase C は Phase B の cola tick とフレーム単位で並行処理する。
             self.assertNotIn("onBeforeAnimation: (opts && opts.hideDuringUpdate) ? null : runPhaseC,", index_html)
             # 旧 structureResult / positionDeferred ベースの分岐・位置パスは廃止。
@@ -1296,6 +1299,17 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertTrue(seed_fn["final"]["fnIsCenter"])
             self.assertFalse(seed_fn["final"]["fileSelectedFile"])
             self.assertGreaterEqual(seed_fn["final"]["functionNodeCount"], 1)
+
+            # --- 実マウス seed 窓内関数クリック: 非選択ファイルは動かさない ---
+            real_seed_fn = data["realSeedInterruptFunctionStability"]
+            self.assertTrue(
+                real_seed_fn["seed"]["layoutRunning"],
+                msg="実マウス seed 窓を再現できていない",
+            )
+            self.assertTrue(real_seed_fn["seed"]["fnId"], msg="クリック対象の関数ノードが取得できていない")
+            self.assertTrue(real_seed_fn["final"]["renderedMatchesCurrent"])
+            self.assertEqual(real_seed_fn["movedCount"], 0, msg=str(real_seed_fn["movedTop"]))
+            self.assertLessEqual(real_seed_fn["maxMovedDelta"], 0.5)
 
             # --- seed 窓内で無選択化へ割り込み (Problem 2): マップも完全に無選択へ整定 ---
             # 修正前は詳細ペインだけ無選択になりマップはファイル選択のまま残った。
