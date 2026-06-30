@@ -57,6 +57,93 @@ async function waitOverviewReady(page) {
   await sleep(50);
 }
 
+async function runStyleScenario(page) {
+  const edgeStyleNames = ['line-color', 'target-arrow-color', 'color', 'opacity', 'z-index'];
+  const nodeStyleNames = ['background-color', 'border-color', 'color', 'opacity', 'z-index'];
+  const outgoingEdge = 'src/file_a.c\nsrc/file_b.c';
+  const incomingEdge = 'src/file_b.c\nsrc/file_a.c';
+  const mutedEdge = 'src/file_d.c\nsrc/file_e.c';
+  const cycleEdgeA = 'd_cyc->e_cyc';
+  const cycleEdgeB = 'e_cyc->d_cyc';
+  const selectedFunctionEdge = 'a_main->b_entry';
+  const relatedFunctionEdge = 'b_entry->a_helper';
+
+  async function fileSelectionSnapshot(theme) {
+    await page.evaluate((t) => {
+      const api = window.depReportOverviewTestApi;
+      api.applyThemeForTest(t);
+      api.resetGraph();
+    }, theme);
+    await waitOverviewReady(page);
+    await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_a.c'));
+    await waitOverviewReady(page);
+    return page.evaluate((args) => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        outgoingClasses: api.classesOf(args.outgoingEdge) || [],
+        incomingClasses: api.classesOf(args.incomingEdge) || [],
+        mutedEdgeClasses: api.classesOf(args.mutedEdge) || [],
+        sourceMutedClasses: api.classesOf('src/file_c.c') || [],
+        libraryMutedClasses: api.classesOf('libsrc/file_g.c') || [],
+        defaultMutedClasses: api.classesOf('generated/file_f.c') || [],
+        edgeStyles: {
+          outgoing: api.styleOf(args.outgoingEdge, args.edgeStyleNames),
+          incoming: api.styleOf(args.incomingEdge, args.edgeStyleNames),
+          muted: api.styleOf(args.mutedEdge, args.edgeStyleNames)
+        },
+        nodeStyles: {
+          selected: api.styleOf('src/file_a.c', args.nodeStyleNames),
+          sourceMuted: api.styleOf('src/file_c.c', args.nodeStyleNames),
+          libraryMuted: api.styleOf('libsrc/file_g.c', args.nodeStyleNames),
+          defaultMuted: api.styleOf('generated/file_f.c', args.nodeStyleNames),
+          normalRelated: api.styleOf('src/file_b.c', args.nodeStyleNames)
+        },
+        svgOrder: api.svgDrawOrder()
+      };
+    }, { outgoingEdge, incomingEdge, mutedEdge, edgeStyleNames, nodeStyleNames });
+  }
+
+  const light = await fileSelectionSnapshot('light');
+
+  await page.evaluate((edgeId) => window.depReportOverviewTestApi.selectEdge(edgeId), outgoingEdge);
+  await waitOverviewReady(page);
+  const selectedEdge = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      classes: api.classesOf(args.outgoingEdge) || [],
+      style: api.styleOf(args.outgoingEdge, args.edgeStyleNames)
+    };
+  }, { outgoingEdge, edgeStyleNames });
+
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFunction('d_cyc'));
+  await waitOverviewReady(page);
+  const cycleFunction = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      edgeAClasses: api.classesOf(args.cycleEdgeA) || [],
+      edgeBClasses: api.classesOf(args.cycleEdgeB) || [],
+      edgeAStyle: api.styleOf(args.cycleEdgeA, args.edgeStyleNames),
+      edgeBStyle: api.styleOf(args.cycleEdgeB, args.edgeStyleNames)
+    };
+  }, { cycleEdgeA, cycleEdgeB, edgeStyleNames });
+
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFunction('a_main'));
+  await waitOverviewReady(page);
+  const functionRelation = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      selectedEdgeClasses: api.classesOf(args.selectedFunctionEdge) || [],
+      relatedEdgeClasses: api.classesOf(args.relatedFunctionEdge) || [],
+      selectedEdgeStyle: api.styleOf(args.selectedFunctionEdge, args.edgeStyleNames),
+      relatedEdgeStyle: api.styleOf(args.relatedFunctionEdge, args.edgeStyleNames)
+    };
+  }, { selectedFunctionEdge, relatedFunctionEdge, edgeStyleNames });
+
+  const dark = await fileSelectionSnapshot('dark');
+  await page.evaluate(() => window.depReportOverviewTestApi.applyThemeForTest('light'));
+  return { light, selectedEdge, cycleFunction, functionRelation, dark };
+}
+
 async function runPhaseTimingScenario(page, filePath, mutedFilePath) {
   await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
   await waitOverviewReady(page);
@@ -221,7 +308,7 @@ async function runSeedInterruptFunctionScenario(page, filePath) {
       pending: api.pendingSignature(),
       rendered: api.renderedSignature()
     };
-    const fnIds = api.nodeIds().filter((id) => id.indexOf('src/') === -1);
+    const fnIds = api.nodeIds().filter((id) => id.indexOf('/') === -1);
     const fnId = fnIds.length > 0 ? fnIds[0] : '';
     if (fnId) api.selectFunction(fnId);
     return {
@@ -239,7 +326,7 @@ async function runSeedInterruptFunctionScenario(page, filePath) {
       currentSignature: api.currentSignature(),
       fnIsCenter: (api.classesOf(args.fnId) || []).indexOf('dep-center-node') !== -1,
       fileSelectedFile: (api.classesOf(args.filePath) || []).indexOf('dep-selected-file') !== -1,
-      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('src/') === -1).length
+      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('/') === -1).length
     };
   }, { fnId: interrupt.fnId, filePath });
 
@@ -254,10 +341,10 @@ async function runRealSeedInterruptFunctionStabilityScenario(page, filePath) {
 
   const seed = await page.evaluate((p) => {
     const api = window.depReportOverviewTestApi;
-    const fileIds = api.nodeIds().filter((id) => id.indexOf('src/') === 0);
+    const fileIds = api.nodeIds().filter((id) => id.indexOf('/') !== -1);
     const positions = (ids) => Object.fromEntries(ids.map((id) => [id, api.positionOf(id)]));
     api.selectFile(p);
-    const functionIds = api.nodeIds().filter((id) => id.indexOf('src/') !== 0 && id.indexOf('pull-') !== 0);
+    const functionIds = api.nodeIds().filter((id) => id.indexOf('/') === -1 && id.indexOf('pull-') !== 0);
     const fnId = functionIds.length > 0 ? functionIds[0] : '';
     return {
       fileIds,
@@ -380,7 +467,7 @@ async function runSeedInterruptClearScenario(page, filePath) {
       renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
       currentSignature: api.currentSignature(),
       fileSelectedFile: (api.classesOf(p) || []).indexOf('dep-selected-file') !== -1,
-      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('src/') === -1).length
+      functionNodeCount: api.nodeIds().filter((id) => id.indexOf('/') === -1).length
     };
   }, filePath);
 
@@ -715,6 +802,9 @@ async function run(reportPath) {
     await page.waitForFunction(() => !window.depReportOverviewTestApi.isLayoutRunning(), { timeout: 20000 });
 
     const initialNodeIds = await page.evaluate(() => window.depReportOverviewTestApi.nodeIds());
+    const styleState = await runStyleScenario(page);
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+    await waitOverviewReady(page);
 
     // クリック直後 (selectFile 同期完了直後 = Phase A 完了 / Phase C 未適用) の断面。
     const sync = await page.evaluate(() => {
@@ -722,7 +812,7 @@ async function run(reportPath) {
       api.selectFile('src/file_a.c');
       return {
         selectedFileClasses: api.classesOf('src/file_a.c') || [],
-        functionNodes: api.nodeIds().filter((id) => id.indexOf('src/') === -1),
+        functionNodes: api.nodeIds().filter((id) => id.indexOf('/') === -1),
         fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
         classPlan: api.lastClassUpdatePlan()
       };
@@ -736,7 +826,7 @@ async function run(reportPath) {
         renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
         fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
         fileBMuted: (api.classesOf('src/file_b.c') || []).indexOf('dep-file-node-muted') !== -1,
-        functionNodes: api.nodeIds().filter((id) => id.indexOf('src/') === -1),
+        functionNodes: api.nodeIds().filter((id) => id.indexOf('/') === -1),
         classPlan: api.lastClassUpdatePlan()
       };
     });
@@ -831,6 +921,7 @@ async function run(reportPath) {
 
     return {
       initialNodeIds,
+      styleState,
       sync,
       final,
       phaseTiming,

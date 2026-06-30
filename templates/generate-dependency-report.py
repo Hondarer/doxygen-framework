@@ -1118,10 +1118,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-node-border: #2563eb;
       --dep-graph-file-bg: #f8fafc;
       --dep-graph-file-border: #64748b;
+      --dep-graph-muted-file-bg: #f8fafc;
+      --dep-graph-muted-file-border: #dbe4f0;
+      --dep-graph-muted-file-text: #a8b4c3;
       --dep-graph-parent-bg: #f1f5f9;
       --dep-graph-edge: #64748b;
-      --dep-graph-muted-edge: #cbd5e1;
+      --dep-graph-muted-edge: #e2e8f0;
       --dep-graph-active-edge: #334155;
+      --dep-graph-emphasis-edge: #111827;
       --dep-graph-leaf-bg: #dcfce7;
       --dep-graph-leaf-border: #16a34a;
       --dep-graph-local-bg: #e0f2fe;
@@ -1132,8 +1136,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-danger-border: #dc2626;
       --dep-graph-library-bg: #eef2ff;
       --dep-graph-library-border: #4f46e5;
+      --dep-graph-muted-library-bg: #f7f9ff;
+      --dep-graph-muted-library-border: #d5ddff;
       --dep-graph-source-bg: #f3e8ff;
       --dep-graph-source-border: #9333ea;
+      --dep-graph-muted-source-bg: #fbf5ff;
+      --dep-graph-muted-source-border: #eadcff;
     }}
     :root[data-theme="dark"] {{
       color-scheme: dark;
@@ -1172,10 +1180,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-node-border: #3794ff;
       --dep-graph-file-bg: #252526;
       --dep-graph-file-border: #858585;
+      --dep-graph-muted-file-bg: #171717;
+      --dep-graph-muted-file-border: #242424;
+      --dep-graph-muted-file-text: #505050;
       --dep-graph-parent-bg: #2d2d30;
       --dep-graph-edge: #858585;
-      --dep-graph-muted-edge: #5a5a5a;
+      --dep-graph-muted-edge: #3a3a3a;
       --dep-graph-active-edge: #c5c5c5;
+      --dep-graph-emphasis-edge: #f3f4f6;
       --dep-graph-leaf-bg: #163b2b;
       --dep-graph-leaf-border: #4ec9b0;
       --dep-graph-local-bg: #17364a;
@@ -1186,8 +1198,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-danger-border: #f48771;
       --dep-graph-library-bg: #2d2a4a;
       --dep-graph-library-border: #9cdcfe;
+      --dep-graph-muted-library-bg: #171927;
+      --dep-graph-muted-library-border: #272d48;
       --dep-graph-source-bg: #3b2a4a;
       --dep-graph-source-border: #c586c0;
+      --dep-graph-muted-source-bg: #1b1421;
+      --dep-graph-muted-source-border: #35243d;
     }}
     body {{
       margin: 0;
@@ -2190,10 +2206,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
       nodeBorder: cssVar("--dep-graph-node-border") || "#2563eb",
       fileBackground: cssVar("--dep-graph-file-bg") || "#f8fafc",
       fileBorder: cssVar("--dep-graph-file-border") || "#64748b",
+      mutedFileBackground: cssVar("--dep-graph-muted-file-bg") || "#f8fafc",
+      mutedFileBorder: cssVar("--dep-graph-muted-file-border") || "#dbe4f0",
+      mutedFileText: cssVar("--dep-graph-muted-file-text") || "#a8b4c3",
       parentBackground: cssVar("--dep-graph-parent-bg") || "#f1f5f9",
       edge: cssVar("--dep-graph-edge") || "#64748b",
-      mutedEdge: cssVar("--dep-graph-muted-edge") || "#cbd5e1",
+      mutedEdge: cssVar("--dep-graph-muted-edge") || "#e2e8f0",
       activeEdge: cssVar("--dep-graph-active-edge") || "#334155",
+      emphasisEdge: cssVar("--dep-graph-emphasis-edge") || "#111827",
       leafBackground: cssVar("--dep-graph-leaf-bg") || "#dcfce7",
       leafBorder: cssVar("--dep-graph-leaf-border") || "#16a34a",
       localBackground: cssVar("--dep-graph-local-bg") || "#e0f2fe",
@@ -2204,8 +2224,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       dangerBorder: cssVar("--dep-graph-danger-border") || "#dc2626",
       libraryBackground: cssVar("--dep-graph-library-bg") || "#eef2ff",
       libraryBorder: cssVar("--dep-graph-library-border") || "#4f46e5",
+      mutedLibraryBackground: cssVar("--dep-graph-muted-library-bg") || "#f7f9ff",
+      mutedLibraryBorder: cssVar("--dep-graph-muted-library-border") || "#d5ddff",
       sourceBackground: cssVar("--dep-graph-source-bg") || "#f3e8ff",
-      sourceBorder: cssVar("--dep-graph-source-border") || "#9333ea"
+      sourceBorder: cssVar("--dep-graph-source-border") || "#9333ea",
+      mutedSourceBackground: cssVar("--dep-graph-muted-source-bg") || "#fbf5ff",
+      mutedSourceBorder: cssVar("--dep-graph-muted-source-border") || "#eadcff"
     }};
   }}
 
@@ -2461,7 +2485,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "width": "mapData(weight, 1, 8, 1, 5)",
           "label": "data(label)",
           "font-size": 10,
-          "color": colors.text,
+          "color": colors.edge,
           "text-background-color": colors.labelBackground,
           "text-background-opacity": 0.85,
           "text-background-padding": 2,
@@ -2509,7 +2533,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
       {{
         selector: ".dep-file-node-muted",
         style: {{
-          "opacity": 0.3
+          "background-color": colors.mutedFileBackground,
+          "border-color": colors.mutedFileBorder,
+          "color": colors.mutedFileText,
+          "z-index": 0
+        }}
+      }},
+      {{
+        selector: ".dep-file-node-muted.dep-file-library-node",
+        style: {{
+          "background-color": colors.mutedLibraryBackground,
+          "border-color": colors.mutedLibraryBorder
+        }}
+      }},
+      {{
+        selector: ".dep-file-node-muted.dep-file-source-node",
+        style: {{
+          "background-color": colors.mutedSourceBackground,
+          "border-color": colors.mutedSourceBorder
         }}
       }},
       {{
@@ -2517,22 +2558,34 @@ def write_html(output_dir: Path, category_id: str) -> None:
         style: {{
           "line-color": colors.mutedEdge,
           "target-arrow-color": colors.mutedEdge,
-          "opacity": 0.25
+          "color": colors.mutedEdge,
+          "z-index": -1
+        }}
+      }},
+      {{
+        selector: ".dep-emphasis-edge",
+        style: {{
+          "line-color": colors.emphasisEdge,
+          "target-arrow-color": colors.emphasisEdge,
+          "color": colors.emphasisEdge,
+          "z-index": 2
         }}
       }},
       {{
         selector: ".dep-selected-edge",
         style: {{
-          "line-color": colors.activeEdge,
-          "target-arrow-color": colors.activeEdge,
-          "opacity": 0.7
+          "line-color": colors.emphasisEdge,
+          "target-arrow-color": colors.emphasisEdge,
+          "color": colors.emphasisEdge,
+          "z-index": 2
         }}
       }},
       {{
         selector: ".dep-function-edge",
         style: {{
-          "line-color": colors.activeEdge,
-          "target-arrow-color": colors.activeEdge,
+          "line-color": colors.emphasisEdge,
+          "target-arrow-color": colors.emphasisEdge,
+          "color": colors.emphasisEdge,
           "opacity": 0.7,
           "z-compound-depth": "top",
           "z-index": 3
@@ -2934,25 +2987,45 @@ def write_html(output_dir: Path, category_id: str) -> None:
       (label ? "<rect x=\\"" + (midX - 10).toFixed(2) + "\\" y=\\"" + (midY - 8).toFixed(2) + "\\" width=\\"20\\" height=\\"16\\" rx=\\"3\\" fill=\\"" + escapeXml(cssVar("--dep-graph-label-bg") || "#ffffff") + "\\" opacity=\\"0.85\\"/>" + svgText(label, midX, midY, fontSize, color, "middle") : "");
   }}
 
+  function overviewSvgOrderedElements() {{
+    if (!overviewCy) return [];
+    const visibleEdges = overviewCy.edges(":visible");
+    const visibleNodes = overviewCy.nodes(":visible");
+    const mutedFileEdges = visibleEdges
+      .filter((edge) => !edge.hasClass("dep-function-edge") && edge.hasClass("dep-base-edge-muted"))
+      .toArray();
+    const mutedFileNodes = visibleNodes
+      .filter((node) => !node.isParent() && node.hasClass("dep-file-node") && node.hasClass("dep-file-node-muted"))
+      .toArray();
+    const fileEdges = visibleEdges
+      .filter((edge) => !edge.hasClass("dep-function-edge") && !edge.hasClass("dep-base-edge-muted") && !edge.hasClass("dep-emphasis-edge") && !edge.hasClass("dep-selected-edge"))
+      .toArray();
+    const fileOverviewNodes = visibleNodes
+      .filter((node) => !node.isParent() && node.hasClass("dep-file-node") && !node.hasClass("dep-file-node-muted"))
+      .toArray();
+    const fileDetailNodes = visibleNodes.filter((node) => node.isParent()).toArray();
+    const emphasisEdges = visibleEdges
+      .filter((edge) => edge.hasClass("dep-function-edge") || edge.hasClass("dep-emphasis-edge") || edge.hasClass("dep-selected-edge"))
+      .toArray();
+    const functionNodes = visibleNodes.filter((node) => !node.isParent() && !node.hasClass("dep-file-node")).toArray();
+    return mutedFileEdges.concat(mutedFileNodes, fileEdges, fileOverviewNodes, fileDetailNodes, emphasisEdges, functionNodes);
+  }}
+
   function buildOverviewSvg(scope) {{
     if (!overviewCy) return "";
     stopOverviewPositionAnimation();
     const bounds = svgElementBounds(scope);
     const width = Math.max(1, bounds.x2 - bounds.x1);
     const height = Math.max(1, bounds.y2 - bounds.y1);
-    const visibleEdges = overviewCy.edges(":visible");
-    const visibleNodes = overviewCy.nodes(":visible");
-    const fileEdgesSvg = visibleEdges.filter((edge) => !edge.hasClass("dep-function-edge")).map((edge) => svgEdge(edge, scope)).join("");
-    const fileOverviewNodesSvg = visibleNodes.filter((node) => !node.isParent() && node.hasClass("dep-file-node")).map((node) => svgNode(node, scope)).join("");
-    const fileDetailNodesSvg = visibleNodes.filter((node) => node.isParent()).map((node) => svgNode(node, scope)).join("");
-    const functionEdgesSvg = visibleEdges.filter((edge) => edge.hasClass("dep-function-edge")).map((edge) => svgEdge(edge, scope)).join("");
-    const functionNodesSvg = visibleNodes.filter((node) => !node.isParent() && !node.hasClass("dep-file-node")).map((node) => svgNode(node, scope)).join("");
+    const elementsSvg = overviewSvgOrderedElements()
+      .map((element) => element.isEdge() ? svgEdge(element, scope) : svgNode(element, scope))
+      .join("");
     const colors = graphColors();
     return "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n" +
       "<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"" + width.toFixed(0) + "\\" height=\\"" + height.toFixed(0) + "\\" viewBox=\\"" + bounds.x1.toFixed(2) + " " + bounds.y1.toFixed(2) + " " + width.toFixed(2) + " " + height.toFixed(2) + "\\" role=\\"img\\">" +
       "<title>" + escapeXml("依存関係マップ") + "</title>" +
       "<rect x=\\"" + bounds.x1.toFixed(2) + "\\" y=\\"" + bounds.y1.toFixed(2) + "\\" width=\\"" + width.toFixed(2) + "\\" height=\\"" + height.toFixed(2) + "\\" fill=\\"" + escapeXml(colors.background) + "\\"/>" +
-      fileEdgesSvg + fileOverviewNodesSvg + fileDetailNodesSvg + functionEdgesSvg + functionNodesSvg +
+      elementsSvg +
       "</svg>\\n";
   }}
 
@@ -3130,13 +3203,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function overviewSelectionState(edgeMap) {{
     const activeFiles = new Set();
     const activeFileEdges = new Set();
+    const emphasisFileEdges = new Set();
     if (selectedId) {{
       const visibleFnIds = visibleFunctionIdsForOverview();
       for (const fnId of visibleFnIds) {{
         const fn = byId.get(fnId);
         if (fn) activeFiles.add(fn.file);
       }}
-      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: true }};
     }}
     if (selectedEdgeKey) {{
       const edge = edgeMap.get(selectedEdgeKey);
@@ -3145,7 +3219,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         activeFiles.add(edge.data.toFile);
         activeFileEdges.add(selectedEdgeKey);
       }}
-      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: true }};
     }}
     if (selectedFilePath) {{
       activeFiles.add(selectedFilePath);
@@ -3154,15 +3228,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
           activeFiles.add(edge.data.fromFile);
           activeFiles.add(edge.data.toFile);
         }}
+        if (edge.data.fromFile === selectedFilePath || edge.data.toFile === selectedFilePath) {{
+          emphasisFileEdges.add(edge.data.id);
+        }}
       }}
       for (const edge of edgeMap.values()) {{
         if (activeFiles.has(edge.data.fromFile) && activeFiles.has(edge.data.toFile)) {{
           activeFileEdges.add(edge.data.id);
         }}
       }}
-      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: true }};
+      return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: true }};
     }}
-    return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, hasSelection: false }};
+    return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: false }};
   }}
 
   function overviewBaseElements() {{
@@ -3194,6 +3271,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (hiddenOverviewFiles.has(edge.fromFile) || hiddenOverviewFiles.has(edge.toFile)) continue;
       const classes = [];
       if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
+      if (selectionState.emphasisFileEdges.has(edge.id)) classes.push("dep-emphasis-edge");
       if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
         classes.push("dep-base-edge-muted");
       }}
@@ -3231,6 +3309,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return new Set();
   }}
 
+  function overviewFunctionEdgeClasses(edge, selectedCycleIds) {{
+    const classes = [];
+    if (selectedId && (edge.caller === selectedId || edge.callee === selectedId ||
+        (selectedCycleIds.has(edge.caller) && selectedCycleIds.has(edge.callee)))) {{
+      classes.push("dep-function-edge");
+    }}
+    return classes.join(" ");
+  }}
+
   function buildOverviewElements() {{
     const elements = overviewBaseElements();
     const visibleFnIds = visibleFunctionIdsForOverview();
@@ -3244,6 +3331,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return compareBaseOrder(a, b);
       }});
     const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
+    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(selectedId)));
     const childrenByFile = new Map();
     for (let index = 0; index < visibleFns.length; index++) {{
       const fn = visibleFns[index];
@@ -3272,7 +3360,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
             target: edge.callee,
             weight: 1
           }},
-          classes: "dep-function-edge"
+          classes: overviewFunctionEdgeClasses(edge, selectedCycleIds)
         }});
       }}
     }} else if (selectedFilePath) {{
@@ -3323,6 +3411,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         if (hiddenOverviewFiles.has(edge.fromFile) || hiddenOverviewFiles.has(edge.toFile)) continue;
         const classes = [];
         if (selectedEdgeKey && edge.id === selectedEdgeKey) classes.push("dep-selected-edge");
+        if (selectionState.emphasisFileEdges.has(edge.id)) classes.push("dep-emphasis-edge");
         if (selectionState.hasSelection && !selectionState.activeFileEdges.has(edge.id)) {{
           classes.push("dep-base-edge-muted");
         }}
@@ -3352,6 +3441,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return compareBaseOrder(a, b);
       }});
     const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
+    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(selectedId)));
     const childrenByFile = new Map();
     let fnIndex = 0;
     if (!(await processOverviewChunks(visibleFns, token, (chunk) => {{
@@ -3385,7 +3475,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
               target: edge.callee,
               weight: 1
             }},
-            classes: "dep-function-edge"
+            classes: overviewFunctionEdgeClasses(edge, selectedCycleIds)
           }});
         }}
       }}))) return null;
@@ -3846,6 +3936,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     "dep-center-node",
     "dep-selected-file",
     "dep-selected-edge",
+    "dep-emphasis-edge",
     "dep-file-node-muted",
     "dep-base-edge-muted"
   ]);
@@ -5222,6 +5313,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewActiveLayout) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
+      selectEdge: (id) => selectOverviewEdge(id),
       clearSelection: () => clearOverviewSelection(),
       hideFile: (path) => hideOverviewFile(path),
       hiddenFiles: () => Array.from(hiddenOverviewFiles.keys()),
@@ -5246,6 +5338,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const element = overviewCy.getElementById(id);
         return element && element.length ? element.classes() : null;
       }},
+      styleOf: (id, names) => {{
+        if (!overviewCy) return null;
+        const element = overviewCy.getElementById(id);
+        if (!element || !element.length) return null;
+        const result = {{}};
+        for (const name of (names || [])) {{
+          result[name] = graphStyleValue(element, name, "");
+        }}
+        return result;
+      }},
+      edgeIds: () => (overviewCy ? overviewCy.edges().map((edge) => edge.id()) : []),
+      buildSvg: (scope) => buildOverviewSvg(scope || "full"),
+      svgDrawOrder: () => overviewSvgOrderedElements().map((element) => element.id()),
+      applyThemeForTest: (theme) => applyTheme(theme, false),
       nodeIds: () => (overviewCy ? overviewCy.nodes().map((node) => node.id()) : []),
       childPositions: (parentId) => {{
         if (!overviewCy) return null;

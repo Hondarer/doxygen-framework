@@ -528,8 +528,16 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('idealEdgeLength: function (edge) { return overviewFileEdgeLength(edge, 128, 116); }', index_html)
             self.assertIn("function overviewSelectionState(edgeMap)", index_html)
             self.assertIn("dep-file-node-muted", index_html)
-            self.assertIn('"opacity": 0.3', index_html)
-            self.assertIn('"opacity": 0.25', index_html)
+            self.assertIn("dep-emphasis-edge", index_html)
+            self.assertIn("--dep-graph-muted-file-bg", index_html)
+            self.assertIn("--dep-graph-muted-library-bg", index_html)
+            self.assertIn("--dep-graph-muted-source-bg", index_html)
+            self.assertIn("emphasisFileEdges", index_html)
+            self.assertIn("function overviewSvgOrderedElements()", index_html)
+            self.assertIn("styleOf: (id, names) =>", index_html)
+            self.assertIn("svgDrawOrder: () => overviewSvgOrderedElements().map((element) => element.id()),", index_html)
+            self.assertNotIn('"opacity": 0.3', index_html)
+            self.assertNotIn('"opacity": 0.25', index_html)
             self.assertIn("scrollbar-color:", index_html)
             self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
             self.assertIn('id="themeToggle"', index_html)
@@ -1051,6 +1059,26 @@ def _puppeteer_available():
     return PUPPETEER_DIR.is_dir()
 
 
+def _style_number(style, key):
+    return float(style[key])
+
+
+def _style_color_luminance(value):
+    text_value = str(value).strip()
+    if text_value.startswith("#") and len(text_value) == 7:
+        red = int(text_value[1:3], 16)
+        green = int(text_value[3:5], 16)
+        blue = int(text_value[5:7], 16)
+    else:
+        match = re.match(r"rgba?\((\d+),\s*(\d+),\s*(\d+)", text_value)
+        if not match:
+            raise AssertionError("色を解析できません: {}".format(value))
+        red = int(match.group(1))
+        green = int(match.group(2))
+        blue = int(match.group(3))
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
 # file_a -> file_b への呼び出しがあり、file_c はどこともつながらない 3 ファイル構成。
 # ファイル選択時に file_b は興味対象 (非ミュート)、file_c は興味対象外 (ミュート) になる。
 OVERVIEW_FIXTURE = {
@@ -1115,6 +1143,7 @@ OVERVIEW_FIXTURE = {
       <memberdef kind="function" id="b_entry" static="no">
         <name>b_entry</name>
         <references refid="b_leaf" compoundref="file__b_8c">b_leaf</references>
+        <references refid="a_helper" compoundref="file__a_8c">a_helper</references>
         <location file="src/file_b.c" line="20" bodyfile="src/file_b.c" bodystart="20"/>
       </memberdef>
     </sectiondef>
@@ -1129,6 +1158,32 @@ OVERVIEW_FIXTURE = {
       <memberdef kind="function" id="c_alone" static="no">
         <name>c_alone</name>
         <location file="src/file_c.c" line="10" bodyfile="src/file_c.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+    "file_f.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__f_8c" kind="file">
+    <compoundname>file_f.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="f_other" static="no">
+        <name>f_other</name>
+        <location file="generated/file_f.c" line="10" bodyfile="generated/file_f.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+    "file_g.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="file__g_8c" kind="file">
+    <compoundname>file_g.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="g_lib" static="no">
+        <name>g_lib</name>
+        <location file="libsrc/file_g.c" line="10" bodyfile="libsrc/file_g.c" bodystart="10"/>
       </memberdef>
     </sectiondef>
   </compounddef>
@@ -1301,11 +1356,100 @@ class OverviewInteractionTest(unittest.TestCase):
             # 初期はファイル ノードのみ。
             self.assertEqual(
                 sorted(data["initialNodeIds"]),
-                ["src/file_a.c", "src/file_b.c", "src/file_c.c", "src/file_d.c", "src/file_e.c"],
+                [
+                    "generated/file_f.c",
+                    "libsrc/file_g.c",
+                    "src/file_a.c",
+                    "src/file_b.c",
+                    "src/file_c.c",
+                    "src/file_d.c",
+                    "src/file_e.c",
+                ],
             )
 
             # file_a の関数 (a_helper, a_util, a_h1..a_h5, a_main の 8 個)。
             file_a_functions = ["a_h1", "a_h2", "a_h3", "a_h4", "a_h5", "a_helper", "a_main", "a_util"]
+
+            # --- 表示スタイル: opacity ではなく色と z-order で状態を表現 ---
+            style_state = data["styleState"]
+            light_style = style_state["light"]
+            self.assertIn("dep-emphasis-edge", light_style["outgoingClasses"])
+            self.assertNotIn("dep-base-edge-muted", light_style["outgoingClasses"])
+            self.assertIn("dep-emphasis-edge", light_style["incomingClasses"])
+            self.assertNotIn("dep-base-edge-muted", light_style["incomingClasses"])
+            self.assertIn("dep-base-edge-muted", light_style["mutedEdgeClasses"])
+            self.assertIn("dep-file-node-muted", light_style["sourceMutedClasses"])
+            self.assertIn("dep-file-source-node", light_style["sourceMutedClasses"])
+            self.assertIn("dep-file-node-muted", light_style["libraryMutedClasses"])
+            self.assertIn("dep-file-library-node", light_style["libraryMutedClasses"])
+            self.assertIn("dep-file-node-muted", light_style["defaultMutedClasses"])
+            self.assertNotIn("dep-file-source-node", light_style["defaultMutedClasses"])
+            self.assertNotIn("dep-file-library-node", light_style["defaultMutedClasses"])
+
+            outgoing_edge_style = light_style["edgeStyles"]["outgoing"]
+            incoming_edge_style = light_style["edgeStyles"]["incoming"]
+            muted_edge_style = light_style["edgeStyles"]["muted"]
+            self.assertAlmostEqual(_style_number(outgoing_edge_style, "opacity"), 0.7)
+            self.assertAlmostEqual(_style_number(incoming_edge_style, "opacity"), 0.7)
+            self.assertAlmostEqual(_style_number(muted_edge_style, "opacity"), 0.7)
+            self.assertEqual(outgoing_edge_style["color"], outgoing_edge_style["line-color"])
+            self.assertEqual(incoming_edge_style["color"], incoming_edge_style["line-color"])
+            self.assertEqual(muted_edge_style["color"], muted_edge_style["line-color"])
+            self.assertLess(_style_number(muted_edge_style, "z-index"), _style_number(incoming_edge_style, "z-index"))
+            self.assertEqual(incoming_edge_style["line-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(_style_number(incoming_edge_style, "z-index"), _style_number(outgoing_edge_style, "z-index"))
+
+            selected_node_style = light_style["nodeStyles"]["selected"]
+            related_node_style = light_style["nodeStyles"]["normalRelated"]
+            source_muted_style = light_style["nodeStyles"]["sourceMuted"]
+            library_muted_style = light_style["nodeStyles"]["libraryMuted"]
+            default_muted_style = light_style["nodeStyles"]["defaultMuted"]
+            self.assertAlmostEqual(_style_number(source_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
+            self.assertAlmostEqual(_style_number(library_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
+            self.assertAlmostEqual(_style_number(default_muted_style, "opacity"), _style_number(selected_node_style, "opacity"))
+            self.assertLess(_style_number(source_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
+            self.assertLess(_style_number(library_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
+            self.assertLess(_style_number(default_muted_style, "z-index"), _style_number(related_node_style, "z-index"))
+            self.assertNotEqual(source_muted_style["background-color"], library_muted_style["background-color"])
+            self.assertNotEqual(default_muted_style["background-color"], source_muted_style["background-color"])
+
+            selected_edge = style_state["selectedEdge"]
+            self.assertIn("dep-selected-edge", selected_edge["classes"])
+            self.assertAlmostEqual(_style_number(selected_edge["style"], "opacity"), 0.7)
+            self.assertEqual(selected_edge["style"]["line-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(selected_edge["style"]["color"], selected_edge["style"]["line-color"])
+
+            cycle_function = style_state["cycleFunction"]
+            self.assertIn("dep-function-edge", cycle_function["edgeAClasses"])
+            self.assertIn("dep-function-edge", cycle_function["edgeBClasses"])
+            self.assertEqual(cycle_function["edgeAStyle"]["line-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(cycle_function["edgeBStyle"]["line-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(cycle_function["edgeAStyle"]["color"], cycle_function["edgeAStyle"]["line-color"])
+            self.assertEqual(cycle_function["edgeBStyle"]["color"], cycle_function["edgeBStyle"]["line-color"])
+
+            function_relation = style_state["functionRelation"]
+            self.assertIn("dep-function-edge", function_relation["selectedEdgeClasses"])
+            self.assertNotIn("dep-function-edge", function_relation["relatedEdgeClasses"])
+            self.assertEqual(function_relation["selectedEdgeStyle"]["line-color"], outgoing_edge_style["line-color"])
+            self.assertEqual(function_relation["selectedEdgeStyle"]["color"], function_relation["selectedEdgeStyle"]["line-color"])
+            self.assertEqual(function_relation["relatedEdgeStyle"]["color"], function_relation["relatedEdgeStyle"]["line-color"])
+            self.assertNotEqual(function_relation["relatedEdgeStyle"]["line-color"], function_relation["selectedEdgeStyle"]["line-color"])
+            self.assertLess(
+                _style_color_luminance(function_relation["selectedEdgeStyle"]["line-color"]),
+                _style_color_luminance(function_relation["relatedEdgeStyle"]["line-color"]),
+            )
+
+            dark_style = style_state["dark"]
+            self.assertGreater(
+                _style_color_luminance(dark_style["edgeStyles"]["outgoing"]["line-color"]),
+                _style_color_luminance(dark_style["edgeStyles"]["muted"]["line-color"]),
+            )
+
+            svg_order = light_style["svgOrder"]
+            self.assertLess(svg_order.index("src/file_d.c\nsrc/file_e.c"), svg_order.index("src/file_b.c\nsrc/file_a.c"))
+            self.assertLess(svg_order.index("src/file_d.c\nsrc/file_e.c"), svg_order.index("src/file_a.c\nsrc/file_b.c"))
+            self.assertLess(svg_order.index("src/file_b.c\nsrc/file_a.c"), svg_order.index("a_main"))
+            self.assertLess(svg_order.index("src/file_a.c\nsrc/file_b.c"), svg_order.index("a_main"))
 
             # --- Phase A: クリック同期完了直後 ---
             sync = data["sync"]
