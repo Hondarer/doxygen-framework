@@ -306,10 +306,15 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("refreshActiveGraph({ immediate: immediateOverviewUpdate });", index_html)
             self.assertIn("function syncOverviewElements(targetElements, opts)", index_html)
             self.assertIn("animatePositions: !(opts && opts.hideDuringUpdate)", index_html)
+            self.assertIn("instantPositions: Boolean(opts && opts.hideDuringUpdate)", index_html)
+            self.assertIn("const instantPositions = Boolean(opts && opts.instantPositions);", index_html)
             self.assertIn("function overviewSelectionSignature()", index_html)
             self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
             self.assertIn("function renderOverviewGraph(opts)", index_html)
-            self.assertIn("const renderOpts = { immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed };", index_html)
+            self.assertIn("const requestedImmediate = Boolean(opts && opts.immediate);", index_html)
+            self.assertIn("const immediate = requestedImmediate && !alreadyLaidOut;", index_html)
+            self.assertIn("const hideDuringUpdate = requestedImmediate;", index_html)
+            self.assertIn("const renderOpts = { immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed };", index_html)
             self.assertIn("const resetStarted = renderOverviewGraph(renderOpts);", index_html)
             self.assertIn("const viewportBeforeUpdate = hideDuringUpdate ? overviewViewport() : null;", index_html)
             self.assertIn("function scheduleOverviewRelayoutReveal(opts)", index_html)
@@ -323,16 +328,15 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 対象も考慮する。これにより seed 窓内の選択変更で再 sync が確実に走る。
             self.assertIn("function isOverviewSelectionPendingOrRendered()", index_html)
             self.assertIn("overviewPendingSelectionSignature === overviewSelectionSignature()", index_html)
-            # 初期化済みの全体マップへ別タブから戻る場合は immediate を落とし、全体マップ内選択と
-            # 同じ animate 経路で非選択ノードの位置を保持する。未初期化のときだけ従来どおり immediate。
+            # 初期化済みの全体マップへ別タブから戻る場合は初期化用 immediate を落とすが、
+            # hideDuringUpdate により最終断面まで隠したまま非アニメーションで選択を反映する。
             self.assertIn(
                 "const alreadyLaidOut = Boolean(overviewLayoutInitialized && overviewCy && overviewCy.elements().length > 0);",
                 index_html,
             )
-            self.assertIn(
-                "const immediate = Boolean(opts && opts.immediate) && !alreadyLaidOut;",
-                index_html,
-            )
+            self.assertIn("const requestedImmediate = Boolean(opts && opts.immediate);", index_html)
+            self.assertIn("const immediate = requestedImmediate && !alreadyLaidOut;", index_html)
+            self.assertIn("const hideDuringUpdate = requestedImmediate;", index_html)
             # 「レイアウト再実行」実行中に選択が変わると relayout の実行状態が孤児化して固着する。
             # 差し替え経路 (runLatestOverviewSync / resetOverviewGraph) で明示的に解放する。
             self.assertIn(
@@ -454,9 +458,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function isOverviewSyncTokenActive(token)", index_html)
             self.assertIn("function targetElementIdSet(targetElements)", index_html)
             self.assertIn("function overviewSyncDiffPlan(targetElements)", index_html)
-            self.assertIn("async function buildOverviewElementsAsync(token)", index_html)
+            self.assertIn("function overviewSelectionContext(selection)", index_html)
+            self.assertIn("function overviewEmptySelection()", index_html)
+            self.assertIn("async function buildOverviewElementsAsync(token, selection)", index_html)
             self.assertIn("async function seedOverviewInitialPositionsAsync(elements, token)", index_html)
-            self.assertIn("async function resetOverviewGraphAsync(token)", index_html)
+            self.assertIn("async function resetOverviewGraphAsync(token, opts)", index_html)
             self.assertIn("async function revealOverviewGraphAfterFit(token)", index_html)
             self.assertIn("function abortOverviewInitializationOnTabLeave(previousTab, nextTab)", index_html)
             self.assertIn("async function overviewNodePositionsAsync(token)", index_html)
@@ -488,13 +494,17 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("overviewRenderedSelectionSignature = null;", index_html)
             self.assertIn("const completed = syncOverviewElementsCore(", index_html)
             self.assertIn("await nextOverviewFrame();", index_html)
-            self.assertIn("const elements = await buildOverviewElementsAsync(token);", index_html)
+            self.assertIn("const initializeUnselectedFirst = Boolean(opts && opts.initializeUnselectedFirst && selectionSignatureHasSelection(overviewSelectionSignature()));", index_html)
+            self.assertIn("const initialSelection = initializeUnselectedFirst ? overviewEmptySelection() : null;", index_html)
+            self.assertIn("const elements = await buildOverviewElementsAsync(token, initialSelection);", index_html)
+            self.assertIn("finishOverviewInitialLayout(token, initializeUnselectedFirst);", index_html)
+            self.assertIn("initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature())", index_html)
             self.assertIn("await seedOverviewInitialPositionsAsync(elements, token)", index_html)
             self.assertIn("overviewCy.add(chunk);", index_html)
             self.assertIn("revealOverviewGraphAfterFit(token);", index_html)
             self.assertIn("setOverviewGraphInteractionLocked(false);\n    overviewCy.resize();\n    fitOverviewGraph();", index_html)
             self.assertIn("overviewCy.fit(overviewFitElements(), 30);", index_html)
-            self.assertIn("resetOverviewGraphAsync(token);", index_html)
+            self.assertIn("resetOverviewGraphAsync(token, opts || {});", index_html)
             self.assertIn("abortOverviewInitializationOnTabLeave(previousTab, activeTab);", index_html)
             self.assertIn("overviewGraph.classList.contains(\"layout-initializing\")", index_html)
             self.assertIn("overviewCy.elements().remove();", index_html)
@@ -519,7 +529,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
-            self.assertIn(".map(overviewStructureElement)", index_html)
+            self.assertIn("const structureElement = overviewStructureElement(target);", index_html)
+            # 新規追加ノードは初回描画から最終状態クラス (ミュート等) で生成し、再表示ちらつきを防ぐ。
+            self.assertIn("const fullClasses = classText(target.classes || \"\");", index_html)
+            self.assertIn("if (fullClasses) structureElement.classes = fullClasses;", index_html)
             # 選択有無の境界をまたぐ場合でも、active class は Phase A、muted class は Phase C へ送る。
             self.assertIn("if (deferStateClassChanges) {", index_html)
             self.assertIn("phaseAClasses = overviewPhaseAClasses(targetClasses, element.classes().join(\" \"));", index_html)
@@ -565,7 +578,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const scheduleRenderRows = debounce(() => renderRows(), 80);", index_html)
             self.assertIn('edgeLength: function (edge) { return overviewFileEdgeLength(edge, 140, 128); }', index_html)
             self.assertIn('idealEdgeLength: function (edge) { return overviewFileEdgeLength(edge, 128, 116); }', index_html)
-            self.assertIn("function overviewSelectionState(edgeMap)", index_html)
+            self.assertIn("function overviewSelectionState(edgeMap, selection)", index_html)
             self.assertIn("dep-file-node-muted", index_html)
             self.assertIn("dep-emphasis-edge", index_html)
             self.assertIn("--dep-graph-muted-file-bg", index_html)
@@ -612,6 +625,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("非表示ファイルの再表示", index_html)
             self.assertIn(".dep-graph-hidden-notice", index_html)
             self.assertIn("function revealAllOverviewFiles()", index_html)
+            self.assertIn("revealAll: () => revealAllOverviewFiles(),", index_html)
             self.assertIn("function suppressOverviewBackgroundTap()", index_html)
             self.assertIn("function isOverviewBackgroundTapSuppressed()", index_html)
             self.assertIn("revealAllOverviewFiles();", index_html)
@@ -1434,6 +1448,31 @@ class OverviewInteractionTest(unittest.TestCase):
             # file_a の関数 (a_helper, a_util, a_h1..a_h5, a_main の 8 個)。
             file_a_functions = ["a_h1", "a_h2", "a_h3", "a_h4", "a_h5", "a_helper", "a_main", "a_util"]
 
+            # --- 未初期化のまま一覧表で選択してから全体マップを初回表示 ---
+            # 空選択で初期レイアウトした後、選択反映レイアウトを行うため、いったん全体マップを
+            # 表示してから同じファイルを選んだ場合と同じノード位置になる。
+            initial_hidden_selection = data["initialHiddenSelection"]
+            self.assertEqual(
+                initial_hidden_selection["beforeActivate"]["currentSignature"],
+                json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
+            )
+            self.assertEqual(initial_hidden_selection["beforeActivate"]["elementCount"], 0)
+            self.assertFalse(initial_hidden_selection["hiddenDroppedBeforeReady"])
+            self.assertEqual(
+                initial_hidden_selection["baseline"]["nodeIds"],
+                initial_hidden_selection["hiddenFirst"]["nodeIds"],
+            )
+            self.assertEqual(
+                initial_hidden_selection["hiddenFirst"]["renderedSignature"],
+                json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
+            )
+            self.assertIn("dep-selected-file", initial_hidden_selection["hiddenFirst"]["selectedFileClasses"])
+            self.assertTrue(initial_hidden_selection["hiddenFirst"]["fileCMuted"])
+            self.assertEqual(sorted(initial_hidden_selection["hiddenFirst"]["functionNodes"]), file_a_functions)
+            self.assertLessEqual(
+                initial_hidden_selection["maxDelta"], 0.5, msg=str(initial_hidden_selection["movedTop"])
+            )
+
             # --- 表示スタイル: opacity ではなく色と z-order で状態を表現 ---
             style_state = data["styleState"]
             light_style = style_state["light"]
@@ -1579,11 +1618,13 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertNotIn("dep-selected-file", clear_selection["final"]["fileCClasses"])
             self.assertNotIn("dep-file-node-muted", clear_selection["final"]["fileAClasses"])
 
-            # --- 初期化済みマップから別タブで選択変更後に戻る: 全体マップ内選択と同じく位置保持 ---
-            # 初期化済みの場合は immediate (= 非表示同期) を通さず animate 経路で選択を反映するため、
-            # 非表示にはならず、非選択ファイル ノードは動かない。
+            # --- 初期化済みマップから別タブで選択変更後に戻る: 最終断面まで非表示で反映 ---
+            # 初期化済みの場合は初期化用 immediate を通さないが、一覧表から戻る間は
+            # layout-relayouting で隠し、非アニメーションで選択を反映する。
             hidden_tab_selection = data["hiddenTabSelection"]
-            self.assertFalse(hidden_tab_selection["immediate"]["hidden"])
+            self.assertTrue(hidden_tab_selection["hiddenSeen"])
+            self.assertFalse(hidden_tab_selection["hiddenDroppedBeforeReady"])
+            self.assertFalse(hidden_tab_selection["animationSeen"])
             self.assertFalse(hidden_tab_selection["final"]["hidden"])
             self.assertFalse(hidden_tab_selection["final"]["animationActive"])
             self.assertTrue(hidden_tab_selection["final"]["renderedMatchesCurrent"])
@@ -1783,6 +1824,20 @@ class OverviewInteractionTest(unittest.TestCase):
                 reveal_all["afterReveal"]["currentSignature"],
                 json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
             )
+
+            # --- 再表示時ちらつき防止: ミュート対象は生成直後 (Phase A 断面) から既にミュート ---
+            # 修正前は新規追加ノードが構造クラスのみ (通常表示) で生成され、ミュートが Phase C へ
+            # 遅延していたため、再表示直後の 1 フレーム素の見た目が露出した。
+            reveal_no_flash = data["revealMutedNoFlash"]
+            self.assertEqual(reveal_no_flash["sample"]["hiddenBefore"], ["src/file_c.c"])
+            self.assertTrue(reveal_no_flash["sample"]["fileCExists"])
+            # 再表示同期 (Phase A) 完了直後のフレーム待機前断面で、既にミュート済みであること。
+            self.assertTrue(reveal_no_flash["sample"]["immediateMuted"])
+            # 選択状態 (file_a) は変わらない。
+            self.assertTrue(reveal_no_flash["sample"]["selectedStillA"])
+            # 整定後もミュートのまま。
+            self.assertTrue(reveal_no_flash["final"]["finalMuted"])
+            self.assertEqual(reveal_no_flash["final"]["hiddenFiles"], [])
 
             # --- seed 窓内で再表示に割り込み: 中止された関数レイアウトをやり直す ---
             # 非表示ファイルがある状態で表示中ファイルを選択し、seed の cola 計算中に再表示すると、

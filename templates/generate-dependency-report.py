@@ -3252,35 +3252,48 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
-  function overviewSelectionState(edgeMap) {{
+  function overviewSelectionContext(selection) {{
+    return {{
+      selectedId: selection && Object.prototype.hasOwnProperty.call(selection, "selectedId") ? selection.selectedId : selectedId,
+      selectedFilePath: selection && Object.prototype.hasOwnProperty.call(selection, "selectedFilePath") ? selection.selectedFilePath : selectedFilePath,
+      selectedEdgeKey: selection && Object.prototype.hasOwnProperty.call(selection, "selectedEdgeKey") ? selection.selectedEdgeKey : selectedEdgeKey
+    }};
+  }}
+
+  function overviewEmptySelection() {{
+    return {{ selectedId: "", selectedFilePath: "", selectedEdgeKey: "" }};
+  }}
+
+  function overviewSelectionState(edgeMap, selection) {{
+    const context = overviewSelectionContext(selection);
     const activeFiles = new Set();
     const activeFileEdges = new Set();
     const emphasisFileEdges = new Set();
-    if (selectedId) {{
-      const visibleFnIds = visibleFunctionIdsForOverview();
+    if (context.selectedId) {{
+      const visibleFnIds = visibleFunctionIdsForOverview(context);
       for (const fnId of visibleFnIds) {{
         const fn = byId.get(fnId);
         if (fn) activeFiles.add(fn.file);
       }}
       return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: true }};
     }}
-    if (selectedEdgeKey) {{
-      const edge = edgeMap.get(selectedEdgeKey);
+    if (context.selectedEdgeKey) {{
+      const edge = edgeMap.get(context.selectedEdgeKey);
       if (edge) {{
         activeFiles.add(edge.data.fromFile);
         activeFiles.add(edge.data.toFile);
-        activeFileEdges.add(selectedEdgeKey);
+        activeFileEdges.add(context.selectedEdgeKey);
       }}
       return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: true }};
     }}
-    if (selectedFilePath) {{
-      activeFiles.add(selectedFilePath);
+    if (context.selectedFilePath) {{
+      activeFiles.add(context.selectedFilePath);
       for (const edge of edgeMap.values()) {{
-        if (edge.data.fromFile === selectedFilePath || edge.data.toFile === selectedFilePath) {{
+        if (edge.data.fromFile === context.selectedFilePath || edge.data.toFile === context.selectedFilePath) {{
           activeFiles.add(edge.data.fromFile);
           activeFiles.add(edge.data.toFile);
         }}
-        if (edge.data.fromFile === selectedFilePath || edge.data.toFile === selectedFilePath) {{
+        if (edge.data.fromFile === context.selectedFilePath || edge.data.toFile === context.selectedFilePath) {{
           emphasisFileEdges.add(edge.data.id);
         }}
       }}
@@ -3294,15 +3307,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: false }};
   }}
 
-  function overviewBaseElements() {{
-    const selectionState = overviewSelectionState(fileEdgeByKey);
+  function overviewBaseElements(selection) {{
+    const context = overviewSelectionContext(selection);
+    const selectionState = overviewSelectionState(fileEdgeByKey, context);
     const elements = [];
     for (const file of files) {{
       if (hiddenOverviewFiles.has(file.path)) continue;
       const classes = ["dep-file-node"];
       const areaClass = graphFileClassFor(file.dominantArea);
       if (areaClass) classes.push(areaClass);
-      if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
+      if (!context.selectedId && file.path === context.selectedFilePath) classes.push("dep-selected-file");
       if (selectionState.hasSelection && !selectionState.activeFiles.has(file.path)) {{
         classes.push("dep-file-node-muted");
       }}
@@ -3344,51 +3358,54 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return elements;
   }}
 
-  function visibleFunctionIdsForOverview() {{
-    if (selectedId) {{
-      const ids = new Set([selectedId]);
-      const selectedFn = byId.get(selectedId);
+  function visibleFunctionIdsForOverview(selection) {{
+    const context = overviewSelectionContext(selection);
+    if (context.selectedId) {{
+      const ids = new Set([context.selectedId]);
+      const selectedFn = byId.get(context.selectedId);
       for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);
-      for (const c of (callers.get(selectedId) || [])) ids.add(c);
-      for (const c of (callees.get(selectedId) || [])) ids.add(c);
+      for (const c of (callers.get(context.selectedId) || [])) ids.add(c);
+      for (const c of (callees.get(context.selectedId) || [])) ids.add(c);
       return ids;
     }}
-    if (selectedFilePath) {{
+    if (context.selectedFilePath) {{
       const ids = new Set();
-      for (const fn of (functionsByFile.get(selectedFilePath) || [])) ids.add(fn.id);
+      for (const fn of (functionsByFile.get(context.selectedFilePath) || [])) ids.add(fn.id);
       return ids;
     }}
     return new Set();
   }}
 
-  function overviewFunctionEdgeClasses(edge, selectedCycleIds) {{
+  function overviewFunctionEdgeClasses(edge, selectedCycleIds, selection) {{
+    const context = overviewSelectionContext(selection);
     const classes = [];
-    if (selectedId && (edge.caller === selectedId || edge.callee === selectedId ||
+    if (context.selectedId && (edge.caller === context.selectedId || edge.callee === context.selectedId ||
         (selectedCycleIds.has(edge.caller) && selectedCycleIds.has(edge.callee)))) {{
       classes.push("dep-function-edge");
     }}
     return classes.join(" ");
   }}
 
-  function buildOverviewElements() {{
-    const elements = overviewBaseElements();
-    const visibleFnIds = visibleFunctionIdsForOverview();
+  function buildOverviewElements(selection) {{
+    const context = overviewSelectionContext(selection);
+    const elements = overviewBaseElements(context);
+    const visibleFnIds = visibleFunctionIdsForOverview(context);
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
       .filter((fn) => !hiddenOverviewFiles.has(fn.file))
       .sort((a, b) => {{
-        if (a.id === selectedId) return -1;
-        if (b.id === selectedId) return 1;
+        if (a.id === context.selectedId) return -1;
+        if (b.id === context.selectedId) return 1;
         return compareBaseOrder(a, b);
       }});
     const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
-    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(selectedId)));
+    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(context.selectedId)));
     const childrenByFile = new Map();
     for (let index = 0; index < visibleFns.length; index++) {{
       const fn = visibleFns[index];
       const classes = [graphClassFor(fn.dependencyClass)];
-      if (fn.id === selectedId) classes.push("dep-center-node");
+      if (fn.id === context.selectedId) classes.push("dep-center-node");
       elements.push({{
         data: {{
           id: fn.id,
@@ -3396,13 +3413,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
           parent: fn.file,
           weight: graphFunctionWeight(fn)
         }},
-        position: overviewFunctionPosition(fn, index, visibleFns.length),
+        position: overviewFunctionPosition(fn, index, visibleFns.length, context),
         classes: classes.join(" ")
       }});
       if (!childrenByFile.has(fn.file)) childrenByFile.set(fn.file, []);
       childrenByFile.get(fn.file).push(fn.id);
     }}
-    if (selectedId) {{
+    if (context.selectedId) {{
       for (const edge of edges) {{
         if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
         elements.push({{
@@ -3412,10 +3429,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
             target: edge.callee,
             weight: 1
           }},
-          classes: overviewFunctionEdgeClasses(edge, selectedCycleIds)
+          classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, context)
         }});
       }}
-    }} else if (selectedFilePath) {{
+    }} else if (context.selectedFilePath) {{
       for (const [filePath, ids] of childrenByFile) {{
         if (ids.length < 2) continue;
         const hub = ids[0];
@@ -3434,8 +3451,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return elements;
   }}
 
-  async function buildOverviewElementsAsync(token) {{
-    const selectionState = overviewSelectionState(fileEdgeByKey);
+  async function buildOverviewElementsAsync(token, selection) {{
+    const context = overviewSelectionContext(selection);
+    const selectionState = overviewSelectionState(fileEdgeByKey, context);
     const elements = [];
     if (!(await processOverviewChunks(files, token, (chunk) => {{
       for (const file of chunk) {{
@@ -3443,7 +3461,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const classes = ["dep-file-node"];
         const areaClass = graphFileClassFor(file.dominantArea);
         if (areaClass) classes.push(areaClass);
-        if (!selectedId && file.path === selectedFilePath) classes.push("dep-selected-file");
+        if (!context.selectedId && file.path === context.selectedFilePath) classes.push("dep-selected-file");
         if (selectionState.hasSelection && !selectionState.activeFiles.has(file.path)) {{
           classes.push("dep-file-node-muted");
         }}
@@ -3482,18 +3500,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
         }});
       }}
     }}))) return null;
-    const visibleFnIds = visibleFunctionIdsForOverview();
+    const visibleFnIds = visibleFunctionIdsForOverview(context);
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
       .filter((fn) => !hiddenOverviewFiles.has(fn.file))
       .sort((a, b) => {{
-        if (a.id === selectedId) return -1;
-        if (b.id === selectedId) return 1;
+        if (a.id === context.selectedId) return -1;
+        if (b.id === context.selectedId) return 1;
         return compareBaseOrder(a, b);
       }});
     const includedFnIds = new Set(visibleFns.map((fn) => fn.id));
-    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(selectedId)));
+    const selectedCycleIds = new Set(cycleGroupFunctionIds(byId.get(context.selectedId)));
     const childrenByFile = new Map();
     let fnIndex = 0;
     if (!(await processOverviewChunks(visibleFns, token, (chunk) => {{
@@ -3501,7 +3519,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const index = fnIndex;
         fnIndex += 1;
         const classes = [graphClassFor(fn.dependencyClass)];
-        if (fn.id === selectedId) classes.push("dep-center-node");
+        if (fn.id === context.selectedId) classes.push("dep-center-node");
         elements.push({{
           data: {{
             id: fn.id,
@@ -3509,14 +3527,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
             parent: fn.file,
             weight: graphFunctionWeight(fn)
           }},
-          position: overviewFunctionPosition(fn, index, visibleFns.length),
+          position: overviewFunctionPosition(fn, index, visibleFns.length, context),
           classes: classes.join(" ")
         }});
         if (!childrenByFile.has(fn.file)) childrenByFile.set(fn.file, []);
         childrenByFile.get(fn.file).push(fn.id);
       }}
     }}))) return null;
-    if (selectedId) {{
+    if (context.selectedId) {{
       if (!(await processOverviewChunks(edges, token, (chunk) => {{
         for (const edge of chunk) {{
           if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
@@ -3527,11 +3545,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
               target: edge.callee,
               weight: 1
             }},
-            classes: overviewFunctionEdgeClasses(edge, selectedCycleIds)
+            classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, context)
           }});
         }}
       }}))) return null;
-    }} else if (selectedFilePath) {{
+    }} else if (context.selectedFilePath) {{
       const childGroups = Array.from(childrenByFile.entries());
       if (!(await processOverviewChunks(childGroups, token, (chunk) => {{
         for (const [filePath, ids] of chunk) {{
@@ -3553,13 +3571,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return isLatestOverviewSync(token) ? elements : null;
   }}
 
-  function overviewFunctionPosition(fn, index, count) {{
+  function overviewFunctionPosition(fn, index, count, selection) {{
+    const context = overviewSelectionContext(selection);
     if (!overviewCy) return {{ x: 0, y: 0 }};
     const parent = overviewCy.getElementById(fn.file);
     const center = parent && parent.length > 0 ? parent.position() : {{ x: 0, y: 0 }};
-    if (fn.id === selectedId) return {{ x: center.x, y: center.y }};
-    const ringIndex = selectedId ? Math.max(0, index - 1) : index;
-    const ringCount = selectedId ? Math.max(1, count - 1) : Math.max(1, count);
+    if (fn.id === context.selectedId) return {{ x: center.x, y: center.y }};
+    const ringIndex = context.selectedId ? Math.max(0, index - 1) : index;
+    const ringCount = context.selectedId ? Math.max(1, count - 1) : Math.max(1, count);
     const radius = 56 + Math.min(72, ringCount * 4);
     const angle = -Math.PI / 2 + (Math.PI * 2 * ringIndex) / ringCount;
     return {{
@@ -3604,6 +3623,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const manual = Boolean(opts && opts.manual);
     const deferPositions = Boolean(opts && opts.deferPositions);
     const animatePositions = !(opts && opts.animatePositions === false);
+    const instantPositions = Boolean(opts && opts.instantPositions);
     const fullConvergence = Boolean(opts && opts.fullConvergence);
     const unlockAllDuringLayout = Boolean(opts && opts.unlockAllDuringLayout);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
@@ -3643,7 +3663,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         setTimeout(() => runOverviewLayout(nextOpts), 50);
         return;
       }}
-      if (animatePositions) {{
+      if (animatePositions || instantPositions) {{
         applyOverviewUserMovedPositions(startPositions, anchorCenters);
         applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
         const targetPositions = overviewNodePositions();
@@ -3655,7 +3675,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         stabilizeOverviewLayoutCenter(startPositions, targetPositions, {{ fit, immediate, anchorCenters }});
         restoreOverviewNodePositions(startPositions);
         lockedNodes.unlock();
-        if (immediate) {{
+        if (immediate || instantPositions) {{
           restoreOverviewNodePositions(targetPositions);
           if (fit) fitOverviewGraph();
           if (onComplete) onComplete();
@@ -3664,6 +3684,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         animateOverviewPositions(startPositions, targetPositions, {{ fit, onComplete }});
         return;
       }}
+      applyOverviewUserMovedPositions(startPositions, anchorCenters);
       if (!(await applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, syncToken))) {{
         lockedNodes.unlock();
         return;
@@ -4297,7 +4318,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
         const missingElements = plan.missingOrdered
           .map((element) => plan.targetById.get(element.data.id))
           .filter(Boolean)
-          .map(overviewStructureElement);
+          .map((target) => {{
+            const structureElement = overviewStructureElement(target);
+            // 新規追加ノードは初回描画から最終状態 (ミュート等の遅延状態クラス含む) で生成する。
+            // 構造クラスのみで生成すると、状態クラス適用までの 1 フレーム、非ミュートの素の見た目が
+            // 露出する (再表示時のちらつき)。画面に存在しなかったノードは Phase C 遅延の対象外。
+            const fullClasses = classText(target.classes || "");
+            if (fullClasses) structureElement.classes = fullClasses;
+            return structureElement;
+          }});
         for (const element of missingElements) {{
           if (isEdgeElement(element)) continue;
           // 復活ファイル ノードはロックして元位置に固定する。
@@ -4421,6 +4450,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         anchorCenters,
         immediate,
         animatePositions: !(opts && opts.hideDuringUpdate),
+        instantPositions: Boolean(opts && opts.hideDuringUpdate),
         onComplete: markPhaseCLayoutDone,
         deferPositions: true,
         fullConvergence: true,
@@ -4555,7 +4585,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function renderOverviewGraph(opts) {{
     if (!overviewCy) return;
     if (overviewCy.elements().length === 0) {{
-      resetOverviewGraph();
+      resetOverviewGraph({{ initializeUnselectedFirst: Boolean(opts && opts.initializeUnselectedFirst) }});
       return true;
     }}
     if (!(opts && opts.force) && isOverviewSelectionPendingOrRendered()) {{
@@ -4583,7 +4613,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return false;
   }}
 
-  async function resetOverviewGraphAsync(token) {{
+  async function resetOverviewGraphAsync(token, opts) {{
     await nextOverviewFrame();
     await nextOverviewFrame();
     if (!overviewCy || !isLatestOverviewSync(token)) return false;
@@ -4591,7 +4621,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.elements().remove();
     await nextOverviewFrame();
     if (!overviewCy || !isLatestOverviewSync(token)) return false;
-    const elements = await buildOverviewElementsAsync(token);
+    const initializeUnselectedFirst = Boolean(opts && opts.initializeUnselectedFirst && selectionSignatureHasSelection(overviewSelectionSignature()));
+    const initialSelection = initializeUnselectedFirst ? overviewEmptySelection() : null;
+    const elements = await buildOverviewElementsAsync(token, initialSelection);
     if (!elements || !isLatestOverviewSync(token)) return false;
     if (!(await seedOverviewInitialPositionsAsync(elements, token))) return false;
     if (!(await processOverviewChunks(elements, token, (chunk) => {{
@@ -4604,7 +4636,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       layoutPasses: 2,
       layoutToken: overviewLayoutToken,
       onComplete: () => {{
-        revealOverviewGraphAfterFit(token);
+        finishOverviewInitialLayout(token, initializeUnselectedFirst);
       }}
     }});
     return true;
@@ -4623,10 +4655,29 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewRenderedSelectionSignature = overviewSelectionSignature();
     overviewPendingSelectionSignature = overviewRenderedSelectionSignature;
     overviewGraph.classList.remove("layout-initializing");
+    overviewGraph.classList.remove("layout-relayouting");
     setOverviewControlsInert(false);
   }}
 
-  function resetOverviewGraph() {{
+  function finishOverviewInitialLayout(token, initializeUnselectedFirst) {{
+    if (!overviewCy || !isLatestOverviewSync(token)) return;
+    if (!initializeUnselectedFirst) {{
+      revealOverviewGraphAfterFit(token);
+      return;
+    }}
+    overviewGraph.classList.add("layout-relayouting");
+    const renderOpts = {{
+      immediate: false,
+      hideDuringUpdate: false,
+      selectionSignature: overviewSelectionSignature(),
+      onComplete: () => {{
+        revealOverviewGraphAfterFit(token);
+      }}
+    }};
+    syncOverviewElementsCore(buildOverviewElements(), renderOpts, token);
+  }}
+
+  function resetOverviewGraph(opts) {{
     if (!overviewCy) return;
     // 初期化では非表示を解除し、全ファイルを元の状態へ戻す。
     hiddenOverviewFiles.clear();
@@ -4646,7 +4697,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     ++overviewRelayoutRevealToken;
     overviewLayoutInitialized = false;
     stopOverviewPositionAnimation();
-    resetOverviewGraphAsync(token);
+    resetOverviewGraphAsync(token, opts || {{}});
   }}
 
   function abortOverviewInitializationOnTabLeave(previousTab, nextTab) {{
@@ -4752,12 +4803,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       initOverviewGraph();
       // 他タブで選択変更後に全体マップへ遷移した場合も復活条件を評価する。
       const revealed = reconcileHiddenOverviewFiles();
-      // 既にレイアウト済みの全体マップへ別タブから戻る場合は immediate を落とす。これにより
-      // 全体マップ内選択と同じ animate 経路 (renderOverviewGraph -> syncOverviewElements) を通り、
-      // 非選択ノードの位置を保持する。未初期化 (要素が空) のときだけ従来どおり immediate のまま
-      // resetOverviewGraph で選択込みの全体レイアウトを 1 回で行う。
+      // 既にレイアウト済みの全体マップへ別タブから戻る場合は初期化用 immediate を落とすが、
+      // マップは最終断面まで隠したまま非アニメーションで選択を反映する。
+      // 未初期化 (要素が空) のときだけ immediate のまま resetOverviewGraph へ渡す。
       const alreadyLaidOut = Boolean(overviewLayoutInitialized && overviewCy && overviewCy.elements().length > 0);
-      const immediate = Boolean(opts && opts.immediate) && !alreadyLaidOut;
+      const requestedImmediate = Boolean(opts && opts.immediate);
+      const immediate = requestedImmediate && !alreadyLaidOut;
+      const hideDuringUpdate = requestedImmediate;
       if (!revealed && immediate && isOverviewSelectionPendingOrRendered()) {{
         return;
       }}
@@ -4780,7 +4832,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           finishImmediateRefresh();
           return;
         }}
-        const renderOpts = {{ immediate, hideDuringUpdate: immediate, onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed }};
+        const renderOpts = {{ immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed }};
         const resetStarted = renderOverviewGraph(renderOpts);
         if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
           finishImmediateRefresh();
@@ -5520,6 +5572,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       selectEdge: (id) => selectOverviewEdge(id),
       clearSelection: () => clearOverviewSelection(),
       hideFile: (path) => hideOverviewFile(path),
+      revealAll: () => revealAllOverviewFiles(),
       hiddenFiles: () => Array.from(hiddenOverviewFiles.keys()),
       hiddenNoticeVisible: () => Boolean(overviewHiddenNotice && overviewHiddenNotice.classList.contains("visible")),
       hiddenNoticeRect: () => {{

@@ -57,6 +57,117 @@ async function waitOverviewReady(page) {
   await sleep(50);
 }
 
+async function newOverviewProbePage(browser, reportPath, errors) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1400, height: 1000 });
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console:' + m.text()); });
+  await page.evaluateOnNewDocument(() => { window.__DEP_REPORT_TEST__ = true; });
+  await page.goto('file://' + reportPath, { waitUntil: 'load' });
+  await page.waitForFunction(() => window.depReportOverviewTestApi, { timeout: 15000 });
+  return page;
+}
+
+async function captureOverviewPositions(page) {
+  return page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const nodeIds = api.nodeIds().sort();
+    return {
+      nodeIds,
+      currentSignature: api.currentSignature(),
+      renderedSignature: api.renderedSignature(),
+      selectedFileClasses: api.classesOf('src/file_a.c') || [],
+      fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
+      functionNodes: nodeIds.filter((id) => id.indexOf('/') === -1),
+      positions: Object.fromEntries(nodeIds.map((id) => [id, api.positionOf(id)]))
+    };
+  });
+}
+
+async function runInitialHiddenSelectionScenario(browser, reportPath, errors, filePath) {
+  const baselinePage = await newOverviewProbePage(browser, reportPath, errors);
+  let baseline = null;
+  try {
+    await baselinePage.evaluate(() => window.depReportOverviewTestApi.activateOverview());
+    await waitOverviewReady(baselinePage);
+    await baselinePage.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+    await waitOverviewReady(baselinePage);
+    baseline = await captureOverviewPositions(baselinePage);
+  } finally {
+    await baselinePage.close();
+  }
+
+  const hiddenPage = await newOverviewProbePage(browser, reportPath, errors);
+  let beforeActivate = null;
+  let afterActivate = null;
+  let hiddenDroppedBeforeReady = false;
+  let hiddenFirst = null;
+  try {
+    await hiddenPage.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+    beforeActivate = await hiddenPage.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        currentSignature: api.currentSignature(),
+        renderedSignature: api.renderedSignature(),
+        elementCount: api.elementCount(),
+        initializing: api.isInitializing(),
+        relayoutHidden: api.isRelayoutHidden()
+      };
+    });
+    await hiddenPage.evaluate(() => window.depReportOverviewTestApi.activateOverview());
+    afterActivate = await hiddenPage.evaluate(() => {
+      const api = window.depReportOverviewTestApi;
+      return {
+        initializing: api.isInitializing(),
+        relayoutHidden: api.isRelayoutHidden(),
+        layoutRunning: api.isLayoutRunning(),
+        elementCount: api.elementCount(),
+        renderedSignature: api.renderedSignature()
+      };
+    });
+
+    const deadline = Date.now() + 25000;
+    while (Date.now() < deadline) {
+      const state = await hiddenPage.evaluate(() => {
+        const api = window.depReportOverviewTestApi;
+        return {
+          hidden: api.isInitializing() || api.isRelayoutHidden(),
+          layoutRunning: api.isLayoutRunning(),
+          renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+        };
+      });
+      if (!state.hidden && (state.layoutRunning || !state.renderedMatchesCurrent)) {
+        hiddenDroppedBeforeReady = true;
+      }
+      if (!state.layoutRunning && state.renderedMatchesCurrent) break;
+      await sleep(50);
+    }
+    await waitOverviewReady(hiddenPage);
+    hiddenFirst = await captureOverviewPositions(hiddenPage);
+  } finally {
+    await hiddenPage.close();
+  }
+
+  const commonNodeIds = baseline.nodeIds.filter((id) => hiddenFirst.positions[id]);
+  const deltas = commonNodeIds
+    .map((id) => ({ id, delta: distance(baseline.positions[id], hiddenFirst.positions[id]) }))
+    .filter((entry) => entry.delta !== null)
+    .sort((a, b) => b.delta - a.delta);
+  const fileDeltas = deltas.filter((entry) => entry.id.indexOf('/') !== -1);
+  const selectedFunctionDeltas = deltas.filter((entry) => entry.id.indexOf('/') === -1);
+  return {
+    beforeActivate,
+    afterActivate,
+    hiddenDroppedBeforeReady,
+    baseline,
+    hiddenFirst,
+    maxDelta: deltas.length > 0 ? deltas[0].delta : 0,
+    maxFileDelta: fileDeltas.length > 0 ? fileDeltas[0].delta : 0,
+    maxFunctionDelta: selectedFunctionDeltas.length > 0 ? selectedFunctionDeltas[0].delta : 0,
+    movedTop: deltas.slice(0, 8)
+  };
+}
+
 async function runStyleScenario(page) {
   const edgeStyleNames = ['line-color', 'target-arrow-color', 'color', 'opacity', 'z-index', 'z-index-compare', 'z-compound-depth'];
   const nodeStyleNames = ['background-color', 'border-color', 'color', 'opacity', 'z-index', 'z-index-compare', 'z-compound-depth'];
@@ -356,6 +467,7 @@ async function runHiddenTabSelectionScenario(page, filePath) {
   });
 
   let animationSeen = immediate.animationActive;
+  let hiddenSeen = immediate.hidden;
   let hiddenDroppedBeforeReady = false;
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
@@ -368,6 +480,7 @@ async function runHiddenTabSelectionScenario(page, filePath) {
         renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
       };
     });
+    if (state.hidden) hiddenSeen = true;
     if (state.animationActive) animationSeen = true;
     if (!state.hidden && (state.layoutRunning || !state.renderedMatchesCurrent)) {
       hiddenDroppedBeforeReady = true;
@@ -405,6 +518,7 @@ async function runHiddenTabSelectionScenario(page, filePath) {
 
   return {
     immediate,
+    hiddenSeen,
     animationSeen,
     hiddenDroppedBeforeReady,
     final,
@@ -811,6 +925,46 @@ async function runRevealAllScenario(page) {
   return { afterHide, afterReveal };
 }
 
+// 再表示時のちらつき検証。選択によりミュートされたファイルを非表示にし、再表示した直後
+// (Phase A 同期完了直後 = フレーム待機前) の断面で、再表示ノードが既にミュート クラスを
+// 持つこと (= 通常表示の素の見た目を一瞬も露出しないこと) を確認する。
+async function runRevealMutedNoFlashScenario(page) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate(() => window.depReportOverviewTestApi.selectFile('src/file_a.c'));
+  await waitOverviewReady(page);
+
+  // file_a 選択でミュートされる file_c を非表示にする。
+  await page.evaluate(() => window.depReportOverviewTestApi.hideFile('src/file_c.c'));
+  await waitOverviewReady(page);
+
+  // revealAll を呼び、同一同期 (フレーム待機なし) で再表示ノードのクラスを取得する。
+  // これは Phase A 完了直後の断面であり、修正後はこの時点でミュート済みであるべき。
+  const sample = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const hiddenBefore = api.hiddenFiles();
+    api.revealAll();
+    const immediateClasses = api.classesOf('src/file_c.c') || [];
+    return {
+      hiddenBefore,
+      fileCExists: api.nodeIds().indexOf('src/file_c.c') !== -1,
+      immediateMuted: immediateClasses.indexOf('dep-file-node-muted') !== -1,
+      selectedStillA: (api.classesOf('src/file_a.c') || []).indexOf('dep-selected-file') !== -1
+    };
+  });
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      finalMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
+      hiddenFiles: api.hiddenFiles()
+    };
+  });
+
+  return { sample, final };
+}
+
 // seed 窓内 (Phase B の cola 計算中) に非表示ファイルを再表示して割り込んだとき、
 // 中止された選択ファイルの関数レイアウトがやり直され、seed 円形配置から整定移動することを検証する。
 async function runSeedInterruptRevealScenario(page, filePath) {
@@ -946,6 +1100,8 @@ async function run(reportPath) {
       };
     });
 
+    const initialHiddenSelection = await runInitialHiddenSelectionScenario(browser, reportPath, errors, 'src/file_a.c');
+
     const initialNodeIds = await page.evaluate(() => window.depReportOverviewTestApi.nodeIds());
     const styleState = await runStyleScenario(page);
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
@@ -1065,6 +1221,9 @@ async function run(reportPath) {
     const revealAll = await runRevealAllScenario(page);
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
+    const revealMutedNoFlash = await runRevealMutedNoFlashScenario(page);
+    await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+    await waitOverviewReady(page);
 
     // seed 窓内の表示/非表示割り込みで、選択ファイルの関数レイアウトがやり直されることを検証する。
     const seedInterruptReveal = await runSeedInterruptRevealScenario(page, 'src/file_a.c');
@@ -1077,6 +1236,7 @@ async function run(reportPath) {
     return {
       initialNodeIds,
       initialTabInterrupt,
+      initialHiddenSelection,
       styleState,
       sync,
       final,
@@ -1098,6 +1258,7 @@ async function run(reportPath) {
       hideRestoreByFunction,
       hideRestoreByCycle,
       revealAll,
+      revealMutedNoFlash,
       seedInterruptReveal,
       seedInterruptHide,
       pageErrors: errors.filter((e) => e.indexOf('ERR_FILE_NOT_FOUND') === -1)
