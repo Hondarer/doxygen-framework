@@ -677,6 +677,198 @@ async function runSeedDragFileScenario(page, filePath) {
   };
 }
 
+async function runSeedDragFunctionScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
+  await waitOverviewReady(page);
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await page.waitForFunction(
+    () => window.depReportOverviewTestApi.nodeIds().some((id) => id.indexOf('/') === -1 && id.indexOf('pull-') !== 0),
+    { timeout: 5000 }
+  );
+  await sleep(60);
+
+  const seed = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    const functionIds = api.nodeIds().filter((id) => id.indexOf('/') === -1 && id.indexOf('pull-') !== 0);
+    const fnId = functionIds.length > 0 ? functionIds[0] : '';
+    return {
+      layoutRunning: api.isLayoutRunning(),
+      viewport: api.viewport(),
+      fnId,
+      filePosition: api.positionOf(p),
+      fnPosition: fnId ? api.positionOf(fnId) : null,
+      fnRenderedPosition: fnId ? api.renderedPositionOf(fnId) : null
+    };
+  }, filePath);
+
+  const dragSamples = [];
+  if (seed.fnRenderedPosition) {
+    await page.mouse.move(seed.fnRenderedPosition.x, seed.fnRenderedPosition.y);
+    await page.mouse.down();
+    for (const step of [1, 2, 3, 4, 5]) {
+      await page.mouse.move(seed.fnRenderedPosition.x + step * 26, seed.fnRenderedPosition.y + step * 15, { steps: 4 });
+      await sleep(80);
+      const sample = await page.evaluate((args) => {
+        const api = window.depReportOverviewTestApi;
+        const rendered = args.fnId ? api.renderedPositionOf(args.fnId) : null;
+        return {
+          step: args.step,
+          expectedRendered: {
+            x: args.start.x + args.step * 26,
+            y: args.start.y + args.step * 15
+          },
+          rendered,
+          layoutRunning: api.isLayoutRunning(),
+          animationActive: api.isPositionAnimationActive()
+        };
+      }, { fnId: seed.fnId, start: seed.fnRenderedPosition, step });
+      dragSamples.push(Object.assign({}, sample, {
+        renderedDelta: distance(sample.rendered, sample.expectedRendered)
+      }));
+    }
+    await page.mouse.up();
+  }
+
+  const afterDrag = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    return {
+      filePosition: api.positionOf(args.filePath),
+      fnPosition: args.fnId ? api.positionOf(args.fnId) : null,
+      layoutRunning: api.isLayoutRunning(),
+      animationActive: api.isPositionAnimationActive(),
+      viewport: api.viewport()
+    };
+  }, { filePath, fnId: seed.fnId });
+
+  let animationSeenAfterDrag = afterDrag.animationActive;
+  for (let i = 0; i < 80; i++) {
+    const state = await page.evaluate(() => ({
+      layoutRunning: window.depReportOverviewTestApi.isLayoutRunning(),
+      animationActive: window.depReportOverviewTestApi.isPositionAnimationActive()
+    }));
+    if (state.animationActive) animationSeenAfterDrag = true;
+    if (!state.layoutRunning && animationSeenAfterDrag) break;
+    await sleep(25);
+  }
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate((args) => {
+    const api = window.depReportOverviewTestApi;
+    const children = api.childPositions(args.filePath);
+    const childCenter = children && children.length > 0
+      ? {
+          x: children.reduce((acc, child) => acc + child.x, 0) / children.length,
+          y: children.reduce((acc, child) => acc + child.y, 0) / children.length
+        }
+      : null;
+    return {
+      filePosition: api.positionOf(args.filePath),
+      fnPosition: args.fnId ? api.positionOf(args.fnId) : null,
+      childCenter,
+      viewport: api.viewport(),
+      renderedMatchesCurrent: api.renderedSignature() === api.currentSignature()
+    };
+  }, { filePath, fnId: seed.fnId });
+
+  return {
+    seed,
+    dragSamples,
+    afterDrag,
+    final,
+    animationSeenAfterDrag,
+    fnMovedFromSeed: distance(seed.fnPosition, afterDrag.fnPosition),
+    fnFinalDriftFromDragged: distance(afterDrag.fnPosition, final.fnPosition),
+    fileFinalDriftFromDragged: distance(afterDrag.filePosition, final.filePosition),
+    childCenterDriftFromFile: distance(final.filePosition, final.childCenter)
+  };
+}
+
+async function overviewBackgroundPoint(page) {
+  return page.evaluate(() => {
+    const graph = document.getElementById('overviewGraph');
+    const cy = graph && graph._cyreg ? graph._cyreg.cy : null;
+    if (!graph || !cy) return null;
+    const rect = graph.getBoundingClientRect();
+    const occupied = cy.nodes().map((n) => n.renderedBoundingBox({ includeLabels: true, includeOverlays: false }));
+    function free(rx, ry) {
+      return !occupied.some((b) => rx >= b.x1 - 8 && rx <= b.x2 + 8 && ry >= b.y1 - 8 && ry <= b.y2 + 8);
+    }
+    for (let gy = rect.height - 20; gy > 40; gy -= 20) {
+      for (let gx = 20; gx < rect.width - 20; gx += 20) {
+        if (free(gx, gy)) return { x: rect.left + gx, y: rect.top + gy };
+      }
+    }
+    return null;
+  });
+}
+
+async function runDraggedFunctionSeedResetScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), filePath);
+  await waitOverviewReady(page);
+
+  const before = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    const fnIds = api.nodeIds().filter((id) => id.indexOf('/') === -1 && id.indexOf('pull-') !== 0).slice(0, 2);
+    return {
+      fnIds,
+      positions: Object.fromEntries(fnIds.map((id) => [id, api.positionOf(id)])),
+      rendered: Object.fromEntries(fnIds.map((id) => [id, api.renderedPositionOf(id)]))
+    };
+  }, filePath);
+
+  const offsets = [{ x: 120, y: 70 }, { x: -95, y: 65 }];
+  for (let i = 0; i < before.fnIds.length; i++) {
+    const rendered = before.rendered[before.fnIds[i]];
+    const offset = offsets[i] || offsets[0];
+    if (!rendered) continue;
+    await page.mouse.move(rendered.x, rendered.y);
+    await page.mouse.down();
+    await page.mouse.move(rendered.x + offset.x, rendered.y + offset.y, { steps: 8 });
+    await page.mouse.up();
+    await sleep(80);
+  }
+
+  const dragged = await page.evaluate((fnIds) => {
+    const api = window.depReportOverviewTestApi;
+    return Object.fromEntries(fnIds.map((id) => [id, api.positionOf(id)]));
+  }, before.fnIds);
+
+  const bg = await overviewBackgroundPoint(page);
+  if (bg) await page.mouse.click(bg.x, bg.y);
+  await waitOverviewReady(page);
+
+  const reselectedSeed = await page.evaluate((p) => {
+    const api = window.depReportOverviewTestApi;
+    api.selectFile(p);
+    const fnIds = api.nodeIds().filter((id) => id.indexOf('/') === -1 && id.indexOf('pull-') !== 0).slice(0, 2);
+    return {
+      fnIds,
+      positions: Object.fromEntries(fnIds.map((id) => [id, api.positionOf(id)])),
+      layoutRunning: api.isLayoutRunning()
+    };
+  }, filePath);
+
+  await waitOverviewReady(page);
+  const final = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    return { renderedMatchesCurrent: api.renderedSignature() === api.currentSignature() };
+  });
+
+  const draggedDistances = reselectedSeed.fnIds.map((id) => distance(dragged[id], reselectedSeed.positions[id]));
+
+  return {
+    available: Boolean(bg) && before.fnIds.length > 0,
+    before,
+    dragged,
+    reselectedSeed,
+    draggedDistances,
+    minDraggedDistance: draggedDistances.length > 0 ? Math.min(...draggedDistances) : null,
+    final
+  };
+}
+
 // Problem 2: ファイル選択の seed 窓内に背景クリック相当の無選択化を行うと、以前は
 // 詳細ペインだけ無選択になりマップはファイル選択のまま残った。修正後はマップも完全に
 // 無選択へ整定することを検証する。
@@ -1208,6 +1400,14 @@ async function run(reportPath) {
     await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
     await waitOverviewReady(page);
 
+    const seedDragFunction = await runSeedDragFunctionScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
+    const draggedFunctionSeedReset = await runDraggedFunctionSeedResetScenario(page, 'src/file_a.c');
+    await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+    await waitOverviewReady(page);
+
     const seedInterruptClear = await runSeedInterruptClearScenario(page, 'src/file_a.c');
     await page.evaluate(() => window.depReportOverviewTestApi.resetGraph());
     await waitOverviewReady(page);
@@ -1254,6 +1454,8 @@ async function run(reportPath) {
       hidePersist,
       realSeedInterruptFunctionStability,
       seedDragFile,
+      seedDragFunction,
+      draggedFunctionSeedReset,
       hideRestoreBySelect,
       hideRestoreByFunction,
       hideRestoreByCycle,

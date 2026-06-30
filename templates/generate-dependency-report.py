@@ -2159,6 +2159,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewInteractionStateBeforeLayout = null;
   let overviewDraggingNodeIds = new Set();
   let overviewUserMovedNodePositions = new Map();
+  let overviewFunctionGrabInterruptedLayout = false;
   let overviewDragRevision = 0;
   let overviewSyncAfterDrag = false;
   let overviewLastClassUpdatePlan = null;
@@ -3842,13 +3843,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return overviewDraggingNodeIds.size > 0;
   }}
 
+  function markOverviewFunctionLayoutInterrupted(node) {{
+    if (!overviewCy || !node || !node.length || !node.data("parent")) return;
+    const parent = node.parent();
+    if (!parent || !parent.length) return;
+    parent.children().nodes().forEach((child) => overviewPendingRelayoutNodeIds.add(child.id()));
+  }}
+
   function rememberOverviewUserMovedPositions(node) {{
     if (!overviewCy || !node || !node.length) return;
     for (const id of overviewNodeDragIds(node)) {{
       const element = overviewCy.getElementById(id);
       if (!element || !element.length) continue;
+      if (element.data("parent")) continue;
       const position = element.position();
       overviewUserMovedNodePositions.set(id, {{ x: position.x, y: position.y }});
+    }}
+  }}
+
+  function forgetOverviewNodeRuntimeState(node) {{
+    if (!node || !node.length || !node.isNode()) return;
+    const ids = overviewNodeDragIds(node);
+    for (const id of ids) {{
+      overviewUserMovedNodePositions.delete(id);
+      overviewDraggingNodeIds.delete(id);
+      overviewPendingRelayoutNodeIds.delete(id);
     }}
   }}
 
@@ -3940,6 +3959,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function animateOverviewPositions(startPositions, targetPositions, opts) {{
     if (!overviewCy) return;
     stopOverviewPositionAnimation();
+    if (overviewFunctionGrabInterruptedLayout || hasOverviewDraggingNodes()) {{
+      const onComplete = opts && typeof opts.onComplete === "function" ? opts.onComplete : null;
+      if (onComplete) onComplete();
+      return;
+    }}
     const duration = 430;
     const distances = new Map();
     let maxDistance = 1;
@@ -4312,6 +4336,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (plan.stale.length > 0) {{
         const staleCollection = overviewCy.collection(plan.stale);
         if (staleCollection.nodes().length > 0) layoutNeeded = true;
+        staleCollection.nodes().forEach((node) => forgetOverviewNodeRuntimeState(node));
         overviewCy.remove(staleCollection);
       }}
       if (plan.missingOrdered.length > 0) {{
@@ -4374,11 +4399,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // 選択操作のレイアウト挙動・ノード位置を変えず、座標依存のクリック判定などを乱さない。
     // pending への登録/削除は中止時 (stopOverviewActiveLayout) と自然完了時 (finishLayout) で対称に
     // 行うため、ここではクリアしない (再投入した関数は新レイアウト完了時に finishLayout が削除する)。
-    if (opts && opts.force && layoutNeeded && overviewPendingRelayoutNodeIds.size > 0) {{
+    if (opts && (opts.force || opts.relayoutPending) && overviewPendingRelayoutNodeIds.size > 0) {{
       for (const id of overviewPendingRelayoutNodeIds) {{
         const node = overviewCy.getElementById(id);
         if (node && node.length) movingNodeIds.add(id);
       }}
+      if (movingNodeIds.size > 0) layoutNeeded = true;
     }}
 
     if (!isLatestOverviewSync(token)) return false;
@@ -4441,6 +4467,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
     // --- Phase B (非同期レイアウト + アニメーション) ---
     if (layoutNeeded && movingNodeIds.size > 0) {{
+      applyOverviewUserMovedPositions(previousPositions, anchorCenters);
       restoreOverviewNodePositions(previousPositions);
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
       if (opts) opts.layoutStarted = true;
@@ -4495,10 +4522,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // grab (mousedown) はタップでも発火する。ここでドラッグ集合へ登録すると、
     // タップ直後の選択 sync がドラッグ後回し分岐に入り Phase B (関数レイアウト) を
     // 取りこぼす。実際の移動 (drag) があって初めてドラッグ扱いとする。
+    if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewPositionAnimation)) {{
+      if (overviewActiveLayout) stopOverviewActiveLayout();
+      markOverviewFunctionLayoutInterrupted(node);
+      overviewFunctionGrabInterruptedLayout = true;
+    }}
     stopOverviewPositionAnimation();
   }}
 
   function handleOverviewNodeDrag(node) {{
+    if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewFunctionGrabInterruptedLayout)) {{
+      stopOverviewActiveLayout();
+      markOverviewFunctionLayoutInterrupted(node);
+      overviewSyncAfterDrag = true;
+    }}
     rememberOverviewUserMovedPositions(node);
     let added = false;
     for (const id of overviewNodeDragIds(node)) {{
@@ -4517,9 +4554,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (overviewDraggingNodeIds.delete(id)) removed = true;
     }}
     if (removed) overviewDragRevision += 1;
+    overviewFunctionGrabInterruptedLayout = false;
     if (hasOverviewDraggingNodes() || !overviewSyncAfterDrag) return;
     overviewSyncAfterDrag = false;
-    runLatestOverviewSync({{}}, buildOverviewElements());
+    runLatestOverviewSync({{ relayoutPending: true }}, buildOverviewElements());
   }}
 
   function overviewSelectionSignature() {{

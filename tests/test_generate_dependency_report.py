@@ -407,7 +407,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("function overviewNodeDragIds(node)", index_html)
             self.assertIn("function isOverviewNodeDragging(nodeOrId)", index_html)
             self.assertIn("function hasOverviewDraggingNodes()", index_html)
+            self.assertIn("let overviewFunctionGrabInterruptedLayout = false;", index_html)
+            self.assertIn("function markOverviewFunctionLayoutInterrupted(node)", index_html)
+            self.assertIn("parent.children().nodes().forEach((child) => overviewPendingRelayoutNodeIds.add(child.id()));", index_html)
+            self.assertIn('node.data("parent")', index_html)
             self.assertIn("function rememberOverviewUserMovedPositions(node)", index_html)
+            self.assertIn('if (element.data("parent")) continue;', index_html)
+            self.assertIn("function forgetOverviewNodeRuntimeState(node)", index_html)
             self.assertIn("function applyOverviewUserMovedPositions(startPositions, anchorCenters)", index_html)
             self.assertIn("function handleOverviewNodeGrab(node)", index_html)
             self.assertIn("function handleOverviewNodeDrag(node)", index_html)
@@ -419,6 +425,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn("for (const id of overviewNodeDragIds(node)) overviewDraggingNodeIds.add(id);", index_html)
             self.assertIn("Math.exp(-rate * clamped)", index_html)
             self.assertIn("const p = exponentialEaseOutProgress(t, impact);", index_html)
+            self.assertIn("if (overviewFunctionGrabInterruptedLayout || hasOverviewDraggingNodes()) {", index_html)
             self.assertIn("controls-inert", index_html)
             self.assertNotIn("onBeforeAnimation: clearOverviewLayoutPendingLabel", index_html)
             self.assertIn("layout-initializing", index_html)
@@ -528,6 +535,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("await processOverviewChunks(deferredClassTargets, token", index_html)
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
+            self.assertIn("staleCollection.nodes().forEach((node) => forgetOverviewNodeRuntimeState(node));", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
             self.assertIn("const structureElement = overviewStructureElement(target);", index_html)
             # 新規追加ノードは初回描画から最終状態クラス (ミュート等) で生成し、再表示ちらつきを防ぐ。
@@ -559,7 +567,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn("structureResult.positionDeferred", index_html)
             self.assertNotIn("element.position(target.position);", index_html)
             self.assertIn("overviewSyncAfterDrag = true;", index_html)
-            self.assertIn("runLatestOverviewSync({}, buildOverviewElements());", index_html)
+            self.assertIn("overviewFunctionGrabInterruptedLayout = true;", index_html)
+            self.assertIn("markOverviewFunctionLayoutInterrupted(node);", index_html)
+            self.assertIn('if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewFunctionGrabInterruptedLayout)) {', index_html)
+            self.assertIn("stopOverviewActiveLayout();", index_html)
+            self.assertIn("opts && (opts.force || opts.relayoutPending) && overviewPendingRelayoutNodeIds.size > 0", index_html)
+            self.assertIn("if (movingNodeIds.size > 0) layoutNeeded = true;", index_html)
+            self.assertIn("runLatestOverviewSync({ relayoutPending: true }, buildOverviewElements());", index_html)
             self.assertIn("const fragment = document.createDocumentFragment();", index_html)
             self.assertIn("function debounce(callback, delayMs)", index_html)
             self.assertIn('tr.setAttribute("data-function-row-id", fn.id);', index_html)
@@ -1719,6 +1733,33 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertAlmostEqual(seed_drag["seed"]["viewport"]["zoom"], seed_drag["final"]["viewport"]["zoom"], delta=0.001)
             self.assertAlmostEqual(seed_drag["seed"]["viewport"]["pan"]["x"], seed_drag["final"]["viewport"]["pan"]["x"], delta=0.5)
             self.assertAlmostEqual(seed_drag["seed"]["viewport"]["pan"]["y"], seed_drag["final"]["viewport"]["pan"]["y"], delta=0.5)
+
+            # --- seed 窓内で関数をドラッグ: 親ファイル中心の変化を開始座標へ反映する ---
+            seed_drag_fn = data["seedDragFunction"]
+            self.assertTrue(seed_drag_fn["seed"]["layoutRunning"], msg="関数ドラッグの seed 窓を再現できていない")
+            self.assertTrue(seed_drag_fn["seed"]["fnId"], msg="ドラッグ対象の関数ノードが取得できていない")
+            self.assertEqual(len(seed_drag_fn["dragSamples"]), 5)
+            self.assertFalse(any(sample["animationActive"] for sample in seed_drag_fn["dragSamples"]))
+            self.assertLessEqual(
+                max(sample["renderedDelta"] for sample in seed_drag_fn["dragSamples"]),
+                2.0,
+                msg=str(seed_drag_fn["dragSamples"]),
+            )
+            self.assertGreater(seed_drag_fn["fnMovedFromSeed"], 8.0)
+            self.assertFalse(seed_drag_fn["afterDrag"]["animationActive"])
+            self.assertTrue(seed_drag_fn["animationSeenAfterDrag"])
+            self.assertTrue(seed_drag_fn["final"]["renderedMatchesCurrent"])
+            self.assertLessEqual(seed_drag_fn["childCenterDriftFromFile"], 90.0)
+            self.assertAlmostEqual(seed_drag_fn["seed"]["viewport"]["zoom"], seed_drag_fn["final"]["viewport"]["zoom"], delta=0.001)
+            self.assertAlmostEqual(seed_drag_fn["seed"]["viewport"]["pan"]["x"], seed_drag_fn["final"]["viewport"]["pan"]["x"], delta=0.5)
+            self.assertAlmostEqual(seed_drag_fn["seed"]["viewport"]["pan"]["y"], seed_drag_fn["final"]["viewport"]["pan"]["y"], delta=0.5)
+
+            # --- drag 後に無選択化して同じファイルを再選択: 削除済み関数の旧 drag 座標を seed に使わない ---
+            dragged_seed_reset = data["draggedFunctionSeedReset"]
+            self.assertTrue(dragged_seed_reset["available"])
+            self.assertTrue(dragged_seed_reset["reselectedSeed"]["layoutRunning"])
+            self.assertGreater(dragged_seed_reset["minDraggedDistance"], 20.0, msg=str(dragged_seed_reset))
+            self.assertTrue(dragged_seed_reset["final"]["renderedMatchesCurrent"])
 
             # --- seed 窓内で無選択化へ割り込み (Problem 2): マップも完全に無選択へ整定 ---
             # 修正前は詳細ペインだけ無選択になりマップはファイル選択のまま残った。
