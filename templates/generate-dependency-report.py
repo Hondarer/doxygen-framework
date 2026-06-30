@@ -4740,7 +4740,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       initOverviewGraph();
       // 他タブで選択変更後に全体マップへ遷移した場合も復活条件を評価する。
       const revealed = reconcileHiddenOverviewFiles();
-      const immediate = Boolean(opts && opts.immediate);
+      // 既にレイアウト済みの全体マップへ別タブから戻る場合は immediate を落とす。これにより
+      // 全体マップ内選択と同じ animate 経路 (renderOverviewGraph -> syncOverviewElements) を通り、
+      // 非選択ノードの位置を保持する。未初期化 (要素が空) のときだけ従来どおり immediate のまま
+      // resetOverviewGraph で選択込みの全体レイアウトを 1 回で行う。
+      const alreadyLaidOut = Boolean(overviewLayoutInitialized && overviewCy && overviewCy.elements().length > 0);
+      const immediate = Boolean(opts && opts.immediate) && !alreadyLaidOut;
       if (!revealed && immediate && isOverviewSelectionPendingOrRendered()) {{
         return;
       }}

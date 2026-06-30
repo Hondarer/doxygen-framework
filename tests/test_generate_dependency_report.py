@@ -323,6 +323,16 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 対象も考慮する。これにより seed 窓内の選択変更で再 sync が確実に走る。
             self.assertIn("function isOverviewSelectionPendingOrRendered()", index_html)
             self.assertIn("overviewPendingSelectionSignature === overviewSelectionSignature()", index_html)
+            # 初期化済みの全体マップへ別タブから戻る場合は immediate を落とし、全体マップ内選択と
+            # 同じ animate 経路で非選択ノードの位置を保持する。未初期化のときだけ従来どおり immediate。
+            self.assertIn(
+                "const alreadyLaidOut = Boolean(overviewLayoutInitialized && overviewCy && overviewCy.elements().length > 0);",
+                index_html,
+            )
+            self.assertIn(
+                "const immediate = Boolean(opts && opts.immediate) && !alreadyLaidOut;",
+                index_html,
+            )
             # 復活発生時 (revealed) はスキップせず再 sync を強制する。
             self.assertIn("if (!revealed && immediate && isOverviewSelectionPendingOrRendered())", index_html)
             self.assertIn("if (!(opts && opts.force) && isOverviewSelectionPendingOrRendered()) {\n      return false;\n    }", index_html)
@@ -1557,17 +1567,21 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertNotIn("dep-selected-file", clear_selection["final"]["fileCClasses"])
             self.assertNotIn("dep-file-node-muted", clear_selection["final"]["fileAClasses"])
 
-            # --- 初期化済みマップから別タブで選択変更後に戻る: 非表示同期 ---
+            # --- 初期化済みマップから別タブで選択変更後に戻る: 全体マップ内選択と同じく位置保持 ---
+            # 初期化済みの場合は immediate (= 非表示同期) を通さず animate 経路で選択を反映するため、
+            # 非表示にはならず、非選択ファイル ノードは動かない。
             hidden_tab_selection = data["hiddenTabSelection"]
-            self.assertTrue(hidden_tab_selection["immediate"]["hidden"])
-            self.assertFalse(hidden_tab_selection["immediate"]["animationActive"])
-            self.assertFalse(hidden_tab_selection["hiddenDroppedBeforeReady"])
-            self.assertFalse(hidden_tab_selection["animationSeen"])
+            self.assertFalse(hidden_tab_selection["immediate"]["hidden"])
             self.assertFalse(hidden_tab_selection["final"]["hidden"])
             self.assertFalse(hidden_tab_selection["final"]["animationActive"])
             self.assertTrue(hidden_tab_selection["final"]["renderedMatchesCurrent"])
             self.assertIn("dep-selected-file", hidden_tab_selection["final"]["selectedFileClasses"])
             self.assertTrue(hidden_tab_selection["final"]["fileCMuted"])
+            # この修正の中核: 復帰前後で非選択ファイル ノードが動かない。
+            self.assertEqual(
+                hidden_tab_selection["movedCount"], 0, msg=str(hidden_tab_selection["movedTop"])
+            )
+            self.assertLessEqual(hidden_tab_selection["maxMovedDelta"], 0.5)
 
             # --- Phase B 中の連続選択: 古い Phase C が最新選択へ反映されない ---
             rapid_selection = data["rapidSelection"]

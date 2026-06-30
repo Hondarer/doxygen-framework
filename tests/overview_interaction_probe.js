@@ -227,6 +227,14 @@ async function runHiddenTabSelectionScenario(page, filePath) {
     { timeout: 20000 }
   );
 
+  // 復帰前の (初期化済み・無選択) ファイル ノード位置を採取する。復帰後に非選択ファイルが
+  // 動かないことを検証するための基準。
+  const beforeReturn = await page.evaluate(() => {
+    const api = window.depReportOverviewTestApi;
+    const fileIds = api.nodeIds().filter((id) => id.indexOf('/') !== -1);
+    return { fileIds, filePositions: Object.fromEntries(fileIds.map((id) => [id, api.positionOf(id)])) };
+  });
+
   await page.evaluate((p) => {
     const api = window.depReportOverviewTestApi;
     api.activateFileList();
@@ -272,22 +280,33 @@ async function runHiddenTabSelectionScenario(page, filePath) {
     await sleep(20);
   }
 
-  const final = await page.evaluate((p) => {
+  const final = await page.evaluate((args) => {
     const api = window.depReportOverviewTestApi;
     return {
       hidden: api.isRelayoutHidden(),
       animationActive: api.isPositionAnimationActive(),
       renderedMatchesCurrent: api.renderedSignature() === api.currentSignature(),
-      selectedFileClasses: api.classesOf(p) || [],
-      fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1
+      selectedFileClasses: api.classesOf(args.filePath) || [],
+      fileCMuted: (api.classesOf('src/file_c.c') || []).indexOf('dep-file-node-muted') !== -1,
+      filePositions: Object.fromEntries(args.fileIds.map((id) => [id, api.positionOf(id)]))
     };
-  }, filePath);
+  }, { filePath, fileIds: beforeReturn.fileIds });
+
+  // 非選択ファイル ノードが復帰前後で動かないこと (全体マップ内選択と同じ挙動)。
+  const moved = beforeReturn.fileIds
+    .filter((id) => id !== filePath)
+    .map((id) => ({ id, delta: distance(beforeReturn.filePositions[id], final.filePositions[id]) }))
+    .filter((entry) => entry.delta !== null && entry.delta > 0.5)
+    .sort((a, b) => b.delta - a.delta);
 
   return {
     immediate,
     animationSeen,
     hiddenDroppedBeforeReady,
-    final
+    final,
+    movedCount: moved.length,
+    maxMovedDelta: moved.length > 0 ? moved[0].delta : 0,
+    movedTop: moved.slice(0, 5)
   };
 }
 
