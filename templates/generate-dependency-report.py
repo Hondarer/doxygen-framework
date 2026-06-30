@@ -1362,6 +1362,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
       border-color: var(--dep-accent);
       color: var(--dep-accent);
     }}
+    .dep-download-menu-items .dep-download:hover {{
+      border-color: transparent;
+    }}
     input, select {{
       width: 100%;
       box-sizing: border-box;

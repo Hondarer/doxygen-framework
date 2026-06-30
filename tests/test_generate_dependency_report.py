@@ -258,6 +258,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 index_html,
             )
             self.assertIn(".dep-download-menu-items .dep-download", index_html)
+            self.assertIn(".dep-download-menu-items .dep-download:hover", index_html)
             self.assertIn("border-color: transparent;", index_html)
             self.assertIn('function closeDownloadMenus(exceptMenu)', index_html)
             self.assertIn('if (event.target.closest(".dep-download-menu")) return;', index_html)
