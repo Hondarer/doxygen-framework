@@ -425,7 +425,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn("LOCAL_LAYOUT_LIMIT", index_html)
             self.assertNotIn("function completeOverviewPresetLayout(fit, onComplete)", index_html)
             self.assertIn("deferPositions: manual || immediate || deferPositions", index_html)
-            self.assertIn("const OVERVIEW_SYNC_CHUNK_SIZE = 25;", index_html)
+            self.assertIn("const OVERVIEW_SYNC_CHUNK_SIZE = 100;", index_html)
             self.assertIn("let overviewSyncToken = 0;", index_html)
             self.assertIn("function nextOverviewFrame()", index_html)
             self.assertIn("function isLatestOverviewSync(token)", index_html)

@@ -2080,7 +2080,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
   for (const pairs of edgePairsByFileKey.values()) {{
     pairs.sort((a, b) => compareText(a.callerFile, b.callerFile) || compareText(a.caller, b.caller) || compareText(a.callee, b.callee));
   }}
-  const OVERVIEW_SYNC_CHUNK_SIZE = 25;
+  const OVERVIEW_SYNC_CHUNK_SIZE = 100;
 
   const summary = document.getElementById("summary");
   const rows = document.getElementById("functionRows");
