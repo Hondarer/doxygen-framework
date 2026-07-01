@@ -2143,6 +2143,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   // cola (Phase B) の実起動回数。テスト専用フックが Phase B のスキップを確定的に
   // 検証するために参照する (通常描画では未使用)。
   let overviewLayoutRunCount = 0;
+  // 直近レイアウトが cola へ投入したノード数と、その純計算時間 (ms)。テスト専用フックが
+  // 部分コレクション化の効果 (投入ノード数の削減・時間短縮) を測るために参照する。
+  let overviewLastLayoutNodeCount = 0;
+  let overviewLastLayoutDurationMs = 0;
   let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
   let overviewPendingSelectionSignature = null;
@@ -3631,6 +3635,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const instantPositions = Boolean(opts && opts.instantPositions);
     const fullConvergence = Boolean(opts && opts.fullConvergence);
     const unlockAllDuringLayout = Boolean(opts && opts.unlockAllDuringLayout);
+    const scopeToVisibleChildren = Boolean(opts && opts.scopeToVisibleChildren);
     const movingNodeIds = opts && opts.movingNodeIds ? opts.movingNodeIds : null;
     const anchorCenters = opts && opts.anchorCenters ? opts.anchorCenters : new Map();
     const immediate = Boolean(opts && opts.immediate) || !overviewLayoutInitialized;
@@ -3640,15 +3645,36 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const syncToken = opts && opts.syncToken ? opts.syncToken : null;
     const startPositions = overviewNodePositions();
     const lockedNodes = (!unlockAllDuringLayout && movingNodeIds) ? overviewCy.nodes().filter((node) => !movingNodeIds.has(node.id())) : overviewCy.collection();
+    // Phase B は「展開中ファイル配下の関数の座標」だけを見た目へ反映し、ファイル位置は
+    // 計算後に anchor で元へ戻す。全グラフを cola にかけると崩壊 (子なし) ファイルまで
+    // 計算してから捨てるため、コストが総ノード数に比例する。scopeToVisibleChildren のときは
+    // レイアウトに効く部分グラフ (子を持つファイル + その子 + 子同士のエッジ) だけを対象にし、
+    // コストを可視関数数に比例させる。cytoscape-cola は渡した eles のノード/エッジだけを
+    // 計算対象にする。
+    let layoutTarget = overviewCy;
+    if (scopeToVisibleChildren) {{
+      const layoutParents = overviewCy.nodes(":parent");
+      const layoutChildren = layoutParents.children();
+      if (layoutChildren.length > 0) {{
+        // 関数配置に効くのは関数間エッジ (dep-function-edge / dep-pull-edge) のみ。
+        // file-edge は端点がファイル ノードで関数配置に影響しないため除外する。
+        const layoutEdges = overviewCy.edges().filter(
+          (edge) => layoutChildren.contains(edge.source()) && layoutChildren.contains(edge.target())
+        );
+        layoutTarget = layoutParents.union(layoutChildren).union(layoutEdges);
+      }}
+    }}
     overviewLayoutInitialized = true;
     stopOverviewPositionAnimation();
     const isCurrentLayout = () => (
       layoutToken === overviewLayoutToken && (!syncToken || isLatestOverviewSync(syncToken))
     );
     let startedLayout = null;
+    let layoutStartMs = 0;
     const finishLayout = async () => {{
-      // layoutstop が発火した時点でこのレイアウトは終了。アクティブ ハンドルが
-      // 自分自身を指しているなら解放する (別レイアウトに更新済みなら触らない)。
+      // layoutstop が発火した時点でこのレイアウトは終了。cola の純計算時間を記録する。
+      if (layoutStartMs > 0) overviewLastLayoutDurationMs = performance.now() - layoutStartMs;
+      // アクティブ ハンドルが自分自身を指しているなら解放する (別レイアウトに更新済みなら触らない)。
       if (overviewActiveLayout && overviewActiveLayout.layout === startedLayout) overviewActiveLayout = null;
       if (!isCurrentLayout()) {{
         lockedNodes.unlock();
@@ -3705,11 +3731,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (fit) fitOverviewGraph();
       if (onComplete) onComplete();
     }};
-    // ここから実レイアウト (cola / cose) を起動する。テスト検証用に起動回数を数える。
+    // ここから実レイアウト (cola / cose) を起動する。テスト検証用に起動回数と
+    // 投入ノード数を記録する (投入ノード数はスコープ化の効果を測る指標)。
     overviewLayoutRunCount += 1;
+    overviewLastLayoutNodeCount = layoutTarget.nodes().length;
     if (typeof cytoscapeCola === "function") {{
       lockedNodes.lock();
-      const layout = overviewCy.layout({{
+      const layout = layoutTarget.layout({{
         name: "cola",
         animate: false,
         deferPositions: manual || immediate || deferPositions,
@@ -3733,11 +3761,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       layout.one("layoutstop", () => {{
         finishLayout();
       }});
+      layoutStartMs = performance.now();
       layout.run();
       return;
     }}
     lockedNodes.lock();
-    const layout = overviewCy.layout({{
+    const layout = layoutTarget.layout({{
       name: "cose",
       animate: false,
       fit: false,
@@ -3755,6 +3784,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     layout.one("layoutstop", () => {{
       finishLayout();
     }});
+    layoutStartMs = performance.now();
     layout.run();
   }}
 
@@ -4605,6 +4635,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         deferPositions: true,
         fullConvergence: true,
         unlockAllDuringLayout: true,
+        scopeToVisibleChildren: true,
         syncToken: token
       }});
       requestOverviewFrame(startPhaseC);
@@ -5767,6 +5798,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
       isInitializing: () => Boolean(overviewGraph && overviewGraph.classList.contains("layout-initializing")),
       isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewActiveLayout) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
       layoutRunCount: () => overviewLayoutRunCount,
+      lastLayoutNodeCount: () => overviewLastLayoutNodeCount,
+      lastLayoutDurationMs: () => overviewLastLayoutDurationMs,
+      totalNodeCount: () => (overviewCy ? overviewCy.nodes().length : 0),
+      // 現在の可視状態で、全子ノードを対象に 1 回レイアウトを実行し、投入ノード数と
+      // 純計算時間を返す。scope=true で部分コレクション経路、false で全グラフ経路。
+      // 部分コレクション化の改善効果 (投入ノード数・時間の削減) を同一条件で比較するための
+      // テスト専用フック。視覚結果は問わない (anchorCenters なしで走らせる)。
+      measureLayoutForTest: (scope) => new Promise((resolve) => {{
+        if (!overviewCy) {{ resolve(null); return; }}
+        const movingNodeIds = new Set(overviewCy.nodes(":child").map((node) => node.id()));
+        runOverviewLayout({{
+          movingNodeIds,
+          immediate: true,
+          fullConvergence: true,
+          unlockAllDuringLayout: true,
+          scopeToVisibleChildren: Boolean(scope),
+          onComplete: () => resolve({{
+            nodeCount: overviewLastLayoutNodeCount,
+            durationMs: overviewLastLayoutDurationMs
+          }})
+        }});
+      }}),
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
       selectEdge: (id) => selectOverviewEdge(id),

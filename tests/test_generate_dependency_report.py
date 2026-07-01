@@ -1155,6 +1155,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
 LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"
+SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_layout_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1404,6 +1405,59 @@ class OverviewInteractionTest(unittest.TestCase):
         generate_dependency_report.generate_report(xml_dir, output_dir, "large-layout")
         return output_dir / "index.html"
 
+    def _generate_scope_layout_report(self, temp_dir, collapsed_count=30, hub_functions=12):
+        # Phase B の部分コレクション化を検証するためのフィクスチャ。
+        # 崩壊 (関数 1 つ) ファイルを多数 + 関数を複数持つ対象ファイル (hub.c) 1 つ。
+        # 対象ファイルを選択したとき、cola へ投入されるのは hub.c とその関数だけで、
+        # 崩壊ファイル群は含まれないことを検証する。
+        xml_dir = temp_dir / "xml"
+        output_dir = temp_dir / "report"
+        xml_dir.mkdir()
+        output_dir.mkdir()
+
+        members = []
+        for index in range(hub_functions):
+            members.append(
+                """      <memberdef kind="function" id="h_{index:02d}" static="yes">
+        <name>hub_{index:02d}</name>
+        <location file="src/hub.c" line="{line}" bodyfile="src/hub.c" bodystart="{line}"/>
+      </memberdef>
+""".format(index=index, line=index + 10)
+            )
+        write_xml(
+            xml_dir,
+            "hub.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="hub_8c" kind="file">
+    <compoundname>hub.c</compoundname>
+    <sectiondef>
+{members}    </sectiondef>
+  </compounddef>
+</doxygen>
+""".format(members="".join(members)),
+        )
+        for index in range(collapsed_count):
+            write_xml(
+                xml_dir,
+                "leaf_{}.xml".format(index),
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="leaf__{index}_8c" kind="file">
+    <compoundname>leaf_{index}.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="l_{index}" static="yes">
+        <name>leaf_{index}</name>
+        <location file="src/leaf_{index}.c" line="10" bodyfile="src/leaf_{index}.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""".format(index=index),
+            )
+        generate_dependency_report.generate_report(xml_dir, output_dir, "scope-layout")
+        return output_dir / "index.html"
+
     def _run_probe(self, index_html):
         result = subprocess.run(
             [_node_binary(), str(PROBE_SCRIPT), str(index_html)],
@@ -1441,6 +1495,72 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_scope_layout_probe(self, index_html, file_path="src/hub.c", samples=5):
+        result = subprocess.run(
+            [_node_binary(), str(SCOPE_LAYOUT_PROBE_SCRIPT), str(index_html), file_path, str(samples)],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="scope layout probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_scope_layout(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            collapsed_count = 30
+            hub_functions = 12
+            index_html = self._generate_scope_layout_report(
+                Path(temp_dir_text), collapsed_count=collapsed_count, hub_functions=hub_functions
+            )
+            data = self._run_scope_layout_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            self.assertTrue(data["renderedMatchesCurrent"])
+            self.assertEqual(data["childLayout"]["count"], hub_functions)
+
+            # --- スコープが効いている証拠 ---
+            # 全ノード数は「hub + hub の関数 + 崩壊ファイル群」。
+            self.assertGreaterEqual(data["totalNodeCount"], collapsed_count + hub_functions + 1)
+            # cola に投入されたのは hub とその関数だけ (崩壊ファイル群は含まれない)。
+            # 上限は hub ファイル 1 + 関数 hub_functions に余裕を持たせた値。
+            self.assertLessEqual(
+                data["scopedLayoutNodeCount"], hub_functions + 2, msg=str(data)
+            )
+            # 崩壊ファイル群を確実に除外している (全ノード数よりはるかに小さい)。
+            self.assertLess(
+                data["scopedLayoutNodeCount"], data["totalNodeCount"] - collapsed_count + 2,
+                msg=str(data),
+            )
+
+            # --- レイアウト品質: seed からバランスよく分散する ---
+            # hub の関数は seed のコンパクトな塊ではなく、hub-spoke で広がる。
+            self.assertLessEqual(data["childLayout"]["aspectRatio"], 2.2, msg=str(data["childLayout"]))
+            self.assertGreaterEqual(
+                max(data["childLayout"]["width"], data["childLayout"]["height"]),
+                200.0,
+                msg=str(data["childLayout"]),
+            )
+
+            # --- 改善効果の計測 (全グラフ経路 vs 部分コレクション経路) ---
+            measure = data["measure"]
+            # 部分コレクション経路の投入ノード数は全グラフ経路より確実に少ない。
+            self.assertLess(
+                measure["scoped"]["nodeCount"], measure["full"]["nodeCount"], msg=str(measure)
+            )
+            self.assertLessEqual(measure["scoped"]["nodeCount"], hub_functions + 2, msg=str(measure))
+            self.assertGreaterEqual(
+                measure["full"]["nodeCount"], collapsed_count + hub_functions + 1, msg=str(measure)
+            )
 
     def test_overview_large_file_function_layout(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
