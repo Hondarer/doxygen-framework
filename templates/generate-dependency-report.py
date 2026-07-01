@@ -2140,6 +2140,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewLayoutRunning = false;
   let overviewLayoutToken = 0;
   let overviewSyncToken = 0;
+  // cola (Phase B) の実起動回数。テスト専用フックが Phase B のスキップを確定的に
+  // 検証するために参照する (通常描画では未使用)。
+  let overviewLayoutRunCount = 0;
   let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
   let overviewPendingSelectionSignature = null;
@@ -3702,6 +3705,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (fit) fitOverviewGraph();
       if (onComplete) onComplete();
     }};
+    // ここから実レイアウト (cola / cose) を起動する。テスト検証用に起動回数を数える。
+    overviewLayoutRunCount += 1;
     if (typeof cytoscapeCola === "function") {{
       lockedNodes.lock();
       const layout = overviewCy.layout({{
@@ -4367,6 +4372,31 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }};
   }}
 
+  // Phase B (cola) が実際に必要かを判定する。ファイル位置は anchor で固定されるため、
+  // 移動対象がすべて「兄弟を持たない子」であればファイル内配置は自明 (親中心) で、
+  // cola を走らせても視覚結果は変わらない。次のいずれかを満たす移動対象があるときのみ
+  // レイアウトが要る:
+  //   - 親を持たない (ファイル ノード自体の追加/移動 -> 全体配置が要る)
+  //   - 親の子数が 2 以上 (兄弟あり -> ファイル内配置に cola が要る)
+  function overviewMovingNodesNeedLayout(movingNodeIds, targetElements) {{
+    if (!movingNodeIds || movingNodeIds.size === 0) return false;
+    const childCountByParent = new Map();
+    for (const element of targetElements) {{
+      if (isEdgeElement(element) || !element.data || !element.data.parent) continue;
+      childCountByParent.set(
+        element.data.parent,
+        (childCountByParent.get(element.data.parent) || 0) + 1
+      );
+    }}
+    for (const id of movingNodeIds) {{
+      const node = overviewCy.getElementById(id);
+      const parent = node && node.length ? node.data("parent") : null;
+      if (!parent) return true;
+      if ((childCountByParent.get(parent) || 0) >= 2) return true;
+    }}
+    return false;
+  }}
+
   async function processOverviewChunks(items, token, callback) {{
     for (let index = 0; index < items.length; index += OVERVIEW_SYNC_CHUNK_SIZE) {{
       if (!isOverviewSyncTokenActive(token)) return false;
@@ -4553,7 +4583,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
 
     // --- Phase B (非同期レイアウト + アニメーション) ---
-    if (layoutNeeded && movingNodeIds.size > 0) {{
+    // 移動対象がすべて単一子 (兄弟なし) のときはファイル内配置が自明で cola は不要。
+    // その場合は Phase B をスキップし、下の「構造変化なし」経路で Phase C を確定する。
+    // 単一子は Phase A で親中心へ配置済みのため追加の座標処理は要らないが、pending な
+    // ユーザー ドラッグの消費と anchorCenters 反映のため applyOverviewUserMovedPositions は
+    // スキップ経路でも 1 回呼ぶ (レイアウトは起動しない)。
+    const needsLayout = overviewMovingNodesNeedLayout(movingNodeIds, targetElements);
+    if (layoutNeeded && movingNodeIds.size > 0 && needsLayout) {{
       applyOverviewUserMovedPositions(previousPositions, anchorCenters);
       restoreOverviewNodePositions(previousPositions);
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
@@ -4575,8 +4611,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       return true;
     }}
 
-    // 構造変化なし: 興味対象の強調は反映済み。ミュートがあれば次フレームへ遅延し、
-    // 強調の描画を先行させる。なければ即座に確定する。
+    // 構造変化なし、または移動対象が単一子のみで Phase B スキップ: 興味対象の強調は
+    // 反映済み。単一子スキップ時は pending ドラッグの消費と anchorCenters 反映を保つ。
+    // ミュートがあれば次フレームへ遅延し、強調の描画を先行させる。なければ即座に確定する。
+    if (movingNodeIds.size > 0) {{
+      applyOverviewUserMovedPositions(previousPositions, anchorCenters);
+    }}
     if (deferredClassTargets.length > 0) {{
       requestOverviewFrame(startPhaseC);
     }} else {{
@@ -5726,6 +5766,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       isReady: () => Boolean(overviewCy) && overviewCy.elements().length > 0 && isOverviewRenderedSelectionCurrent(),
       isInitializing: () => Boolean(overviewGraph && overviewGraph.classList.contains("layout-initializing")),
       isLayoutRunning: () => Boolean(overviewLayoutRunning) || Boolean(overviewActiveLayout) || Boolean(overviewPositionAnimation && overviewPositionAnimation.active),
+      layoutRunCount: () => overviewLayoutRunCount,
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
       selectEdge: (id) => selectOverviewEdge(id),

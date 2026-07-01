@@ -1501,6 +1501,28 @@ class OverviewInteractionTest(unittest.TestCase):
                 seed_drag["viewportBefore"]["pan"]["y"], seed_drag["viewportAfter"]["pan"]["y"], delta=0.5
             )
 
+            # --- Phase B の単一子ゼロコスト化 ---
+            # 単一関数ファイル (other_1.c) の選択ではファイル内配置が自明 (親中心) なため、
+            # cola (Phase B) は起動しない。無選択遷移でも起動しない。複数関数ファイル
+            # (big_file.c) の選択では Phase B が本来必要なので起動する。
+            skip = data["layoutSkip"]
+            self.assertEqual(skip["singleChildCount"], 1, msg=str(skip))
+            # 単一子ファイル選択: cola 起動回数が増えない (Phase B スキップ)。
+            self.assertEqual(
+                skip["countAfterSingle"], skip["countBeforeSingle"], msg=str(skip)
+            )
+            # 無選択遷移: cola 起動回数が増えない。
+            self.assertEqual(
+                skip["countAfterDeselect"], skip["countAfterSingle"], msg=str(skip)
+            )
+            # 複数子ファイル選択: cola が起動する (Phase B 継続の担保)。
+            self.assertGreater(
+                skip["countAfterMulti"], skip["countAfterDeselect"], msg=str(skip)
+            )
+            # 単一子は親ファイル中心へ配置される。
+            self.assertIsNotNone(skip["singleChildCenterToFile"])
+            self.assertLessEqual(skip["singleChildCenterToFile"], 5.0, msg=str(skip))
+
     def test_overview_click_phases(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
             index_html = self._generate_report(Path(temp_dir_text))

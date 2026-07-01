@@ -130,6 +130,48 @@ async function runFileDragDuringAnimationScenario(page, filePath) {
   };
 }
 
+// Phase B (cola) の単一子ゼロコスト化を検証するシナリオ。
+//   - 単一関数ファイルを選択したとき cola 起動回数 (layoutRunCount) が増えないこと。
+//   - 無選択遷移でも増えないこと。
+//   - 複数関数ファイルを選択したときは増えること (Phase B が本来必要なケースの担保)。
+//   - 単一子は親ファイル中心に配置されること。
+// 実行後は無選択状態に戻し、後続シナリオへ影響を残さない。
+async function runLayoutSkipScenario(page, singleChildFile, multiChildFile) {
+  const readCount = () => page.evaluate(() => window.depReportOverviewTestApi.layoutRunCount());
+  const childSnapshot = (p) => page.evaluate(`(${CHILD_SNAPSHOT_FN})(${JSON.stringify(p)})`);
+
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const countBeforeSingle = await readCount();
+
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), singleChildFile);
+  await waitOverviewReady(page);
+  const countAfterSingle = await readCount();
+  const singleChild = await childSnapshot(singleChildFile);
+
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+  const countAfterDeselect = await readCount();
+
+  await page.evaluate((p) => window.depReportOverviewTestApi.selectFile(p), multiChildFile);
+  await waitOverviewReady(page);
+  const countAfterMulti = await readCount();
+
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  return {
+    singleChildFile,
+    multiChildFile,
+    countBeforeSingle,
+    countAfterSingle,
+    countAfterDeselect,
+    countAfterMulti,
+    singleChildCount: singleChild.count,
+    singleChildCenterToFile: singleChild.childCenterToFile
+  };
+}
+
 async function run(reportPath, filePath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -145,6 +187,10 @@ async function run(reportPath, filePath) {
     await page.waitForFunction(() => window.depReportOverviewTestApi, { timeout: 15000 });
     await page.evaluate(() => window.depReportOverviewTestApi.activateOverview());
     await waitOverviewReady(page);
+
+    // 単一子ゼロコスト化の検証は、後続シナリオが選択状態を変える前に行い、
+    // 終了時に無選択へ戻す (後続シナリオはクリーンな状態から始まる)。
+    const layoutSkip = await runLayoutSkipScenario(page, 'src/other_1.c', filePath);
 
     const before = await page.evaluate(() => {
       const api = window.depReportOverviewTestApi;
@@ -189,7 +235,8 @@ async function run(reportPath, filePath) {
       renderedMatchesCurrent: after.renderedMatchesCurrent,
       movedFileCount: moved.length,
       movedTop: moved.slice(0, 5),
-      fileDragDuringAnimation
+      fileDragDuringAnimation,
+      layoutSkip
     };
   } finally {
     await browser.close();
