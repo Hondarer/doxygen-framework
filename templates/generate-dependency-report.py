@@ -4539,17 +4539,22 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
 
     // 中止されたレイアウトで seed のまま取り残された関数を今回の移動対象へ再投入する。直前の
-    // レイアウトが操作割り込み (reveal/hide) で中止されたケースで、取り残された関数を Phase B で
-    // 再レイアウトするための再開ロジック。
-    // 再投入は force render 経路 (revealAllOverviewFiles / hide 割り込みが forceRenderOverviewGraph
-    // 経由で渡す opts.force) の sync に限定する。通常の選択 sync には影響させない。これにより、
-    // 選択操作のレイアウト挙動・ノード位置を変えず、座標依存のクリック判定などを乱さない。
-    // pending への登録/削除は中止時 (stopOverviewActiveLayout) と自然完了時 (finishLayout) で対称に
-    // 行うため、ここではクリアしない (再投入した関数は新レイアウト完了時に finishLayout が削除する)。
-    if (opts && (opts.force || opts.relayoutPending) && overviewPendingRelayoutNodeIds.size > 0) {{
-      for (const id of overviewPendingRelayoutNodeIds) {{
+    // レイアウトが操作割り込み (reveal/hide、または seed 表示中の選択変更) で中止されたケースで、
+    // 取り残された関数を Phase B で再レイアウトするための再開ロジック。
+    // pending は「直前に中止されたレイアウトの移動対象」だけを保持する。割り込み種別 (force 経路か
+    // 通常の選択 sync か) に依らず、Phase A 完了後も生存 (可視) している pending ノードは再レイアウト
+    // 対象へ戻す。生存しない (stale で削除された) id は pending から取り除く。pending が空の通常 sync
+    // では no-op となるため、選択操作の挙動・ノード位置には影響しない。
+    // pending の登録は中止時 (stopOverviewActiveLayout)、削除は自然完了時 (finishLayout) と本ループの
+    // stale 除去で行う (再投入した関数は新レイアウト完了時に finishLayout が pending から削除する)。
+    if (overviewPendingRelayoutNodeIds.size > 0) {{
+      for (const id of Array.from(overviewPendingRelayoutNodeIds)) {{
         const node = overviewCy.getElementById(id);
-        if (node && node.length) movingNodeIds.add(id);
+        if (node && node.length) {{
+          movingNodeIds.add(id);
+        }} else {{
+          overviewPendingRelayoutNodeIds.delete(id);
+        }}
       }}
       if (movingNodeIds.size > 0) layoutNeeded = true;
     }}

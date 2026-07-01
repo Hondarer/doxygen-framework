@@ -599,7 +599,12 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("markOverviewFunctionLayoutInterrupted(node);", index_html)
             self.assertIn('if (node && node.length && node.data("parent") && (overviewActiveLayout || overviewFunctionGrabInterruptedLayout)) {', index_html)
             self.assertIn("stopOverviewActiveLayout();", index_html)
-            self.assertIn("opts && (opts.force || opts.relayoutPending) && overviewPendingRelayoutNodeIds.size > 0", index_html)
+            # 中止レイアウトの pending 再投入は割り込み種別に依らず全 sync で行い、生存ノードを
+            # 再投入し、stale な id は pending から取り除く (seed 表示中の選択変更でも再発火させる)。
+            self.assertIn("if (overviewPendingRelayoutNodeIds.size > 0) {", index_html)
+            self.assertIn("for (const id of Array.from(overviewPendingRelayoutNodeIds)) {", index_html)
+            self.assertIn("overviewPendingRelayoutNodeIds.delete(id);", index_html)
+            self.assertNotIn("opts && (opts.force || opts.relayoutPending) && overviewPendingRelayoutNodeIds.size > 0", index_html)
             self.assertIn("if (movingNodeIds.size > 0) layoutNeeded = true;", index_html)
             self.assertIn("runLatestOverviewSync({ relayoutPending: true }, buildOverviewElements());", index_html)
             self.assertIn("const fragment = document.createDocumentFragment();", index_html)
@@ -1156,6 +1161,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
 LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"
 SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_layout_probe.js"
+RESELECT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_reselect_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1514,6 +1520,55 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_reselect_probe(self, index_html, file_path="src/big_file.c", function_id="f_01"):
+        result = subprocess.run(
+            [_node_binary(), str(RESELECT_PROBE_SCRIPT), str(index_html), file_path, function_id],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="reselect probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_reselect_during_seed(self):
+        # 無選択 -> ファイル選択 (Phase B 開始) -> seed 表示中に file 内の関数を実クリックで選択。
+        # 中止で seed に取り残された関数が再レイアウトされる (Phase B 再発火) ことを検証する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            data = self._run_reselect_probe(index_html, "src/big_file.c", "f_01")
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            self.assertTrue(data["seedCaught"], msg="seed 窓 (cola 計算中) を捉えられていない: " + str(data))
+            self.assertTrue(data["layoutRunningAtSeed"], msg="クリック時に cola が実行中でない: " + str(data))
+            self.assertTrue(data["clicked"], msg="関数ノードを実クリックできていない: " + str(data))
+
+            # 関数選択が反映され、新選択のレイアウトが完了している。
+            # 実クリックは seed 円上で重なる隣接関数を掴むことがあるため、特定 id ではなく
+            # 「いずれかの関数が選択されセンターになっている」ことを検証する。
+            self.assertTrue(data["renderedMatchesCurrent"], msg=str(data))
+            self.assertTrue(
+                data["selectedFunctionId"].startswith("f_"),
+                msg="関数が選択されていない: " + str(data),
+            )
+            self.assertTrue(data["fnIsCenter"], msg="選択関数がセンターノードになっていない: " + str(data))
+
+            # 失火の解消: 中止された Phase B の後、再レイアウトが発火して layoutRunCount が増える。
+            # 修正前は再投入されず Phase B がスキップされ、この値は増えない。
+            self.assertGreater(
+                data["layoutRunCountAfter"], data["layoutRunCountAtSeed"], msg=str(data)
+            )
+            # 残存関数 (f_00, f_01) が seed から移動している (取り残されていない)。
+            self.assertGreaterEqual(data["movedFromSeed"], 1, msg=str(data))
 
     def test_overview_scope_layout(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
