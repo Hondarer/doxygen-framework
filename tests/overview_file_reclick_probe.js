@@ -13,12 +13,16 @@
 //    漂流して重心がファイルから離れ、外周の関数が取り残される。
 //
 // シナリオ (big_file.c: 60 関数、f_00 が f_01..f_59 を呼ぶ hub 構成):
-//   control:        再クリックなし。span と重心-ファイル距離の基準値を得る。
-//   tapDuringCola:  cola 窓を捉えて mouse.down -> 保持 (cola 終了を跨ぐ) -> mouse.up。
-//   tapDuringAnim:  cola 終了後の位置アニメーション窓で同様の押下保持。
+//   control:            再クリックなし。span と重心-ファイル距離の基準値を得る。
+//   tapDuringCola:      cola 窓を捉えて mouse.down -> 保持 (cola 終了を跨ぐ) -> mouse.up。
+//   tapDuringAnim:      cola 終了後の位置アニメーション窓で同様の押下保持。
+//   dragHoldThroughCola: cola 窓でファイルをドラッグ移動し、mousedown を維持したまま
+//                        cola 完了を跨ぐ。保持静止中のファイル位置の最大変位 (ジャンプ量) を測る。
 //
-// 修正が無いと tap シナリオで重心-ファイル距離が control から大きく増える (漂流)。
-// 修正後は純タップが痕跡を残さず、control と同じ経路で収束する。
+// 修正が無いと tap シナリオで重心-ファイル距離が control から大きく増え (漂流)、
+// dragHold シナリオで cola 完了時にファイルがカーソル位置から cola 座標系へ飛ぶ。
+// 修正後は純タップが痕跡を残さず control と同じ経路で収束し、保持ドラッグ中の
+// クラスタはカーソル位置に留まったまま配置だけが展開する。
 //
 // 生成済み index.html のパスを argv[2]、対象ファイルパスを argv[3] に受け取り、
 // 結果を 1 行の JSON ("RESULT " 接頭辞付き) で標準出力へ書き出す。
@@ -203,6 +207,97 @@ async function runScenario(page, filePath, mode) {
   );
 }
 
+// cola 窓でファイルをドラッグ移動し、mousedown を維持したまま cola 完了を跨ぐシナリオ。
+// 保持静止中のファイル位置を rAF で毎フレーム記録し、基準 (ドラッグ静止直後) からの
+// 最大変位をジャンプ量として測る。カーソルは静止しているため、変位はすべてシステム起因。
+async function runDragHoldScenario(page, filePath) {
+  await page.evaluate(() => window.depReportOverviewTestApi.clearSelection());
+  await waitOverviewReady(page);
+
+  const firstPoint = await pickFileHitPoint(page, filePath);
+  if (!firstPoint) throw new Error('file hit point not found: ' + filePath);
+  await page.mouse.click(firstPoint.x, firstPoint.y);
+
+  // seed 窓 (Phase B 実行中) を捉える。
+  let seedCaught = false;
+  for (let i = 0; i < 400; i++) {
+    if (await page.evaluate(() => window.depReportOverviewTestApi.isLayoutRunning())) {
+      seedCaught = true;
+      break;
+    }
+    await sleep(2);
+  }
+
+  const point = await pickFileHitPoint(page, filePath);
+  if (!point) throw new Error('drag hit point not found: ' + filePath);
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  const stateAtDown = await layoutState(page);
+  await page.mouse.move(point.x + 150, point.y + 90, { steps: 8 });
+
+  // ドラッグ静止直後のファイル位置を基準として記録し、以降の各フレームの位置を追跡する。
+  await page.evaluate((targetPath) => {
+    const cy = document.getElementById('overviewGraph')._cyreg.cy;
+    const node = cy.getElementById(targetPath);
+    window.__dragHoldTrack = {
+      reference: { x: node.position('x'), y: node.position('y') },
+      maxJump: 0,
+      frames: 0
+    };
+    const tick = () => {
+      const track = window.__dragHoldTrack;
+      if (!track || track.frames >= 400) return;
+      track.frames += 1;
+      const p = { x: node.position('x'), y: node.position('y') };
+      const d = Math.hypot(p.x - track.reference.x, p.y - track.reference.y);
+      if (d > track.maxJump) track.maxJump = d;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, filePath);
+
+  // cola 完了を確実に跨ぐまで静止保持する。Phase B は fullConvergence
+  // (maxSimulationTime 2000ms) のため、収束が遅い実行でも跨げる長さにする。
+  await sleep(2600);
+  const stateAtHoldEnd = await layoutState(page);
+  const holdTrack = await page.evaluate((targetPath) => {
+    const cy = document.getElementById('overviewGraph')._cyreg.cy;
+    const node = cy.getElementById(targetPath);
+    const track = window.__dragHoldTrack;
+    window.__dragHoldTrack = null;
+    return {
+      maxJump: track ? track.maxJump : -1,
+      frames: track ? track.frames : 0,
+      fileAtRelease: { x: node.position('x'), y: node.position('y') }
+    };
+  }, filePath);
+  await page.mouse.up();
+
+  // 固定長の整定待ち (deferred アニメーションの適用を含む)。
+  await sleep(3500);
+  await waitOverviewReady(page);
+
+  const settled = await measureSettled(page, filePath);
+  const filePos = await page.evaluate(
+    (targetPath) => window.depReportOverviewTestApi.positionOf(targetPath), filePath
+  );
+  const releaseDrift = filePos
+    ? Math.hypot(filePos.x - holdTrack.fileAtRelease.x, filePos.y - holdTrack.fileAtRelease.y)
+    : -1;
+  return Object.assign(
+    {
+      mode: 'dragHold',
+      seedCaught,
+      stateAtDown,
+      stateAtHoldEnd,
+      holdJump: holdTrack.maxJump,
+      holdFrames: holdTrack.frames,
+      releaseDrift
+    },
+    settled
+  );
+}
+
 async function run(reportPath, filePath) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
@@ -222,13 +317,15 @@ async function run(reportPath, filePath) {
     const control = await runScenario(page, filePath, 'control');
     const tapDuringCola = await runScenario(page, filePath, 'cola');
     const tapDuringAnim = await runScenario(page, filePath, 'anim');
+    const dragHoldThroughCola = await runDragHoldScenario(page, filePath);
 
     return {
       pageErrors: errors,
       filePath,
       control,
       tapDuringCola,
-      tapDuringAnim
+      tapDuringAnim,
+      dragHoldThroughCola
     };
   } finally {
     await browser.close();

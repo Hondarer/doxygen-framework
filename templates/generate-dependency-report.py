@@ -3986,14 +3986,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
     for (const [id, anchor] of anchorCenters) {{
       const node = overviewCy.getElementById(id);
       if (!node || !node.length) continue;
-      if (isOverviewNodeDragging(node)) continue;
+      // ドラッグ中のファイルもアンカーへ再センタリングする。anchor は
+      // applyOverviewUserMovedPositions が最新のドラッグ位置 (カーソル) へ更新済み。
+      // ここでスキップすると、保持ドラッグ中に cola が完了したとき、書き込まれた
+      // シミュレーション座標のままクラスタ (と子から導出されるファイル位置) が
+      // カーソルから離れた場所へ飛ぶ。子レベルのドラッグ スキップは直接ドラッグ
+      // された関数を守るためのもので、ファイル ドラッグで伝播登録された子は
+      // 移動対象とする。
+      const nodeDragging = isOverviewNodeDragging(node);
       const current = node.position();
       const dx = anchor.x - current.x;
       const dy = anchor.y - current.y;
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
       const movable = node.descendants().nodes(":unlocked");
       movable.positions((child) => {{
-        if (isOverviewNodeDragging(child)) return undefined;
+        if (!nodeDragging && isOverviewNodeDragging(child)) return undefined;
         const position = child.position();
         return {{ x: position.x + dx, y: position.y + dy }};
       }});
@@ -4008,14 +4015,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
         for (const [id, anchor] of chunk) {{
           const node = overviewCy.getElementById(id);
           if (!node || !node.length) continue;
-          if (isOverviewNodeDragging(node)) continue;
+          // 同期版 (applyOverviewAnchorCentersToCurrentPositions) と同じ理由で、
+          // ドラッグ中のファイルも再センタリングし、直接ドラッグされた子のみ守る。
+          const nodeDragging = isOverviewNodeDragging(node);
           const current = node.position();
           const dx = anchor.x - current.x;
           const dy = anchor.y - current.y;
           if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
           const movable = node.descendants().nodes(":unlocked");
           movable.positions((child) => {{
-            if (isOverviewNodeDragging(child)) return undefined;
+            if (!nodeDragging && isOverviewNodeDragging(child)) return undefined;
             const position = child.position();
             return {{ x: position.x + dx, y: position.y + dy }};
           }});

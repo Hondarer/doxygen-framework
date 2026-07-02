@@ -320,6 +320,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("&& (isOverviewNodeDragging(parent.id()) || overviewUserMovedNodePositions.has(parent.id()))", index_html)
             self.assertIn("const snapshotParentPositions = () => {", index_html)
             self.assertIn('if (node.grabbed() && !node.data("parent") && isOverviewNodeDragging(node.id())) return undefined;', index_html)
+            # 保持ドラッグ中に cola が完了してもファイルが飛ばないよう、anchor 適用は
+            # ドラッグ中のファイルもカーソル位置へ再センタリングする (直接ドラッグされた子のみ守る)。
+            self.assertIn("const nodeDragging = isOverviewNodeDragging(node);", index_html)
+            self.assertIn("if (!nodeDragging && isOverviewNodeDragging(child)) return undefined;", index_html)
+            self.assertNotIn("if (isOverviewNodeDragging(node)) continue;", index_html)
             self.assertIn("function overviewSelectionSignature()", index_html)
             self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
             self.assertIn("function renderOverviewGraph(opts)", index_html)
@@ -1607,6 +1612,24 @@ class OverviewInteractionTest(unittest.TestCase):
                     msg=key + ": " + str(scenario),
                 )
                 self.assertLessEqual(scenario["childCenterToFile"], 80, msg=key + ": " + str(scenario))
+
+            # seed 窓でファイルをドラッグ移動し mousedown を維持したまま cola 完了を跨ぐ。
+            # 修正前は完了時にクラスタ (と子から導出されるファイル位置) がシミュレーション
+            # 座標系へ引き戻され、カーソル位置から数百 px 飛んでいた (ベースライン実測 927px)。
+            drag_hold = data["dragHoldThroughCola"]
+            self.assertTrue(drag_hold["seedCaught"], msg=str(drag_hold))
+            self.assertTrue(drag_hold["stateAtDown"]["running"], msg=str(drag_hold))
+            self.assertFalse(
+                drag_hold["stateAtHoldEnd"]["running"],
+                msg="保持中に cola が完了していない (保持時間不足): " + str(drag_hold),
+            )
+            self.assertGreater(drag_hold["holdFrames"], 0, msg=str(drag_hold))
+            self.assertLessEqual(drag_hold["holdJump"], 25, msg=str(drag_hold))
+            self.assertLessEqual(drag_hold["releaseDrift"], 40, msg=str(drag_hold))
+            self.assertTrue(drag_hold["renderedMatchesCurrent"], msg=str(drag_hold))
+            self.assertEqual(drag_hold["childCount"], 60, msg=str(drag_hold))
+            self.assertGreaterEqual(drag_hold["settledSpan"], 700, msg=str(drag_hold))
+            self.assertLessEqual(drag_hold["childCenterToFile"], 80, msg=str(drag_hold))
 
     def test_overview_reselect_during_seed(self):
         # 無選択 -> ファイル選択 (Phase B 開始) -> seed 表示中に file 内の関数を実クリックで選択。
