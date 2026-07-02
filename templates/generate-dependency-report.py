@@ -1202,12 +1202,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-danger-border: #f48771;
       --dep-graph-library-bg: #2d2a4a;
       --dep-graph-library-border: #9cdcfe;
-      --dep-graph-muted-library-bg: #171526;
-      --dep-graph-muted-library-border: #26233e;
+      --dep-graph-muted-library-bg: #1f1f22;
+      --dep-graph-muted-library-border: #2a3134;
       --dep-graph-source-bg: #3b2a4a;
       --dep-graph-source-border: #c586c0;
-      --dep-graph-muted-source-bg: #1e1526;
-      --dep-graph-muted-source-border: #31233e;
+      --dep-graph-muted-source-bg: #211f22;
+      --dep-graph-muted-source-border: #2e282e;
     }}
     body {{
       margin: 0;
