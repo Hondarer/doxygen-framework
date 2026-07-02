@@ -3741,6 +3741,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         name: "cola",
         animate: false,
         deferPositions: manual || immediate || deferPositions,
+        // ファイル (compound) の grab をシミュレーションへ伝えない。webcola はグループの
+        // dragstart で全 leaf (関数) を fixed にするため、計算中にファイルを押下保持しただけで
+        // 降下計算が「収束」と誤判定して早期終了し、中途半端な配置が正常完了として採用される
+        // (control 784ms に対し押下ありで 153ms 終了を実測)。ファイル位置の反映は finishLayout
+        // 以降の anchor と live アンカーが担うため、cola 側での固定は不要。
+        // see: https://github.com/tgdwyer/WebCola/blob/master/WebCola/src/layout.ts
+        ignoreCompoundDrags: true,
         refresh: 1,
         maxSimulationTime: manual ? 450 : (fullConvergence ? 2000 : 900),
         fit: false,
@@ -4068,21 +4075,33 @@ def write_html(output_dir: Path, category_id: str) -> None:
     const startedAt = (window.performance && window.performance.now) ? window.performance.now() : Date.now();
     overviewPositionAnimation = {{ active: true, frameId: null, targetPositions, opts: Object.assign({{}}, opts || {{}}) }};
     // 与えた座標マップ上の「親ファイルからの相対オフセット」を親ファイルの最新位置へ加えて求める。
-    // start (補間の起点) と target (移動目標) の双方に使う。親ファイルが掴まれている (ドラッグ中) か
+    // start (補間の起点) と target (移動目標) の双方に使う。親ファイルが実際にドラッグされているか
     // ユーザー移動済みのときだけ live アンカーし、関数はファイルへ追従しつつレイアウト結果へ収束する。
     // start も live アンカーするのが要点で、これによりドラッグ後の補間がドラッグ前 (seed) の座標から
     // 始まって「一瞬戻る」動きになるのを防ぎ、常に現在のファイル位置を基準に補間する。通常 (非ドラッグ)
     // は従来どおり絶対座標を使い挙動を変えない。ドラッグ済みのルート ファイルは現在位置に留める。
+    // 判定は grabbed() ではなくドラッグ集合 (実際の drag イベント) で行う。純タップの静止 grab を
+    // アンカーにすると、compound の位置が子から導出されるために錨が子の移動で毎フレーム流れ、
+    // クラスタ全体が漂流して重心がファイルから離れる。
+    const frameParentPositions = new Map();
+    const snapshotParentPositions = () => {{
+      frameParentPositions.clear();
+      overviewCy.nodes(":parent").forEach((parent) => {{
+        frameParentPositions.set(parent.id(), {{ x: parent.position("x"), y: parent.position("y") }});
+      }});
+    }};
     const liveAnchored = (node, posMap) => {{
       const id = node.id();
       const c = posMap.get(id);
       const parent = node.parent();
       const parentAnchored = parent && parent.length
-        && (parent.grabbed() || overviewUserMovedNodePositions.has(parent.id()))
+        && (isOverviewNodeDragging(parent.id()) || overviewUserMovedNodePositions.has(parent.id()))
         && posMap.has(parent.id()) && c;
       if (parentAnchored) {{
         const pc = posMap.get(parent.id());
-        const pp = parent.position();
+        // 錨となる親位置はフレーム冒頭のスナップショットを使う。子を再配置しながら
+        // parent.position() を読むと、同一フレーム内で導出位置が変わり相対配置が歪む。
+        const pp = frameParentPositions.get(parent.id()) || parent.position();
         return {{ x: pp.x + (c.x - pc.x), y: pp.y + (c.y - pc.y) }};
       }}
       if ((!parent || !parent.length) && overviewUserMovedNodePositions.has(id)) {{
@@ -4097,10 +4116,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
       if (!overviewPositionAnimation || !overviewPositionAnimation.active) return;
       const elapsed = Math.max(0, now - startedAt);
       const t = Math.min(1, elapsed / duration);
+      snapshotParentPositions();
       overviewCy.nodes().positions((node) => {{
-        // 掴まれているルート ファイルだけはカーソル追従に任せて触らない。compound の子 (関数) は
+        // ドラッグ中のルート ファイルだけはカーソル追従に任せて触らない。compound の子 (関数) は
         // grabbed() が伝播するが、ここでは live アンカーで動かしたいのでスキップ対象から外す。
-        if (node.grabbed() && !node.data("parent")) return undefined;
+        // 純タップ (grab のみでドラッグなし) のルート ファイルはスキップせず通常どおり動かす。
+        if (node.grabbed() && !node.data("parent") && isOverviewNodeDragging(node.id())) return undefined;
         const target = liveTarget(node);
         if (!target) return undefined;
         const start = liveStart(node) || target;
@@ -4115,8 +4136,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
         overviewPositionAnimation.frameId = raf(frame);
         return;
       }}
+      snapshotParentPositions();
       overviewCy.nodes().positions((node) => {{
-        if (node.grabbed() && !node.data("parent")) return undefined;
+        if (node.grabbed() && !node.data("parent") && isOverviewNodeDragging(node.id())) return undefined;
         return liveTarget(node) || undefined;
       }});
       const shouldFit = Boolean(opts && opts.fit);
@@ -4735,7 +4757,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function handleOverviewNodeFree(node) {{
-    rememberOverviewUserMovedPositions(node);
+    // 実ドラッグを伴わない free (純タップ) では userMoved を記録しない。タップで記録すると
+    // ファイルが「ユーザー移動済み」と誤認され、以後の位置アニメーションが live アンカー経路に
+    // 入り、静止した grab を錨とした帰還ループで配置が漂流する。
+    if (isOverviewNodeDragging(node)) rememberOverviewUserMovedPositions(node);
     let removed = false;
     for (const id of overviewNodeDragIds(node)) {{
       if (overviewDraggingNodeIds.delete(id)) removed = true;

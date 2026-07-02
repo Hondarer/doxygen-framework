@@ -172,7 +172,16 @@ ColaLayout.prototype.run = function () {
       var scratch = node.scratch().cola;
       var retPos = void 0;
 
-      if (!node.grabbed() && nonparentNodes.contains(node)) {
+      // With ignoreCompoundDrags, grabs of a compound parent do not participate in
+      // the simulation, so its children keep valid simulated coordinates and must
+      // receive them like their siblings. Skipping them (the plain !grabbed() check)
+      // would strand the child that cytoscape marks grabbed during a compound drag
+      // at its stale cursor position while the rest of the cluster jumps to the
+      // simulated layout.
+      var writable = !node.grabbed()
+        || options.ignoreCompoundDrags && node.isChild() && node.parent().grabbed();
+
+      if (writable && nonparentNodes.contains(node)) {
         retPos = {
           x: bb.x1 + scratch.x,
           y: bb.y1 + scratch.y
@@ -334,6 +343,17 @@ ColaLayout.prototype.run = function () {
     var nodeIsTarget = e.cyTarget === node || e.target === node;
 
     if (!nodeIsTarget) {
+      return;
+    }
+
+    // Compound parent grabs must not be fed into the simulation: webcola's
+    // Layout.dragStart on a group fixes every leaf (storeOffset sets v.fixed),
+    // so a mere click-and-hold on a parent freezes all its children, the descent
+    // sees no displacement and "converges", and the layout ends prematurely with
+    // half-baked positions. Grabs propagated to children of a grabbed parent are
+    // skipped for the same reason.
+    // see: https://github.com/tgdwyer/WebCola/blob/master/WebCola/src/layout.ts
+    if (options.ignoreCompoundDrags && (node.isParent() || node.parent().length > 0 && node.parent().grabbed())) {
       return;
     }
 
@@ -638,6 +658,7 @@ var defaults = {
   refresh: 1, // number of ticks per frame; higher is faster but more jerky
   maxSimulationTime: 4000, // max length in ms to run the layout
   deferPositions: false, // whether to run in frames but only update node positions at the end
+  ignoreCompoundDrags: false, // if true, grabs of compound parents (and grabs propagated to their children) are not fed into the simulation
   ungrabifyWhileSimulating: false, // so you can't drag nodes during layout
   fit: true, // on every layout reposition of nodes, fit the viewport
   padding: 30, // padding around the simulation

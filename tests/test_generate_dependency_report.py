@@ -223,6 +223,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
             cola_js = (output_dir / "cytoscape-cola.js").read_text(encoding="utf-8")
             self.assertIn("options.animate || options.deferPositions", cola_js)
             self.assertIn("deferPositions: false", cola_js)
+            # compound (ファイル) の grab をシミュレーションへ伝えないローカル パッチ。
+            # これが無いと計算中のファイル押下保持で cola が早期終了する。
+            self.assertIn("ignoreCompoundDrags: false", cola_js)
+            self.assertIn("options.ignoreCompoundDrags", cola_js)
             for file_row in data["files"]:
                 self.assertNotIn("dominantClass", file_row)
                 self.assertIn("classes", file_row)
@@ -308,6 +312,14 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("animatePositions: !(opts && opts.hideDuringUpdate)", index_html)
             self.assertIn("instantPositions: Boolean(opts && opts.hideDuringUpdate)", index_html)
             self.assertIn("const instantPositions = Boolean(opts && opts.instantPositions);", index_html)
+            # seed 表示中のファイル自身の再クリック対策。cola へ compound grab を伝えず、
+            # 純タップでは userMoved を残さず、live アンカーは実ドラッグ判定 + フレーム冒頭に
+            # スナップショットした親位置で行う。
+            self.assertIn("ignoreCompoundDrags: true,", index_html)
+            self.assertIn("if (isOverviewNodeDragging(node)) rememberOverviewUserMovedPositions(node);", index_html)
+            self.assertIn("&& (isOverviewNodeDragging(parent.id()) || overviewUserMovedNodePositions.has(parent.id()))", index_html)
+            self.assertIn("const snapshotParentPositions = () => {", index_html)
+            self.assertIn('if (node.grabbed() && !node.data("parent") && isOverviewNodeDragging(node.id())) return undefined;', index_html)
             self.assertIn("function overviewSelectionSignature()", index_html)
             self.assertIn("function isOverviewRenderedSelectionCurrent()", index_html)
             self.assertIn("function renderOverviewGraph(opts)", index_html)
@@ -438,8 +450,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # start も live アンカーし、ドラッグ後の補間が「一瞬戻る」のを防ぐ。
             self.assertIn("const liveStart = (node) => liveAnchored(node, startPositions);", index_html)
             self.assertIn("const start = liveStart(node) || target;", index_html)
-            # 掴まれたルート ファイルだけをアニメーション対象から外す (compound の子は live アンカー)。
-            self.assertIn('if (node.grabbed() && !node.data("parent")) return undefined;', index_html)
+            # ドラッグ中のルート ファイルだけをアニメーション対象から外す (compound の子は live アンカー)。
+            # 純タップ (grab のみ) のファイルは通常どおり動かす。
+            self.assertIn('if (node.grabbed() && !node.data("parent") && isOverviewNodeDragging(node.id())) return undefined;', index_html)
             # ファイルを seed 配置窓でドラッグして cola 完了前に離した場合、finishLayout の
             # restoreOverviewNodePositions が子を古い seed 座標へ戻して「一瞬戻る」のを防ぐため、
             # ユーザー移動分だけ子の start 座標も並進させる。
@@ -1162,6 +1175,7 @@ PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
 LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"
 SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_layout_probe.js"
 RESELECT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_reselect_probe.js"
+FILE_RECLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_reclick_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1539,6 +1553,60 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_file_reclick_probe(self, index_html, file_path="src/big_file.c"):
+        result = subprocess.run(
+            [_node_binary(), str(FILE_RECLICK_PROBE_SCRIPT), str(index_html), file_path],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="file reclick probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_file_reclick_during_seed(self):
+        # 無選択 -> ファイル選択 (Phase B 開始) -> seed 表示中にファイル自身 (関数ではない領域)
+        # を押下保持つきで実マウス再クリック。再クリックが関数レイアウトに影響しないことを検証する。
+        # 修正前は 2 つの機構で劣化した。
+        # 1. cola 窓の押下: cytoscape-cola がファイル grab を webcola へ伝え、全 leaf が fixed に
+        #    なって降下計算が誤収束し、cola が早期終了して中途半端な配置が確定する。
+        # 2. アニメ窓の押下: 純タップの free が userMoved を誤記録し live アンカー経路へ入り、
+        #    静止 grab を錨とした帰還ループでクラスタが漂流し重心がファイルから離れる。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            data = self._run_file_reclick_probe(index_html, "src/big_file.c")
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            control = data["control"]
+            self.assertTrue(control["seedCaught"], msg=str(control))
+            self.assertTrue(control["renderedMatchesCurrent"], msg=str(control))
+            self.assertEqual(control["childCount"], 60, msg=str(control))
+            self.assertGreaterEqual(control["settledSpan"], 700, msg=str(control))
+
+            for key in ("tapDuringCola", "tapDuringAnim"):
+                scenario = data[key]
+                self.assertTrue(scenario["seedCaught"], msg=key + ": " + str(scenario))
+                self.assertTrue(scenario["reClicked"], msg=key + ": " + str(scenario))
+                self.assertTrue(scenario["renderedMatchesCurrent"], msg=key + ": " + str(scenario))
+                self.assertEqual(scenario["childCount"], 60, msg=key + ": " + str(scenario))
+                # 再クリックしても control と同等のレイアウトに収束する。修正前は cola 窓で
+                # span 約 1470 / 重心ずれ約 206、アニメ窓で span 約 1450 / 重心ずれ約 198。
+                self.assertGreaterEqual(scenario["settledSpan"], 700, msg=key + ": " + str(scenario))
+                self.assertLessEqual(
+                    scenario["settledSpan"],
+                    control["settledSpan"] + 250,
+                    msg=key + ": " + str(scenario),
+                )
+                self.assertLessEqual(scenario["childCenterToFile"], 80, msg=key + ": " + str(scenario))
 
     def test_overview_reselect_during_seed(self):
         # 無選択 -> ファイル選択 (Phase B 開始) -> seed 表示中に file 内の関数を実クリックで選択。
