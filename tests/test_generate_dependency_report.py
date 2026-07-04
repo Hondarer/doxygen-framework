@@ -331,7 +331,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const requestedImmediate = Boolean(opts && opts.immediate);", index_html)
             self.assertIn("const immediate = requestedImmediate && !alreadyLaidOut;", index_html)
             self.assertIn("const hideDuringUpdate = requestedImmediate;", index_html)
-            self.assertIn("const renderOpts = { immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed };", index_html)
+            self.assertIn("const renderOpts = { immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed, suppressFade: true };", index_html)
             self.assertIn("const resetStarted = renderOverviewGraph(renderOpts);", index_html)
             self.assertIn("const viewportBeforeUpdate = hideDuringUpdate ? overviewViewport() : null;", index_html)
             self.assertIn("function scheduleOverviewRelayoutReveal(opts)", index_html)
@@ -569,7 +569,9 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("let layoutNeeded = false;", index_html)
             self.assertIn("if (isEdgeElement(element) || !element.data || element.data.parent) continue;", index_html)
             self.assertIn("anchorCenters.set(element.data.id, previousPositions.get(element.data.id));", index_html)
-            self.assertIn("const previousSelectionSignature = overviewRenderedSelectionSignature || JSON.stringify([\"\", \"\", \"\"]);", index_html)
+            # 直前状態は「状態クラス適用済み署名」を参照する (rendered は Phase B/C 完了まで
+            # 更新されず seed 窓中の選択解除でフェードが失われ、pending は適用前から目標を指す)。
+            self.assertIn("const previousSelectionSignature = overviewVisualStateSignature || overviewRenderedSelectionSignature || JSON.stringify([\"\", \"\", \"\"]);", index_html)
             self.assertIn("const deferStateClassChanges = previousHasSelection !== nextHasSelection;", index_html)
             self.assertIn("let overviewLastClassUpdatePlan = null;", index_html)
             self.assertIn("const deferredClassTargets = [];", index_html)
@@ -578,7 +580,25 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("let phaseCLayoutDone = true;", index_html)
             self.assertIn("const finishPhaseCIfReady = () =>", index_html)
             self.assertIn("const startPhaseC = () =>", index_html)
-            self.assertIn("await processOverviewChunks(deferredClassTargets, token", index_html)
+            # 状態クラスのフェードは fadeMode で切り替える。既定 "muted" はミュート クラス側に
+            # のみ transition 定義 (ミュート化フェード、強調復帰は即時)。選択解除は "all" で
+            # ミュート解除もフェード、タブ切替・初期化・テーマ切替は "none" で完全即時。
+            self.assertIn("const OVERVIEW_ANIMATION_MS = 430;", index_html)
+            self.assertIn("const OVERVIEW_FADE_MS = 215;", index_html)
+            self.assertIn('const fadeMode = (opts && opts.fadeMode) || "muted";', index_html)
+            self.assertIn('"transition-property": "background-color, border-color, color",', index_html)
+            self.assertIn('"transition-property": "line-color, target-arrow-color, color",', index_html)
+            self.assertIn('"transition-duration": transitionMs,', index_html)
+            self.assertIn('selector: "node.dep-overview-fade",', index_html)
+            self.assertIn('selector: "edge.dep-overview-fade",', index_html)
+            self.assertIn("function applyOverviewFadeMode(mode) {", index_html)
+            self.assertIn("const clearingSelection = !suppressFade && previousHasSelection && !nextHasSelection;", index_html)
+            self.assertIn("scheduleOverviewFadeClassCleanup();", index_html)
+            self.assertIn("suppressFade: true", index_html)
+            # Phase C はチャンク分割せず、描画完了後 (二重 rAF) に全量を単一 batch で反映する。
+            self.assertIn("for (const target of deferredClassTargets) {", index_html)
+            self.assertIn("const schedulePhaseCAfterPaint = () =>", index_html)
+            self.assertIn("requestOverviewFrame(() => requestOverviewFrame(startPhaseC));", index_html)
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
             self.assertIn("staleCollection.nodes().forEach((node) => {", index_html)
@@ -604,8 +624,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("if (isOverviewNodeDragging(node)) return;", index_html)
             # ドラッグ中はレイアウトを後回し。
             self.assertIn("if (layoutNeeded && (hasOverviewDraggingNodes() || dragRevision !== overviewDragRevision)) {", index_html)
-            # 構造変化なしのミュートは次フレームへ遅延し、強調描画を先行させる。
-            self.assertIn("requestOverviewFrame(startPhaseC);", index_html)
+            # 構造変化なしのミュートも描画完了後 (二重 rAF) に全量反映し、強調描画を先行させる。
+            self.assertIn("schedulePhaseCAfterPaint();", index_html)
             self.assertIn("phaseCLayoutDone = false;", index_html)
             self.assertIn("onComplete: markPhaseCLayoutDone,", index_html)
             self.assertIn("fullConvergence: true,", index_html)

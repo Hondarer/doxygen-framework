@@ -2086,6 +2086,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
     pairs.sort((a, b) => compareText(a.callerFile, b.callerFile) || compareText(a.caller, b.caller) || compareText(a.callee, b.callee));
   }}
   const OVERVIEW_SYNC_CHUNK_SIZE = 100;
+  // 位置アニメーションの時間。
+  const OVERVIEW_ANIMATION_MS = 430;
+  // 状態クラス (ミュート等) のフェードの時間。
+  const OVERVIEW_FADE_MS = 215;
 
   const summary = document.getElementById("summary");
   const rows = document.getElementById("functionRows");
@@ -2150,6 +2154,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
   let overviewRelayoutRevealToken = 0;
   let overviewRenderedSelectionSignature = null;
   let overviewPendingSelectionSignature = null;
+  // 画面に「状態クラス (強調・ミュート) が適用済み」の選択署名。rendered は Phase B/C の
+  // 完了まで更新されず、pending は適用前から目標を指すため、状態クラスの遷移判定
+  // (deferStateClassChanges / clearingSelection) の「直前状態」にはどちらも使えない。
+  // Phase A (非遅延時) と Phase C (遅延クラス適用後) で更新する。
+  let overviewVisualStateSignature = null;
   // 全体マップで「非表示」にしたファイル。UI 用語は非表示だが実体はノード・エッジを
   // 削除し描画を軽くする。値は非表示時のファイル ノード位置 (復活時の元位置復元用)。
   let hiddenOverviewFiles = new Map();
@@ -2576,47 +2585,74 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return Math.max(2, Math.min(10, rank + 1));
   }}
 
-  function graphStyle() {{
+  function graphStyle(opts) {{
     const colors = graphColors();
+    // トランジションは「クラス変更後の計算済みスタイル」に定義がある場合のみ補間される。
+    //   - ミュート クラスに定義 -> ミュート化 (非強調側) はフェード、ミュート解除
+    //     (関連関数・親ファイルの強調復帰) は即時反映。
+    //   - dep-overview-fade は選択解除 (選択中 -> 無選択) の Phase C でのみ一時付与され、
+    //     ミュート解除を通常表示へフェードで戻す (フェード完了後にクラスを除去する)。
+    //     スタイルシート差し替え (fromJson) はトランジションを伴わず適用されるため、
+    //     ベース側への一時的な定義追加では補間が発火しない。クラス付与で行うこと。
+    //   - fadeMode: "none" は duration 0 で完全即時。タブ切替 (suppressFade) やテーマ切替で
+    //     色を即時確定するために使う。
+    const fadeMode = (opts && opts.fadeMode) || "muted";
+    const transitionMs = fadeMode === "none" ? "0ms" : OVERVIEW_FADE_MS + "ms";
+    const baseNodeStyle = {{
+      "label": "data(label)",
+      "font-size": 11,
+      "text-wrap": "wrap",
+      "text-max-width": 120,
+      "text-valign": "center",
+      "text-halign": "center",
+      "background-color": colors.nodeBackground,
+      "border-color": colors.nodeBorder,
+      "border-width": 1,
+      "color": colors.text,
+      "width": "mapData(weight, 1, 12, 42, 86)",
+      "height": "mapData(weight, 1, 12, 42, 86)",
+      "z-index": 1,
+      "z-index-compare": "manual",
+      "z-compound-depth": "bottom"
+    }};
+    const baseEdgeStyle = {{
+      "curve-style": "bezier",
+      "target-arrow-shape": "triangle",
+      "target-arrow-color": colors.edge,
+      "line-color": colors.edge,
+      "opacity": 1,
+      "width": "mapData(weight, 1, 8, 1, 5)",
+      "label": "data(label)",
+      "font-size": 10,
+      "color": colors.edge,
+      "text-background-color": colors.labelBackground,
+      "text-background-opacity": 0.85,
+      "text-background-padding": 2,
+      "z-compound-depth": "bottom",
+      "z-index-compare": "manual",
+      "z-index": 0
+    }};
     return [
       {{
         selector: "node",
-        style: {{
-          "label": "data(label)",
-          "font-size": 11,
-          "text-wrap": "wrap",
-          "text-max-width": 120,
-          "text-valign": "center",
-          "text-halign": "center",
-          "background-color": colors.nodeBackground,
-          "border-color": colors.nodeBorder,
-          "border-width": 1,
-          "color": colors.text,
-          "width": "mapData(weight, 1, 12, 42, 86)",
-          "height": "mapData(weight, 1, 12, 42, 86)",
-          "z-index": 1,
-          "z-index-compare": "manual",
-          "z-compound-depth": "bottom"
-        }}
+        style: baseNodeStyle
       }},
       {{
         selector: "edge",
+        style: baseEdgeStyle
+      }},
+      {{
+        selector: "node.dep-overview-fade",
         style: {{
-          "curve-style": "bezier",
-          "target-arrow-shape": "triangle",
-          "target-arrow-color": colors.edge,
-          "line-color": colors.edge,
-          "opacity": 1,
-          "width": "mapData(weight, 1, 8, 1, 5)",
-          "label": "data(label)",
-          "font-size": 10,
-          "color": colors.edge,
-          "text-background-color": colors.labelBackground,
-          "text-background-opacity": 0.85,
-          "text-background-padding": 2,
-          "z-compound-depth": "bottom",
-          "z-index-compare": "manual",
-          "z-index": 0
+          "transition-property": "background-color, border-color, color",
+          "transition-duration": transitionMs
+        }}
+      }},
+      {{
+        selector: "edge.dep-overview-fade",
+        style: {{
+          "transition-property": "line-color, target-arrow-color, color",
+          "transition-duration": transitionMs
         }}
       }},
       {{
@@ -2662,6 +2698,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "background-color": colors.mutedFileBackground,
           "border-color": colors.mutedFileBorder,
           "color": colors.mutedFileText,
+          "transition-property": "background-color, border-color, color",
+          "transition-duration": transitionMs,
           "z-index": -1
         }}
       }},
@@ -2685,6 +2723,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
           "line-color": colors.mutedEdge,
           "target-arrow-color": colors.mutedEdge,
           "color": colors.mutedEdge,
+          "transition-property": "line-color, target-arrow-color, color",
+          "transition-duration": transitionMs,
           "z-index": -2
         }}
       }},
@@ -2743,14 +2783,39 @@ def write_html(output_dir: Path, category_id: str) -> None:
 
   function refreshOverviewGraphStyle() {{
     if (!overviewCy) return;
+    // テーマ切替は全色の差し替えであり、トランジションが効くと全要素が OVERVIEW_FADE_MS
+    // フェードしてしまう。duration 0 のスタイルで色を即時確定してから、既定のスタイル
+    // (fadeMode: "muted") を再適用する。2 回目の適用では色が変化しないため補間は走らない。
+    applyOverviewFadeMode("none");
+    applyOverviewFadeMode("muted");
+  }}
+
+  // 現在のスタイルシートを指定の fadeMode で適用し直す。色は変えないため、モード切替
+  // 自体で補間は走らない (トランジション定義の有無だけが変わる)。
+  function applyOverviewFadeMode(mode) {{
+    if (!overviewCy) return;
+    const styleJson = graphStyle({{ fadeMode: mode }});
     const style = overviewCy.style();
     if (style && typeof style.fromJson === "function") {{
-      style.fromJson(graphStyle()).update();
+      style.fromJson(styleJson).update();
       return;
     }}
     if (typeof overviewCy.style === "function") {{
-      overviewCy.style(graphStyle());
+      overviewCy.style(styleJson);
     }}
+  }}
+
+  // 選択解除時に付与した dep-overview-fade をフェード完了後に除去するタイマー (常に 1 本のみ)。
+  // クラスは transition 定義のみで色を持たないため、除去しても見た目は変わらない。
+  let overviewFadeClassCleanupTimer = null;
+
+  function scheduleOverviewFadeClassCleanup() {{
+    if (overviewFadeClassCleanupTimer !== null) window.clearTimeout(overviewFadeClassCleanupTimer);
+    overviewFadeClassCleanupTimer = window.setTimeout(() => {{
+      overviewFadeClassCleanupTimer = null;
+      if (!overviewCy) return;
+      overviewCy.elements(".dep-overview-fade").removeClass("dep-overview-fade");
+    }}, OVERVIEW_FADE_MS + 60);
   }}
 
   function hideOverviewGraphMenu() {{
@@ -4152,7 +4217,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       return;
     }}
     overviewDeferredPositionAnimation = null;
-    const duration = 430;
+    const duration = OVERVIEW_ANIMATION_MS;
     const distances = new Map();
     let maxDistance = 1;
     for (const [id, target] of targetPositions) {{
@@ -4269,7 +4334,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     "dep-selected-edge",
     "dep-emphasis-edge",
     "dep-file-node-muted",
-    "dep-base-edge-muted"
+    "dep-base-edge-muted",
+    // 選択解除時のフェード用 (transition 定義のみ、色を持たない)。構造クラス比較から除外する。
+    "dep-overview-fade"
   ]);
   const OVERVIEW_DEFERRED_STATE_CLASSES = new Set([
     "dep-file-node-muted",
@@ -4554,7 +4621,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
   //            フレーム待機なしの単一 overviewCy.batch() で同期反映する。batch が中間状態の
   //            再描画を合体させるため、グラフを隠さずちらつかせず 1 回の連続描画になる。
   //   Phase B: グループ内関数のレイアウトを非同期計算し、アニメーションで反映する。
-  //   Phase C: 興味対象外の非強調 (ミュート) を最後に適用し、クリック応答を阻害しない。
+  //   Phase C: 興味対象外の非強調 (ミュート) を、レイアウト計算開始前までの描画完了後に
+  //            全量を単一 batch で同時反映し、クリック応答を阻害しない。
   function syncOverviewElementsCore(targetElements, opts, token) {{
     if (!overviewCy || !isLatestOverviewSync(token)) return false;
     const immediate = Boolean(opts && opts.immediate);
@@ -4575,7 +4643,11 @@ def write_html(output_dir: Path, category_id: str) -> None:
     // 残さないようクリアする。
     if (overviewRestorePositions.size > 0) overviewRestorePositions.clear();
     const plan = overviewSyncDiffPlan(targetElements);
-    const previousSelectionSignature = overviewRenderedSelectionSignature || JSON.stringify(["", "", ""]);
+    // 直前状態は「状態クラスが画面に適用済みの署名」(overviewVisualStateSignature) を使う。
+    // rendered は Phase B/C の完了まで更新されないため、seed 窓 (Phase B 進行中) の割り込みでは
+    // ミュート適用済みなのに「無選択」を指し、選択解除のフェードが失われる。pending は適用前
+    // から目標を指すため、same-tick の連続選択で「未適用なのに適用済み」と誤る。
+    const previousSelectionSignature = overviewVisualStateSignature || overviewRenderedSelectionSignature || JSON.stringify(["", "", ""]);
     const previousHasSelection = selectionSignatureHasSelection(previousSelectionSignature);
     const nextHasSelection = selectionSignatureHasSelection(selectionSignature);
     const deferStateClassChanges = previousHasSelection !== nextHasSelection;
@@ -4654,6 +4726,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
       }}
       applyOverviewAnchorCentersToCurrentPositions(anchorCenters);
     }});
+    // 遅延なし (選択→選択など) の sync では、状態クラスは上の batch で全量適用済み。
+    // 遅延ありの場合は Phase C (startPhaseC) の適用後に更新する。
+    if (!deferStateClassChanges) overviewVisualStateSignature = selectionSignature;
 
     // 中止されたレイアウトで seed のまま取り残された関数を今回の移動対象へ再投入する。直前の
     // レイアウトが操作割り込み (reveal/hide、または seed 表示中の選択変更) で中止されたケースで、
@@ -4693,8 +4768,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!isLatestOverviewSync(token)) return false;
 
     // --- Phase C 本体 ---
-    // レイアウト入力へ影響しないミュート クラスだけを、Phase B の cola tick と
-    // フレーム単位で並行処理する。完了通知は Phase B と Phase C の双方が終わってから行う。
+    // レイアウト入力へ影響しないミュート クラスを、レイアウト計算開始前までの描画
+    // (Phase A の強調 + seed 配置) が確実に画面へ描画された後に、全量を単一 batch で
+    // 同時反映する。完了通知は Phase B と Phase C の双方が終わってから行う。
     let phaseCStarted = false;
     let phaseCClassesDone = false;
     let phaseCLayoutDone = true;
@@ -4718,27 +4794,54 @@ def write_html(output_dir: Path, category_id: str) -> None:
       phaseCStarted = true;
       if (!overviewCy || !isLatestOverviewSync(token)) return;
       if (deferredClassTargets.length === 0) {{
+        overviewVisualStateSignature = selectionSignature;
         phaseCClassesDone = true;
         finishPhaseCIfReady();
         return;
       }}
-      (async () => {{
-        const completed = await processOverviewChunks(deferredClassTargets, token, (chunk) => {{
-          if (!overviewCy || !isLatestOverviewSync(token)) return;
-          overviewCy.batch(() => {{
-            for (const target of chunk) {{
-              const element = overviewCy.getElementById(target.id);
-              if (!element.length) continue;
-              if (currentClassesDiffer(element, target.classes)) {{
-                element.classes(target.classes || "");
-              }}
-            }}
-          }});
-        }});
-        if (!completed || !overviewCy || !isLatestOverviewSync(token)) return;
-        phaseCClassesDone = true;
-        finishPhaseCIfReady();
-      }})();
+      // 操作種別に応じてフェードの扱いを切り替える。
+      //   suppressFade (タブ切替・初期化): fadeMode "none" のスタイルで適用して完全即時。
+      //     適用後すぐ既定スタイルへ戻す (色が変化しないため補間は走らない)。
+      //   選択解除 (選択中 -> 無選択): dep-overview-fade を併せて付与し、ミュート解除も
+      //     通常表示へフェードで戻す。フェード完了後にクラスを除去する (タイマー)。
+      //   それ以外 (選択変更・選択開始): 既定 "muted" のまま (ミュート化のみフェード)。
+      const suppressFade = Boolean(opts && opts.suppressFade);
+      const clearingSelection = !suppressFade && previousHasSelection && !nextHasSelection;
+      if (suppressFade) {{
+        applyOverviewFadeMode("none");
+      }}
+      overviewCy.batch(() => {{
+        for (const target of deferredClassTargets) {{
+          const element = overviewCy.getElementById(target.id);
+          if (!element.length) continue;
+          const nextClasses = clearingSelection
+            ? classText((target.classes || "") + " dep-overview-fade")
+            : (target.classes || "");
+          if (currentClassesDiffer(element, nextClasses)) {{
+            // 進行中のスタイル トランジション (ミュート化フェード等) は停止してから
+            // クラスを変更する。cytoscape はトランジションをキューイングするため、
+            // 停止しないと進行中のフェードが完走してから次の変化が始まり、
+            // seed 窓中の選択解除で「ミュート化が続いた後に急に戻る」見た目になる。
+            // stop(true, false) は現在色で凍結するため、そこから目標色へ補間される。
+            if (clearingSelection) element.stop(true, false);
+            element.classes(nextClasses);
+          }}
+        }}
+      }});
+      if (suppressFade) {{
+        applyOverviewFadeMode("muted");
+      }} else if (clearingSelection) {{
+        scheduleOverviewFadeClassCleanup();
+      }}
+      overviewVisualStateSignature = selectionSignature;
+      phaseCClassesDone = true;
+      finishPhaseCIfReady();
+    }};
+    // rAF コールバックは「次の描画の直前」に走るため、rAF 1 回では直前フレームの内容が
+    // 画面へ描画されたことを保証できない。rAF を 2 回連ねることで間に 1 回の paint が
+    // 確実に挟まり、レイアウト計算開始前までの状態の描画完了後に全量適用できる。
+    const schedulePhaseCAfterPaint = () => {{
+      requestOverviewFrame(() => requestOverviewFrame(startPhaseC));
     }};
 
     // ドラッグ中はレイアウトを後回しにし、ドラッグ終了後 (handleOverviewNodeFree) に再同期する。
@@ -4774,18 +4877,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
         scopeToVisibleChildren: true,
         syncToken: token
       }});
-      requestOverviewFrame(startPhaseC);
+      schedulePhaseCAfterPaint();
       return true;
     }}
 
     // 構造変化なし、または移動対象が単一子のみで Phase B スキップ: 興味対象の強調は
     // 反映済み。単一子スキップ時は pending ドラッグの消費と anchorCenters 反映を保つ。
-    // ミュートがあれば次フレームへ遅延し、強調の描画を先行させる。なければ即座に確定する。
+    // ミュートがあれば強調の描画完了後に全量反映し、なければ即座に確定する。
     if (movingNodeIds.size > 0) {{
       applyOverviewUserMovedPositions(previousPositions, anchorCenters);
     }}
     if (deferredClassTargets.length > 0) {{
-      requestOverviewFrame(startPhaseC);
+      schedulePhaseCAfterPaint();
     }} else {{
       startPhaseC();
     }}
@@ -5039,6 +5142,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       immediate: false,
       hideDuringUpdate: false,
       selectionSignature: overviewSelectionSignature(),
+      // 初期化はユーザーのクリック操作ではないため、状態クラスのフェードを行わない。
+      suppressFade: true,
       onComplete: () => {{
         revealOverviewGraphAfterFit(token);
       }}
@@ -5060,6 +5165,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     stopOverviewActiveLayout();
     overviewRenderedSelectionSignature = null;
     overviewPendingSelectionSignature = null;
+    overviewVisualStateSignature = null;
     overviewGraph.classList.add("layout-initializing");
     setOverviewControlsInert(true);
     setOverviewGraphInteractionLocked(true);
@@ -5081,6 +5187,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewCy.elements().remove();
     overviewRenderedSelectionSignature = null;
     overviewPendingSelectionSignature = null;
+    overviewVisualStateSignature = null;
     overviewLayoutInitialized = false;
     overviewPendingRelayoutNodeIds.clear();
     setOverviewControlsInert(true);
@@ -5201,7 +5308,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           finishImmediateRefresh();
           return;
         }}
-        const renderOpts = {{ immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed }};
+        const renderOpts = {{ immediate, hideDuringUpdate, initializeUnselectedFirst: immediate && selectionSignatureHasSelection(overviewSelectionSignature()), onComplete: finishImmediateRefresh, selectionSignature: overviewSelectionSignature(), force: revealed, suppressFade: true }};
         const resetStarted = renderOverviewGraph(renderOpts);
         if (overviewCy && !resetStarted && !renderOpts.layoutStarted) {{
           finishImmediateRefresh();
