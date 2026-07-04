@@ -3620,6 +3620,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (active.lockedNodes) {{
       try {{ active.lockedNodes.unlock(); }} catch (err) {{ /* 解除済みは無視 */ }}
     }}
+    // layout.stop() は layoutstop を同期発火させることがある。その場合、割り込み元 (選択変更)
+    // の sync がトークンを更新する前に finishLayout が走るため、isCurrentLayout() だけでは
+    // 中止と自然完了を区別できず、「自然完了」と誤認して上で登録した再レイアウト保留を消し、
+    // 未収束の seed 座標を最終位置として確定してしまう。中止をハンドル自体へ記録し、
+    // finishLayout 側で完了処理を抑止する。
+    active.aborted = true;
     if (active.layout && typeof active.layout.stop === "function") {{
       try {{ active.layout.stop(); }} catch (err) {{ /* 停止済みは無視 */ }}
     }}
@@ -3670,12 +3676,21 @@ def write_html(output_dir: Path, category_id: str) -> None:
       layoutToken === overviewLayoutToken && (!syncToken || isLatestOverviewSync(syncToken))
     );
     let startedLayout = null;
+    let activeHandle = null;
     let layoutStartMs = 0;
     const finishLayout = async () => {{
       // layoutstop が発火した時点でこのレイアウトは終了。cola の純計算時間を記録する。
       if (layoutStartMs > 0) overviewLastLayoutDurationMs = performance.now() - layoutStartMs;
       // アクティブ ハンドルが自分自身を指しているなら解放する (別レイアウトに更新済みなら触らない)。
       if (overviewActiveLayout && overviewActiveLayout.layout === startedLayout) overviewActiveLayout = null;
+      // stopOverviewActiveLayout で中止されたレイアウトは自然完了として扱わない。中止時の
+      // layout.stop() が layoutstop を同期発火させると、割り込み元のトークン更新前に到達する
+      // ため isCurrentLayout() が真のまま通過し、再レイアウト保留の削除と未収束座標の確定が
+      // 誤って行われる (seed 表示中の関数選択で再レイアウトが失火する実測要因)。
+      if (activeHandle && activeHandle.aborted) {{
+        lockedNodes.unlock();
+        return;
+      }}
       if (!isCurrentLayout()) {{
         lockedNodes.unlock();
         return;
@@ -3764,7 +3779,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
         allConstIter: fullConvergence ? undefined : (manual ? 6 : 12)
       }});
       startedLayout = layout;
-      overviewActiveLayout = {{ layout, lockedNodes, movingNodeIds }};
+      activeHandle = {{ layout, lockedNodes, movingNodeIds, aborted: false }};
+      overviewActiveLayout = activeHandle;
       layout.one("layoutstop", () => {{
         finishLayout();
       }});
@@ -3787,7 +3803,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       randomize: false
     }});
     startedLayout = layout;
-    overviewActiveLayout = {{ layout, lockedNodes }};
+    activeHandle = {{ layout, lockedNodes, aborted: false }};
+    overviewActiveLayout = activeHandle;
     layout.one("layoutstop", () => {{
       finishLayout();
     }});

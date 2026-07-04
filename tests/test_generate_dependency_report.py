@@ -1182,6 +1182,7 @@ LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_la
 SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_layout_probe.js"
 RESELECT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_reselect_probe.js"
 FILE_RECLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_reclick_probe.js"
+SEED_FN_CLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_seed_fn_click_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1578,6 +1579,68 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_seed_fn_click_probe(
+        self, index_html, file_path="src/big_file.c",
+        delay_modes="seed-0+h200,seed-200+h200", function_id="f_01"
+    ):
+        result = subprocess.run(
+            [
+                _node_binary(), str(SEED_FN_CLICK_PROBE_SCRIPT), str(index_html),
+                file_path, delay_modes, function_id
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="seed fn click probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_seed_fn_click_relayout(self):
+        # 無選択 -> ファイル ノードを実クリック (Phase B 開始) -> seed 表示中にファイル内の関数を
+        # 実クリック (押下保持つき) で選択。関数 grab の割り込みで cola を中止した際に登録される
+        # 再レイアウト保留 (overviewPendingRelayoutNodeIds) が、mousedown から tap までの間の
+        # rAF tick で発火する layoutstop により「自然完了」と誤認されて消され、続く関数選択の
+        # sync (diff が既存ノードの部分集合で movingNodeIds が空) で Phase B が失火する退行を検証する。
+        # 押下保持 (+h200) により rAF tick が保持中に必ず走るため、修正前は決定的に失火する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            data = self._run_seed_fn_click_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            for scenario in data["scenarios"]:
+                label = scenario.get("delayMode", "?")
+                self.assertTrue(
+                    scenario["seedCaught"],
+                    msg=label + ": seed 窓 (cola 計算中) を捉えられていない: " + str(scenario),
+                )
+                self.assertTrue(
+                    scenario["clicked"],
+                    msg=label + ": 関数ノードを実クリックできていない: " + str(scenario),
+                )
+                self.assertTrue(scenario["renderedMatchesCurrent"], msg=label + ": " + str(scenario))
+                self.assertTrue(
+                    scenario["selectedFunctionId"].startswith("f_"),
+                    msg=label + ": 関数が選択されていない: " + str(scenario),
+                )
+                # 失火の解消: 中止された Phase B の後、関数選択の sync で再レイアウトが発火して
+                # layoutRunCount が増える。修正前は保留の消失により増えない。
+                self.assertGreater(
+                    scenario["layoutRunCountAfter"],
+                    scenario["stateAtClick"]["layoutRunCount"],
+                    msg=label + ": " + str(scenario),
+                )
+                # 複数子を持つ親の子ノードが親中心で重なったまま取り残されていない。
+                self.assertEqual(scenario["stuckParents"], [], msg=label + ": " + str(scenario))
 
     def test_overview_file_reclick_during_seed(self):
         # 無選択 -> ファイル選択 (Phase B 開始) -> seed 表示中にファイル自身 (関数ではない領域)
