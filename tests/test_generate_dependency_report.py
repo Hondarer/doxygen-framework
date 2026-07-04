@@ -1183,6 +1183,7 @@ SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_la
 RESELECT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_reselect_probe.js"
 FILE_RECLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_reclick_probe.js"
 SEED_FN_CLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_seed_fn_click_probe.js"
+URL_STATE_PROBE_SCRIPT = Path(__file__).resolve().parent / "url_state_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1604,6 +1605,54 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_url_state_probe(self, index_html, function_id="f_05", file_path="src/other_1.c"):
+        result = subprocess.run(
+            [_node_binary(), str(URL_STATE_PROBE_SCRIPT), str(index_html), function_id, file_path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="url state probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_url_hash_state_restore_and_track(self):
+        # URL ハッシュ (#tab=...&fn=... / &file=...) によるタブ・選択状態の復元と、
+        # 操作 (選択・タブ切り替え・hashchange) に応じたハッシュの追従更新を検証する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            data = self._run_url_state_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            # 1. #tab=overview&fn=f_05 で開く -> 全体マップ + 関数選択が復元される。
+            fn_scenario = data["fnScenario"]
+            self.assertEqual(fn_scenario["activePanel"], "overviewPanel", msg=str(fn_scenario))
+            self.assertEqual(fn_scenario["selectedId"], "f_05", msg=str(fn_scenario))
+            self.assertEqual(fn_scenario["hash"], "#tab=overview&fn=f_05", msg=str(fn_scenario))
+            # 2. #tab=files&file=... で開く -> ファイル一覧 + ファイル選択が復元される。
+            file_scenario = data["fileScenario"]
+            self.assertEqual(file_scenario["activePanel"], "fileListPanel", msg=str(file_scenario))
+            self.assertEqual(file_scenario["selectedFilePath"], "src/other_1.c", msg=str(file_scenario))
+            # 3. ハッシュなしで開く -> 従来どおり関数一覧タブで、ハッシュは書き込まれない。
+            plain_scenario = data["plainScenario"]
+            self.assertEqual(plain_scenario["activePanel"], "functionListPanel", msg=str(plain_scenario))
+            self.assertEqual(plain_scenario["hash"], "", msg=str(plain_scenario))
+            # 4. 関数選択 + 全体マップへの切り替えでハッシュが追従する。
+            after_interaction = data["afterInteraction"]
+            self.assertEqual(after_interaction["hash"], "#tab=overview&fn=f_05", msg=str(after_interaction))
+            # 5. 表示後のハッシュ書き換え (hashchange) に状態が追従する。
+            after_hash_change = data["afterHashChange"]
+            self.assertEqual(after_hash_change["activePanel"], "fileListPanel", msg=str(after_hash_change))
+            self.assertEqual(after_hash_change["selectedFilePath"], "src/other_1.c", msg=str(after_hash_change))
 
     def test_overview_seed_fn_click_relayout(self):
         # 無選択 -> ファイル ノードを実クリック (Phase B 開始) -> seed 表示中にファイル内の関数を

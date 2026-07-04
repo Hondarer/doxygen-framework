@@ -2437,6 +2437,70 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "fileListPanel" && pendingFileListScroll) {{
       syncSelectedFileRowScroll(true);
     }}
+    updateUrlHashFromState();
+  }}
+
+  // タブと選択状態を URL ハッシュ (#tab=...&fn=... / &file=...) で共有できるようにする。
+  // file:// の固定 URL でも機能するよう、クエリ文字列でなくハッシュ フラグメントを使う。
+  const urlHashTabNames = {{
+    functionListPanel: "functions",
+    fileListPanel: "files",
+    overviewPanel: "overview"
+  }};
+  const urlHashPanelIds = {{
+    functions: "functionListPanel",
+    files: "fileListPanel",
+    overview: "overviewPanel"
+  }};
+  let applyingUrlHash = false;
+
+  function currentUrlHashString() {{
+    const params = ["tab=" + (urlHashTabNames[activeTab] || "functions")];
+    if (selectedId) {{
+      params.push("fn=" + encodeURIComponent(selectedId));
+    }} else if (selectedFilePath) {{
+      params.push("file=" + encodeURIComponent(selectedFilePath));
+    }}
+    return "#" + params.join("&");
+  }}
+
+  function updateUrlHashFromState() {{
+    if (applyingUrlHash) return;
+    const next = currentUrlHashString();
+    if (window.location.hash === next) return;
+    try {{
+      // replaceState なら再読み込みも履歴の増加も起きない (file:// でも動作する)。
+      window.history.replaceState(null, "", next);
+    }} catch (err) {{
+      window.location.hash = next.slice(1);
+    }}
+  }}
+
+  function applyStateFromUrlHash() {{
+    const rawHash = window.location.hash.replace(/^#/, "");
+    if (!rawHash) return;
+    let params = null;
+    try {{
+      params = new URLSearchParams(rawHash);
+    }} catch (err) {{
+      return;
+    }}
+    applyingUrlHash = true;
+    try {{
+      const fnId = params.get("fn") || "";
+      const filePath = params.get("file") || "";
+      if (fnId && byId.has(fnId)) {{
+        selectFunction(fnId);
+      }} else if (filePath && fileByPath.has(filePath)) {{
+        selectFile(filePath);
+      }}
+      const panelId = urlHashPanelIds[params.get("tab") || ""] || "";
+      if (panelId && panelId !== activeTab) activateTab(panelId);
+    }} finally {{
+      applyingUrlHash = false;
+    }}
+    // 不正値を取り除いた正規形へ書き戻す。
+    updateUrlHashFromState();
   }}
 
   function addMetric(label, value) {{
@@ -5435,6 +5499,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
+    updateUrlHashFromState();
   }}
 
   function selectFile(path, opts) {{
@@ -5466,6 +5531,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
+    updateUrlHashFromState();
   }}
 
   function selectOverviewEdge(edgeKey) {{
@@ -5481,6 +5547,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
+    updateUrlHashFromState();
   }}
 
   function clearOverviewSelection() {{
@@ -5495,6 +5562,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       renderOverviewGraph();
     }}
+    updateUrlHashFromState();
   }}
 
   function clearSelection() {{
@@ -5509,6 +5577,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (activeTab === "overviewPanel") {{
       resetOverviewGraph();
     }}
+    updateUrlHashFromState();
   }}
 
   function debounce(callback, delayMs) {{
@@ -5540,6 +5609,12 @@ def write_html(output_dir: Path, category_id: str) -> None:
   renderFileRows();
   const scheduleRenderRows = debounce(() => renderRows(), 80);
   const scheduleRenderFileRows = debounce(() => renderFileRows(), 80);
+  applyStateFromUrlHash();
+  window.addEventListener("hashchange", () => {{
+    if (applyingUrlHash) return;
+    if (window.location.hash === currentUrlHashString()) return;
+    applyStateFromUrlHash();
+  }});
   const rowSelectEventName = window.PointerEvent ? "pointerdown" : "mousedown";
   rows.addEventListener(rowSelectEventName, (event) => {{
     const row = event.target.closest("[data-function-row-id]");
