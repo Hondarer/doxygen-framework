@@ -581,7 +581,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("await processOverviewChunks(deferredClassTargets, token", index_html)
             self.assertIn("if (!isLatestOverviewSync(token)) return false;", index_html)
             self.assertIn("overviewCy.remove(staleCollection);", index_html)
-            self.assertIn("staleCollection.nodes().forEach((node) => forgetOverviewNodeRuntimeState(node));", index_html)
+            self.assertIn("staleCollection.nodes().forEach((node) => {", index_html)
+            self.assertIn("forgetOverviewNodeRuntimeState(node);", index_html)
+            # stale 除去で兄弟集合が縮小した親の生存子を Phase B の移動対象へ加える。
+            self.assertIn("if (parentId) parentsWithRemovedChildren.add(parentId);", index_html)
+            self.assertIn("parent.children().forEach((child) => movingNodeIds.add(child.id()));", index_html)
             self.assertIn("overviewCy.add(missingElements);", index_html)
             self.assertIn("const structureElement = overviewStructureElement(target);", index_html)
             # 新規追加ノードは初回描画から最終状態クラス (ミュート等) で生成し、再表示ちらつきを防ぐ。
@@ -1184,6 +1188,7 @@ RESELECT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_reselect_pro
 FILE_RECLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_reclick_probe.js"
 SEED_FN_CLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_seed_fn_click_probe.js"
 URL_STATE_PROBE_SCRIPT = Path(__file__).resolve().parent / "url_state_probe.js"
+FILE_TO_FN_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_to_fn_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1377,7 +1382,10 @@ class OverviewInteractionTest(unittest.TestCase):
         generate_dependency_report.generate_report(xml_dir, output_dir, "test")
         return output_dir / "index.html"
 
-    def _generate_large_layout_report(self, temp_dir):
+    def _generate_large_layout_report(self, temp_dir, cross_single_callees=False):
+        # cross_single_callees=True のとき、f_01 以降の各関数が other_1.c / other_2.c の
+        # 関数 (各ファイル 1 個 = 単一子) を呼ぶ。ファイル選択から関数選択へ縮小する遷移で、
+        # 他ファイルへの新規追加が単一子のみになる状況を作るためのオプション。
         xml_dir = temp_dir / "xml"
         output_dir = temp_dir / "report"
         xml_dir.mkdir()
@@ -1391,6 +1399,11 @@ class OverviewInteractionTest(unittest.TestCase):
                 references = "".join(
                     '        <references refid="f_{0:02d}" compoundref="big__file_8c">func_{0:02d}</references>\n'.format(i)
                     for i in range(1, 60)
+                )
+            elif cross_single_callees:
+                references = (
+                    '        <references refid="o_1" compoundref="other__1_8c">other_1</references>\n'
+                    '        <references refid="o_2" compoundref="other__2_8c">other_2</references>\n'
                 )
             members.append(
                 """      <memberdef kind="function" id="{id}" static="yes">
@@ -1624,6 +1637,46 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_file_to_fn_probe(self, index_html, file_path="src/big_file.c", function_id="f_01"):
+        result = subprocess.run(
+            [_node_binary(), str(FILE_TO_FN_PROBE_SCRIPT), str(index_html), file_path, function_id],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="file to fn probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_file_to_function_relayout(self):
+        # ファイル選択 (全関数表示) でレイアウトが収束した後に関数を選択すると、同一ファイルの
+        # 残存ノードは movingNodeIds に入らず、他ファイルへの新規追加が各ファイル単一子のみだと
+        # overviewMovingNodesNeedLayout の単一子スキップにより Phase B 全体が失火し、残存ノードが
+        # ファイル選択時の座標のまま取り残される退行を検証する。stale 除去で兄弟集合が縮小した
+        # 親の生存子を移動対象へ加える修正により、関数選択で再レイアウトが発火する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_large_layout_report(
+                Path(temp_dir_text), cross_single_callees=True
+            )
+            data = self._run_file_to_fn_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
+            # 関数選択で Phase B (レイアウトまたは位置アニメーション) が発火する。
+            self.assertTrue(data["layoutRan"], msg=str(data))
+            # 残存ノード (f_00, f_01) が存在し、少なくとも 1 つは再配置される。
+            self.assertEqual(data["survivorCount"], 2, msg=str(data))
+            self.assertGreaterEqual(data["movedCount"], 1, msg=str(data))
+            # 最終的に選択が描画へ反映済みである。
+            self.assertTrue(data["renderedCurrent"], msg=str(data))
 
     def test_url_hash_state_restore_and_track(self):
         # URL ハッシュ (#tab=...&fn=... / &file=...) によるタブ・選択状態の復元と、

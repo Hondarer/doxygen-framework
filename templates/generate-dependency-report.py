@@ -4591,11 +4591,16 @@ def write_html(output_dir: Path, category_id: str) -> None:
       phaseA: 0,
       phaseC: 0
     }};
+    const parentsWithRemovedChildren = new Set();
     overviewCy.batch(() => {{
       if (plan.stale.length > 0) {{
         const staleCollection = overviewCy.collection(plan.stale);
         if (staleCollection.nodes().length > 0) layoutNeeded = true;
-        staleCollection.nodes().forEach((node) => forgetOverviewNodeRuntimeState(node));
+        staleCollection.nodes().forEach((node) => {{
+          const parentId = node.data("parent");
+          if (parentId) parentsWithRemovedChildren.add(parentId);
+          forgetOverviewNodeRuntimeState(node);
+        }});
         overviewCy.remove(staleCollection);
       }}
       if (plan.missingOrdered.length > 0) {{
@@ -4667,6 +4672,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
         }} else {{
           overviewPendingRelayoutNodeIds.delete(id);
         }}
+      }}
+      if (movingNodeIds.size > 0) layoutNeeded = true;
+    }}
+
+    // stale 除去で子を失った親 (ファイル) の生存子は、除去前の兄弟集合を前提とした配置のまま
+    // 取り残される。ファイル選択 (全関数表示) から関数選択へ縮小する遷移で、新規追加が各ファイル
+    // 単一子のみだと overviewMovingNodesNeedLayout の単一子スキップにより Phase B 全体が失火し、
+    // 残存兄弟が旧座標のまま放置される。兄弟集合が縮小した親の生存子を移動対象へ加えることで、
+    // 単一子スキップの前提 (レイアウト結果が自明) が崩れるケースを Phase B の対象に戻す。
+    if (parentsWithRemovedChildren.size > 0) {{
+      for (const parentId of parentsWithRemovedChildren) {{
+        const parent = overviewCy.getElementById(parentId);
+        if (!parent || !parent.length) continue;
+        parent.children().forEach((child) => movingNodeIds.add(child.id()));
       }}
       if (movingNodeIds.size > 0) layoutNeeded = true;
     }}
