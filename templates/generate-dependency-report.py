@@ -1189,7 +1189,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       --dep-graph-muted-file-text: #505050;
       --dep-graph-parent-bg: #2d2d30;
       --dep-graph-edge: #858585;
-      --dep-graph-muted-edge: #3a3a3a;
+      --dep-graph-muted-edge: #2d2d2d;
       --dep-graph-active-edge: #c5c5c5;
       --dep-graph-emphasis-edge: #f3f4f6;
       --dep-graph-leaf-bg: #163b2b;
