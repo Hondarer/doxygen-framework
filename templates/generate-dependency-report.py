@@ -1804,6 +1804,20 @@ def write_html(output_dir: Path, category_id: str) -> None:
       margin: 4px 4px;
       border-top: 1px solid var(--dep-border);
     }}
+    .dep-graph-context-menu-label {{
+      padding: 6px 8px 2px;
+      font-size: 11px;
+      color: var(--dep-muted);
+    }}
+    .dep-graph-context-menu button.dep-menu-option {{
+      padding-left: 24px;
+      position: relative;
+    }}
+    .dep-graph-context-menu button.dep-menu-option.checked::before {{
+      content: "\\2713";
+      position: absolute;
+      left: 8px;
+    }}
     @media (min-width: 981px) {{
       html, body {{
         height: 100%;
@@ -2033,6 +2047,15 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" role="menuitem" data-svg-scope="full">マップ全体を SVG で保存</button>
           <button type="button" role="menuitem" data-svg-scope="viewport">表示範囲を SVG で保存</button>
           -->
+          <div class="dep-graph-context-menu-label" data-menu-scope="background">呼び出し元関数</div>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-caller-depth="0">非表示</button>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-caller-depth="1">1 つ先</button>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-caller-depth="all">すべて</button>
+          <div class="dep-graph-context-menu-label" data-menu-scope="background">呼び出し先関数</div>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-callee-depth="0">非表示</button>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-callee-depth="1">1 つ先</button>
+          <button type="button" role="menuitemradio" class="dep-menu-option" data-menu-scope="background" data-callee-depth="all">すべて</button>
+          <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true" data-menu-scope="background"></div>
           <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="full">マップ全体を PNG で保存</button>
           <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="viewport">表示範囲を PNG で保存</button>
           <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true" data-menu-scope="background"></div>
@@ -2159,6 +2182,10 @@ def write_html(output_dir: Path, category_id: str) -> None:
   // (deferStateClassChanges / clearingSelection) の「直前状態」にはどちらも使えない。
   // Phase A (非遅延時) と Phase C (遅延クラス適用後) で更新する。
   let overviewVisualStateSignature = null;
+  // 全体マップの背景右クリックメニューで切り替える、呼び出し元/先の表示深さ。
+  // 0 = 非表示、1 = 1 つ先 (既定)、Infinity = すべて。URL・永続化は行わないページ内一時設定。
+  let overviewCallerDepth = 1;
+  let overviewCalleeDepth = 1;
   // 全体マップで「非表示」にしたファイル。UI 用語は非表示だが実体はノード・エッジを
   // 削除し描画を軽くする。値は非表示時のファイル ノード位置 (復活時の元位置復元用)。
   let hiddenOverviewFiles = new Map();
@@ -2823,6 +2850,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
     overviewGraphMenu.classList.remove("visible");
   }}
 
+  function overviewDepthAttrValue(depth) {{
+    if (depth === Infinity) return "all";
+    return String(depth);
+  }}
+
+  function updateOverviewDepthMenuChecks() {{
+    if (!overviewGraphMenu) return;
+    const callerValue = overviewDepthAttrValue(overviewCallerDepth);
+    const calleeValue = overviewDepthAttrValue(overviewCalleeDepth);
+    for (const item of overviewGraphMenu.querySelectorAll("[data-caller-depth]")) {{
+      item.classList.toggle("checked", item.getAttribute("data-caller-depth") === callerValue);
+    }}
+    for (const item of overviewGraphMenu.querySelectorAll("[data-callee-depth]")) {{
+      item.classList.toggle("checked", item.getAttribute("data-callee-depth") === calleeValue);
+    }}
+  }}
+
   function applyOverviewGraphMenuScope(scope) {{
     if (!overviewGraphMenu) return;
     // 各項目は data-menu-scope を持つ。背景の右クリックでは background、ファイル ノードの
@@ -2831,6 +2875,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       const itemScope = item.getAttribute("data-menu-scope");
       item.style.display = !itemScope || itemScope === scope ? "" : "none";
     }}
+    updateOverviewDepthMenuChecks();
   }}
 
   function showOverviewGraphMenu(clientX, clientY, scope) {{
@@ -3019,7 +3064,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
   }}
 
   function resetOverviewGraphState() {{
+    overviewCallerDepth = 1;
+    overviewCalleeDepth = 1;
     clearSelection();
+  }}
+
+  function parseOverviewDepthValue(value) {{
+    if (value === "all") return Infinity;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 1;
+  }}
+
+  // 呼び出し元/先の表示深さを変更する。関数選択中はマップへ即時反映する。
+  function setOverviewDepth(kind, value) {{
+    const depth = parseOverviewDepthValue(value);
+    const changed = kind === "caller" ? depth !== overviewCallerDepth : depth !== overviewCalleeDepth;
+    if (kind === "caller") overviewCallerDepth = depth; else overviewCalleeDepth = depth;
+    if (!changed) return;
+    if (selectedId && activeTab === "overviewPanel") forceRenderOverviewGraph();
   }}
 
   function handleOverviewGraphMenuAction(action) {{
@@ -3496,15 +3558,61 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return elements;
   }}
 
+  // 深さ設定 (overviewCallerDepth / overviewCalleeDepth) に基づき、起点から edgeMap
+  // (callers または callees) を辿って到達可能な id 集合を ids へ追加する。
+  // depth 0 は非表示 (追加なし)、1 は起点の 1 段のみ、Infinity は推移閉包 (BFS) で全段。
+  // direction: "caller" は edgeMap (callers) を辿るときのエッジ向き (neighbor -> current)、
+  // "callee" は edgeMap (callees) を辿るときのエッジ向き (current -> neighbor) を表す。
+  // routeEdgeIds には辿った各ステップのエッジ id (関数間エッジ id と同じ "caller->callee" 形式)
+  // を記録する。これにより、選択の展開経路 (ルート) 上のエッジを強調対象として区別できる。
+  function overviewRouteEdgeKey(direction, current, neighbor) {{
+    return direction === "caller" ? (neighbor + "->" + current) : (current + "->" + neighbor);
+  }}
+
+  function collectOverviewRelatedIds(startId, edgeMap, depth, direction, ids, routeEdgeIds) {{
+    if (depth <= 0) return;
+    if (depth === 1) {{
+      for (const c of (edgeMap.get(startId) || [])) {{
+        ids.add(c);
+        routeEdgeIds.add(overviewRouteEdgeKey(direction, startId, c));
+      }}
+      return;
+    }}
+    const visited = new Set([startId]);
+    let frontier = [startId];
+    while (frontier.length > 0) {{
+      const next = [];
+      for (const current of frontier) {{
+        for (const neighbor of (edgeMap.get(current) || [])) {{
+          routeEdgeIds.add(overviewRouteEdgeKey(direction, current, neighbor));
+          if (visited.has(neighbor)) continue;
+          visited.add(neighbor);
+          ids.add(neighbor);
+          next.push(neighbor);
+        }}
+      }}
+      frontier = next;
+    }}
+  }}
+
+  // 選択関数から表示する関連関数 id 集合と、強調対象のエッジ id 集合 (呼び出し元/先の
+  // 展開で辿った経路) を求める。選択関数の循環グループ全体は呼び出し元/先の深さ設定に
+  // 関わらず常に表示する (routeEdgeIds には含めないが、循環グループ内のエッジは
+  // overviewFunctionEdgeClasses 側の selectedCycleIds 判定で別途強調する)。
+  function relatedFunctionIdsForSelection(selectedId) {{
+    const ids = new Set([selectedId]);
+    const routeEdgeIds = new Set();
+    const selectedFn = byId.get(selectedId);
+    for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);
+    collectOverviewRelatedIds(selectedId, callers, overviewCallerDepth, "caller", ids, routeEdgeIds);
+    collectOverviewRelatedIds(selectedId, callees, overviewCalleeDepth, "callee", ids, routeEdgeIds);
+    return {{ ids: ids, routeEdgeIds: routeEdgeIds }};
+  }}
+
   function visibleFunctionIdsForOverview(selection) {{
     const context = overviewSelectionContext(selection);
     if (context.selectedId) {{
-      const ids = new Set([context.selectedId]);
-      const selectedFn = byId.get(context.selectedId);
-      for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);
-      for (const c of (callers.get(context.selectedId) || [])) ids.add(c);
-      for (const c of (callees.get(context.selectedId) || [])) ids.add(c);
-      return ids;
+      return relatedFunctionIdsForSelection(context.selectedId).ids;
     }}
     if (context.selectedFilePath) {{
       const ids = new Set();
@@ -3514,10 +3622,14 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return new Set();
   }}
 
-  function overviewFunctionEdgeClasses(edge, selectedCycleIds, selection) {{
+  // 強調対象は、呼び出し元/先の展開で辿った経路上のエッジ (routeEdgeIds) と、選択関数の
+  // 循環グループ内のエッジ (selectedCycleIds の両端一致)。表示はされていても展開経路に
+  // 含まれないエッジ (例: 呼び出し先ルート上の関数から、別に表示中の関数への呼び出し元
+  // 方向の関連など) は通常表示のままにする。
+  function overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, selection) {{
     const context = overviewSelectionContext(selection);
     const classes = [];
-    if (context.selectedId && (edge.caller === context.selectedId || edge.callee === context.selectedId ||
+    if (context.selectedId && (routeEdgeIds.has(edge.caller + "->" + edge.callee) ||
         (selectedCycleIds.has(edge.caller) && selectedCycleIds.has(edge.callee)))) {{
       classes.push("dep-function-edge");
     }}
@@ -3527,7 +3639,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
   function buildOverviewElements(selection) {{
     const context = overviewSelectionContext(selection);
     const elements = overviewBaseElements(context);
-    const visibleFnIds = visibleFunctionIdsForOverview(context);
+    const relatedSelection = context.selectedId ? relatedFunctionIdsForSelection(context.selectedId) : null;
+    const visibleFnIds = relatedSelection ? relatedSelection.ids : visibleFunctionIdsForOverview(context);
+    const routeEdgeIds = relatedSelection ? relatedSelection.routeEdgeIds : new Set();
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
@@ -3567,7 +3681,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
             target: edge.callee,
             weight: 1
           }},
-          classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, context)
+          classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, context)
         }});
       }}
     }} else if (context.selectedFilePath) {{
@@ -3638,7 +3752,9 @@ def write_html(output_dir: Path, category_id: str) -> None:
         }});
       }}
     }}))) return null;
-    const visibleFnIds = visibleFunctionIdsForOverview(context);
+    const relatedSelection = context.selectedId ? relatedFunctionIdsForSelection(context.selectedId) : null;
+    const visibleFnIds = relatedSelection ? relatedSelection.ids : visibleFunctionIdsForOverview(context);
+    const routeEdgeIds = relatedSelection ? relatedSelection.routeEdgeIds : new Set();
     const visibleFns = Array.from(visibleFnIds)
       .map((id) => byId.get(id))
       .filter(Boolean)
@@ -3683,7 +3799,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
               target: edge.callee,
               weight: 1
             }},
-            classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, context)
+            classes: overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, context)
           }});
         }}
       }}))) return null;
@@ -5816,15 +5932,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }});
   }}
   if (overviewGraphMenu) {{
+    overviewGraphMenu.addEventListener("contextmenu", (event) => {{
+      event.preventDefault();
+    }});
     overviewGraphMenu.addEventListener("click", (event) => {{
       const button = event.target.closest("button");
       if (!button) return;
       const scope = button.getAttribute("data-svg-scope");
       const pngScope = button.getAttribute("data-png-scope");
+      const callerDepth = button.getAttribute("data-caller-depth");
+      const calleeDepth = button.getAttribute("data-callee-depth");
       if (scope) {{
         downloadOverviewSvg(scope);
       }} else if (pngScope) {{
         downloadOverviewPng(pngScope);
+      }} else if (callerDepth !== null) {{
+        setOverviewDepth("caller", callerDepth);
+      }} else if (calleeDepth !== null) {{
+        setOverviewDepth("callee", calleeDepth);
       }} else {{
         if (!handleOverviewGraphMenuAction(button.getAttribute("data-action"))) return;
       }}
@@ -6091,6 +6216,17 @@ def write_html(output_dir: Path, category_id: str) -> None:
         return {{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }};
       }},
       resetGraph: () => resetOverviewGraphState(),
+      setOverviewDepth: (kind, value) => setOverviewDepth(kind, value),
+      overviewDepthSettings: () => ({{ caller: overviewDepthAttrValue(overviewCallerDepth), callee: overviewDepthAttrValue(overviewCalleeDepth) }}),
+      overviewDepthMenuChecked: () => {{
+        if (!overviewGraphMenu) return null;
+        applyOverviewGraphMenuScope("background");
+        const checkedOf = (selector) => {{
+          const el = overviewGraphMenu.querySelector(selector + ".checked");
+          return el ? el.getAttribute(selector.startsWith("[data-caller") ? "data-caller-depth" : "data-callee-depth") : null;
+        }};
+        return {{ caller: checkedOf("[data-caller-depth]"), callee: checkedOf("[data-callee-depth]") }};
+      }},
       renderedSignature: () => overviewRenderedSelectionSignature,
       pendingSignature: () => overviewPendingSelectionSignature,
       currentSignature: () => overviewSelectionSignature(),

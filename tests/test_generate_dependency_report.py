@@ -595,6 +595,23 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const clearingSelection = !suppressFade && previousHasSelection && !nextHasSelection;", index_html)
             self.assertIn("scheduleOverviewFadeClassCleanup();", index_html)
             self.assertIn("suppressFade: true", index_html)
+            # 背景右クリックメニューの呼び出し元関数/呼び出し先関数 表示深さ設定。選択関数の循環グループ全体は
+            # 深さ設定に関わらず常に表示し、初期化で既定 (1, 1) に戻る。
+            self.assertIn("let overviewCallerDepth = 1;", index_html)
+            self.assertIn("let overviewCalleeDepth = 1;", index_html)
+            self.assertIn("function relatedFunctionIdsForSelection(selectedId) {", index_html)
+            self.assertIn("for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);", index_html)
+            self.assertIn('collectOverviewRelatedIds(selectedId, callers, overviewCallerDepth, "caller", ids, routeEdgeIds);', index_html)
+            self.assertIn('collectOverviewRelatedIds(selectedId, callees, overviewCalleeDepth, "callee", ids, routeEdgeIds);', index_html)
+            self.assertIn("function setOverviewDepth(kind, value) {", index_html)
+            self.assertIn("overviewCallerDepth = 1;", index_html)
+            self.assertIn("overviewCalleeDepth = 1;", index_html)
+            self.assertIn('data-caller-depth="all"', index_html)
+            self.assertIn('data-callee-depth="all"', index_html)
+            # エッジ強調は展開経路 (routeEdgeIds) を辿ったエッジ、または選択関数の循環グループ
+            # 内のエッジ (selectedCycleIds) に限定し、表示中でも経路外のエッジは強調しない。
+            self.assertIn("function overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, selection) {", index_html)
+            self.assertIn('routeEdgeIds.has(edge.caller + "->" + edge.callee)', index_html)
             # Phase C はチャンク分割せず、描画完了後 (二重 rAF) に全量を単一 batch で反映する。
             self.assertIn("for (const target of deferredClassTargets) {", index_html)
             self.assertIn("const schedulePhaseCAfterPaint = () =>", index_html)
@@ -1209,6 +1226,8 @@ FILE_RECLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_rec
 SEED_FN_CLICK_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_seed_fn_click_probe.js"
 URL_STATE_PROBE_SCRIPT = Path(__file__).resolve().parent / "url_state_probe.js"
 FILE_TO_FN_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_to_fn_probe.js"
+OVERVIEW_DEPTH_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_depth_probe.js"
+OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_context_menu_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1657,6 +1676,158 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _generate_depth_report(self, temp_dir):
+        # 呼び出し元/先 表示深さ設定の検証用フィクスチャ。
+        # chain.c: c_0 -> c_1 -> c_2 -> c_3 -> c_4 の呼び出し連鎖 (c_2 は cycle.c の x_1 も呼ぶ)。
+        # cycle.c: x_1 <-> x_2 の相互呼び出し (循環グループ)。
+        # c_0 -> c_3 は「ルート外」エッジ (両端は表示されうるが、選択の展開経路には含まれない)。
+        xml_dir = temp_dir / "xml"
+        output_dir = temp_dir / "report"
+        xml_dir.mkdir()
+        output_dir.mkdir()
+
+        chain_calls = {0: [("c_1", "chain_8c"), ("c_3", "chain_8c")], 1: [("c_2", "chain_8c")], 2: [("c_3", "chain_8c"), ("x_1", "cycle_8c")], 3: [("c_4", "chain_8c")], 4: []}
+        chain_members = []
+        for index in range(5):
+            refs = "".join(
+                '        <references refid="{0}" compoundref="{1}">{0}</references>\n'.format(ref_id, compound)
+                for ref_id, compound in chain_calls[index]
+            )
+            chain_members.append(
+                """      <memberdef kind="function" id="c_{index}" static="yes">
+        <name>c_{index}</name>
+{refs}        <location file="src/chain.c" line="{line}" bodyfile="src/chain.c" bodystart="{line}"/>
+      </memberdef>
+""".format(index=index, refs=refs, line=index + 10)
+            )
+        write_xml(
+            xml_dir,
+            "chain.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="chain_8c" kind="file">
+    <compoundname>chain.c</compoundname>
+    <sectiondef>
+{members}    </sectiondef>
+  </compounddef>
+</doxygen>
+""".format(members="".join(chain_members)),
+        )
+        write_xml(
+            xml_dir,
+            "cycle.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="cycle_8c" kind="file">
+    <compoundname>cycle.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="x_1" static="yes">
+        <name>x_1</name>
+        <references refid="x_2" compoundref="cycle_8c">x_2</references>
+        <location file="src/cycle.c" line="10" bodyfile="src/cycle.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="x_2" static="yes">
+        <name>x_2</name>
+        <references refid="x_1" compoundref="cycle_8c">x_1</references>
+        <location file="src/cycle.c" line="20" bodyfile="src/cycle.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+        )
+        generate_dependency_report.generate_report(xml_dir, output_dir, "depth-test")
+        return output_dir / "index.html"
+
+    def _run_overview_depth_probe(self, index_html):
+        result = subprocess.run(
+            [_node_binary(), str(OVERVIEW_DEPTH_PROBE_SCRIPT), str(index_html)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="overview depth probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def _run_overview_context_menu_probe(self, index_html):
+        result = subprocess.run(
+            [_node_binary(), str(OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT), str(index_html)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="overview context menu probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_overview_caller_callee_depth_settings(self):
+        # 背景右クリックメニューの呼び出し元/先 表示深さ設定 (非表示/1 つ先/すべて) を検証する。
+        # 選択関数の循環グループ全体は深さ設定に関わらず常に表示され、初期化で設定は
+        # 既定 (caller=1, callee=1) に戻る。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_depth_report(Path(temp_dir_text))
+            data = self._run_overview_depth_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data))
+            # 既定 (1/1): 選択関数 c_2 の 1 段先 (c_1, c_3) + 循環グループ (x_1)。
+            self.assertEqual(data["defaultNodes"], ["c_1", "c_2", "c_3", "x_1"], msg=str(data))
+            # 呼び出し先 すべて: c_4 と x_1 経由の x_2 も含む推移閉包。
+            self.assertEqual(data["calleeAllNodes"], ["c_1", "c_2", "c_3", "c_4", "x_1", "x_2"], msg=str(data))
+            # 呼び出し元 すべて (呼び出し先 all 維持): c_0 も追加される。
+            self.assertEqual(data["bothAllNodes"], ["c_0", "c_1", "c_2", "c_3", "c_4", "x_1", "x_2"], msg=str(data))
+            # 呼び出し元 非表示: c_0, c_1 が消え、呼び出し先側は維持される。
+            self.assertEqual(data["callerHiddenNodes"], ["c_2", "c_3", "c_4", "x_1", "x_2"], msg=str(data))
+            # 循環メンバー選択、caller/callee がともに非表示でも循環グループ全体は表示される。
+            self.assertEqual(data["cycleHiddenNodes"], ["x_1", "x_2"], msg=str(data))
+            # メニューのチェック表示が現在値 (0, 0) と一致する。
+            self.assertEqual(data["checkedAfterCycle"], {"caller": "0", "callee": "0"}, msg=str(data))
+            # 初期化で深さ設定が既定 (1, 1) に戻る。
+            self.assertEqual(data["settingsAfterReset"], {"caller": "1", "callee": "1"}, msg=str(data))
+            # 展開経路 (2 段以上離れた c_0->c_1 を含む) 上のエッジはすべて強調される。
+            route = data["routeEdgesEmphasized"]
+            self.assertTrue(route["c0_c1"], msg=str(data))
+            self.assertTrue(route["c1_c2"], msg=str(data))
+            self.assertTrue(route["c2_c3"], msg=str(data))
+            self.assertTrue(route["c3_c4"], msg=str(data))
+            self.assertTrue(route["c2_x1"], msg=str(data))
+            self.assertTrue(route["x1_x2"], msg=str(data))
+            self.assertTrue(route["x2_x1"], msg=str(data))
+            # 両端 (c_0, c_3) は表示されるが展開経路に含まれないエッジは強調されない。
+            self.assertFalse(data["nonRouteEdgeEmphasized"], msg=str(data))
+
+    def test_overview_context_menu_suppression(self):
+        # 独自メニューがカーソル位置に補正されて表示されても、右クリックでブラウザー標準
+        # context menu が出ないことを検証する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_report(Path(temp_dir_text))
+            data = self._run_overview_context_menu_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data))
+            self.assertTrue(data["firstMenu"]["visible"], msg=str(data))
+            self.assertTrue(data["firstMenu"]["pointInside"], msg=str(data))
+            self.assertTrue(data["secondMenu"]["visible"], msg=str(data))
+            self.assertGreater(data["firstMenu"]["top"], 0, msg=str(data))
+            self.assertGreater(data["events"][0]["x"], 0, msg=str(data))
+            self.assertTrue(data["events"][0]["targetLabel"], msg=str(data))
+            self.assertTrue(data["events"][-1]["defaultPrevented"], msg=str(data))
 
     def _run_file_to_fn_probe(self, index_html, file_path="src/big_file.c", function_id="f_01"):
         result = subprocess.run(
