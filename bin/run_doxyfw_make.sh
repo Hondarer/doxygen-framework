@@ -169,7 +169,7 @@ if [ -f "$xml_work_dir/index.xml" ] && grep -q '<compound ' "$xml_work_dir/index
     if [ -f "$DOXYFILE_PART" ]; then
         dependency_source_dir=$(dirname "$DOXYFILE_PART")
     fi
-    python3 "$DEPENDENCY_REPORT_GENERATOR" "$xml_work_dir" "$docs_doxygen_stage_dir/dependency" "$CATEGORY_ID" "$dependency_source_dir" 2> "$dependency_warn_log"
+    python3 "$DEPENDENCY_REPORT_GENERATOR" "$xml_work_dir" "$docs_doxygen_stage_dir/dependency" "$CATEGORY_ID" "$dependency_source_dir" "$DEPENDENCY_PAGE_TEMPLATE" "$DEPENDENCY_PAGE_LANGS" 2> "$dependency_warn_log"
     dependency_report_exit=$?
     if [ -s "$dependency_warn_log" ]; then
         "$DOXY_WARNING_COLORIZE" < "$dependency_warn_log" || true

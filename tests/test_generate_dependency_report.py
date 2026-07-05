@@ -623,6 +623,21 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # 非活性のコピー ボタンにはホバー表現を適用しない。
             self.assertIn(".dep-detail-copy:hover:not(:disabled) {", index_html)
             self.assertIn("function updateDetailCopyButtons() {", index_html)
+            # 詳細ペインの第 3 リンク「page」(make docs 発行のシングルページ md HTML) と
+            # 設定メニュー (ページ種別)。pageUrlTemplate が空なら双方とも無効。
+            self.assertIn("function pageUrlForFile(filePath) {", index_html)
+            self.assertIn("function pageUrlForFunction(fn) {", index_html)
+            self.assertIn('return fileUrl + "#" + String(fn.name || "").toLowerCase();', index_html)
+            self.assertIn('id="pageSettingsMenu"', index_html)
+            self.assertIn('id="pageVariantSection" hidden', index_html)
+            # テーマは設定メニューの「テーマ」サブメニュー (システムの設定/ダーク/ライト)。
+            self.assertIn('data-theme-choice="system">システムの設定</button>', index_html)
+            self.assertIn('data-theme-choice="dark">ダーク</button>', index_html)
+            self.assertIn('data-theme-choice="light">ライト</button>', index_html)
+            self.assertIn("function setThemeChoice(choice) {", index_html)
+            self.assertNotIn('id="themeToggle"', index_html)
+            self.assertIn("function defaultPageVariant() {", index_html)
+            self.assertIn('const PAGE_VARIANT_STORAGE_KEY = "doxyfw-dependency-page-variant";', index_html)
             # エッジ強調は展開経路 (routeEdgeIds) を辿ったエッジ、または選択関数の循環グループ
             # 内のエッジ (selectedCycleIds) に限定し、表示中でも経路外のエッジは強調しない。
             self.assertIn("function overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, selection) {", index_html)
@@ -730,7 +745,6 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn(".dep-filter-clear:hover {\n      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));", index_html)
             self.assertIn(".dep-graph-toolbar button:hover {\n      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));", index_html)
             self.assertIn('overviewGraph.addEventListener("auxclick"', index_html)
-            self.assertIn('id="themeToggle"', index_html)
             self.assertIn("function applyTheme(theme, persist)", index_html)
             self.assertIn("const sccById = new Map(sccs.map((scc) => [scc.id, scc]));", index_html)
             self.assertIn("function cycleGroupFunctionIds(fn)", index_html)
@@ -1320,6 +1334,7 @@ URL_STATE_PROBE_SCRIPT = Path(__file__).resolve().parent / "url_state_probe.js"
 FILE_TO_FN_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_to_fn_probe.js"
 OVERVIEW_DEPTH_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_depth_probe.js"
 OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_context_menu_probe.js"
+PAGE_LINK_PROBE_SCRIPT = Path(__file__).resolve().parent / "page_link_probe.js"
 DETAIL_COPY_PROBE_SCRIPT = Path(__file__).resolve().parent / "detail_copy_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
@@ -1770,11 +1785,13 @@ class OverviewInteractionTest(unittest.TestCase):
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
 
-    def _generate_depth_report(self, temp_dir):
+    def _generate_depth_report(self, temp_dir, page_template=""):
         # 呼び出し元/先 表示深さ設定の検証用フィクスチャ。
         # chain.c: c_0 -> c_1 -> c_2 -> c_3 -> c_4 の呼び出し連鎖 (c_2 は cycle.c の x_1 も呼ぶ)。
         # cycle.c: x_1 <-> x_2 の相互呼び出し (循環グループ)。
         # c_0 -> c_3 は「ルート外」エッジ (両端は表示されうるが、選択の展開経路には含まれない)。
+        # camel.c: 孤立したキャメルケース関数 myCamelFn (page リンクの小文字アンカー検証用。
+        # どの関数からも参照されないため、深さ設定テストの表示集合には影響しない)。
         xml_dir = temp_dir / "xml"
         output_dir = temp_dir / "report"
         xml_dir.mkdir()
@@ -1830,7 +1847,31 @@ class OverviewInteractionTest(unittest.TestCase):
 </doxygen>
 """,
         )
-        generate_dependency_report.generate_report(xml_dir, output_dir, "depth-test")
+        write_xml(
+            xml_dir,
+            "camel.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="camel_8c" kind="file">
+    <compoundname>camel.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="myCamelFn" static="yes">
+        <name>myCamelFn</name>
+        <location file="src/camel.c" line="10" bodyfile="src/camel.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+        )
+        generate_dependency_report.generate_report(
+            xml_dir,
+            output_dir,
+            "depth-test",
+            None,
+            page_template,
+            ["ja", "en"] if page_template else None,
+        )
         return output_dir / "index.html"
 
     def _run_overview_depth_probe(self, index_html):
@@ -1924,6 +1965,62 @@ class OverviewInteractionTest(unittest.TestCase):
         )
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
+
+    def _run_page_link_probe(self, with_page_html, without_page_html):
+        result = subprocess.run(
+            [_node_binary(), str(PAGE_LINK_PROBE_SCRIPT), str(with_page_html), str(without_page_html), "c_2"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="page link probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_page_link_and_variant_settings(self):
+        # 詳細ペインの第 3 リンク「page」(make docs 発行のシングルページ md HTML) と、
+        # 設定メニューのページ種別選択 (localStorage 永続化・既定値の言語決定) を検証する。
+        template = "../../../{variant}/html/myapp/doxybook2_internal"
+        with tempfile.TemporaryDirectory() as with_dir, tempfile.TemporaryDirectory() as without_dir:
+            with_page = self._generate_depth_report(Path(with_dir), page_template=template)
+            without_page = self._generate_depth_report(Path(without_dir))
+            data = self._run_page_link_probe(with_page, without_page)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data))
+            # ja 環境の既定は ja (通常)。href はテンプレート置換 + Files/<パス>.html + 小文字アンカー。
+            self.assertEqual(
+                data["hrefJa"],
+                "../../../ja/html/myapp/doxybook2_internal/Files/src/chain.c.html#c_2",
+                msg=str(data),
+            )
+            # キャメルケース関数のアンカーは Pandoc auto identifier により小文字化される。
+            self.assertEqual(
+                data["hrefCamel"],
+                "../../../ja/html/myapp/doxybook2_internal/Files/src/camel.c.html#mycamelfn",
+                msg=str(data),
+            )
+            # 設定メニューが表示され、ja-details へ変更すると href が追従し localStorage に保存される。
+            self.assertTrue(data["settingsVisible"], msg=str(data))
+            self.assertIn("../../../ja-details/html/", data["hrefJaDetails"], msg=str(data))
+            self.assertEqual(data["storedVariant"], "ja-details", msg=str(data))
+            self.assertEqual(data["checkedVariant"], "ja-details", msg=str(data))
+            # リロード後も ja-details が維持される。
+            self.assertIn("../../../ja-details/html/", data["hrefAfterReload"], msg=str(data))
+            # localStorage 未保存の en 環境では既定が en (通常) になる。
+            self.assertIn("../../../en/html/", data["hrefEnDefault"], msg=str(data))
+            # コピー md にも [Page](...) が含まれる。
+            self.assertIn("[Page](", data["copyText"], msg=str(data))
+            # pageUrlTemplate なしのレポートでは page リンクと設定ボタンが出ない。
+            self.assertIsNone(data["hrefWithoutTemplate"], msg=str(data))
+            self.assertFalse(data["settingsVisibleWithout"], msg=str(data))
 
     def test_detail_copy_button(self):
         # 3 つの詳細ペイン (関数一覧・ファイル一覧・全体マップ) の「コピー」ボタンで、

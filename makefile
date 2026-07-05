@@ -119,6 +119,20 @@ endif
 
 DOCS_DOXYBOOK2_DIR := $(DOCS_DOXYBOOK2_BASE_DIR)/$(DOXYBOOK2_OUTPUT_DIR_NAME)
 DOCS_DOXYGEN_DIR := $(WORKSPACE_DIR)/pages/doxygen$(CATEGORY_SUFFIX)
+
+# 依存関係レポートの page リンク (make docs 発行のシングルページ md HTML) 用の
+# URL テンプレート。{variant} は ja / ja-details 等のページ種別でレポート側が置換する。
+# 依存レポート (pages/doxygen/<category>/dependency/) からの相対パス。
+# alias (mergeSubfolderDocs) = CATEGORY はこのワークスペースの規約であり、
+# 異なる構成では DEPENDENCY_PAGE_TEMPLATE を上書きして対応する。
+# CATEGORY なし (root 実行) では空となり、page リンク機能は無効になる。
+ifneq ($(strip $(CATEGORY)),)
+    DEPENDENCY_PAGE_TEMPLATE ?= ../../../{variant}/html/$(CATEGORY)/$(DOXYBOOK2_OUTPUT_DIR_NAME)
+else
+    DEPENDENCY_PAGE_TEMPLATE ?=
+endif
+# make docs が発行する言語のリスト (空白区切り)。設定メニューの選択肢になる。
+DEPENDENCY_PAGE_LANGS ?= ja en
 DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/$(DOXY_WARN_BASENAME)
 DOXYFW_TMP_ROOT ?= /tmp/doxyfw-tmp
 DOXYFW_LOCK_ROOT ?= /tmp/doxyfw-locks
@@ -134,6 +148,8 @@ default:
 	DOXY_WARNING_COLORIZE="$(DOXY_WARNING_COLORIZE)" \
 	EXTRACT_DOXY_WARNINGS="$(EXTRACT_DOXY_WARNINGS)" \
 	DEPENDENCY_REPORT_GENERATOR="$(DEPENDENCY_REPORT_GENERATOR)" \
+	DEPENDENCY_PAGE_TEMPLATE="$(DEPENDENCY_PAGE_TEMPLATE)" \
+	DEPENDENCY_PAGE_LANGS="$(DEPENDENCY_PAGE_LANGS)" \
 	DOXYGEN_RUNDIR="$(DOXYGEN_RUNDIR)" \
 	DOXYFILE_PART="$(DOXYFILE_PART)" \
 	CATEGORY="$(CATEGORY)" \

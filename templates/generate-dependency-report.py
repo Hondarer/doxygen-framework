@@ -1401,6 +1401,37 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     .dep-download-menu-items .dep-download:hover {{
       border-color: transparent;
     }}
+    .dep-settings-items {{
+      min-width: 140px;
+    }}
+    .dep-settings-label {{
+      padding: 4px 8px 2px;
+      font-size: 11px;
+      color: var(--dep-muted);
+    }}
+    .dep-settings-items button.dep-menu-option {{
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 4px;
+      padding: 4px 8px 4px 24px;
+      background: transparent;
+      color: var(--dep-input-text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      text-align: left;
+      position: relative;
+    }}
+    .dep-settings-items button.dep-menu-option:hover {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-input-bg));
+      color: var(--dep-accent);
+    }}
+    .dep-settings-items button.dep-menu-option.checked::before {{
+      content: "\\2713";
+      position: absolute;
+      left: 8px;
+    }}
     input, select {{
       width: 100%;
       box-sizing: border-box;
@@ -1995,7 +2026,6 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   <div class="dep-title-row">
     <h1>{title}<span class="dep-meta">対象: {escaped_category}</span></h1>
     <div class="dep-title-actions">
-      <button type="button" id="themeToggle" class="dep-theme-toggle" aria-pressed="false">ライト</button>
       <section class="dep-downloads" role="group" aria-label="ダウンロード">
         <a class="dep-download" href="dependency-data.json" download data-download-name="dependency-data.json" data-download-kind="json" title="JSON 形式の全データをダウンロード">JSON</a>
         <div class="dep-download-menu">
@@ -2010,6 +2040,21 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
           <div class="dep-download-menu-items" hidden>
             <a class="dep-download" href="dependency-files-utf8-bom.csv" download data-download-name="dependency-files-utf8-bom.csv" data-download-kind="files-csv" data-download-bom="true" title="ファイル一覧の CSV を UTF-8 BOM ありでダウンロード">BOMあり UTF-8</a>
             <a class="dep-download" href="dependency-files.csv" download data-download-name="dependency-files.csv" data-download-kind="files-csv" title="ファイル一覧の CSV を UTF-8 BOM なしでダウンロード">BOMなし UTF-8</a>
+          </div>
+        </div>
+        <div class="dep-download-menu" id="pageSettingsMenu">
+          <button type="button" class="dep-download-menu-button" aria-expanded="false" title="表示設定">設定</button>
+          <div class="dep-download-menu-items dep-settings-items" hidden>
+            <div class="dep-settings-label">テーマ</div>
+            <div id="themeOptions">
+              <button type="button" class="dep-menu-option" data-theme-choice="system">システムの設定</button>
+              <button type="button" class="dep-menu-option" data-theme-choice="dark">ダーク</button>
+              <button type="button" class="dep-menu-option" data-theme-choice="light">ライト</button>
+            </div>
+            <div id="pageVariantSection" hidden>
+              <div class="dep-settings-label">ページ種別</div>
+              <div id="pageVariantOptions"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -2167,6 +2212,10 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   const edges = data.edges || [];
   const files = data.files || [];
   const sccs = data.sccs || [];
+  // make docs 発行のシングルページ md HTML への URL テンプレート ({{variant}} を置換して使う)。
+  // 空のときは page リンク機能と設定メニューを無効にする。
+  const pageUrlTemplate = data.pageUrlTemplate || "";
+  const pageLanguages = (data.pageLanguages && data.pageLanguages.length > 0) ? data.pageLanguages : ["ja", "en"];
   const byId = new Map(functions.map((fn) => [fn.id, fn]));
   const baseOrder = new Map(functions.map((fn, index) => [fn.id, index]));
   const sccById = new Map(sccs.map((scc) => [scc.id, scc]));
@@ -2247,7 +2296,6 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   const overviewReset = document.getElementById("overviewReset");
   const overviewGraphMenu = document.getElementById("overviewGraphMenu");
   const overviewHiddenNotice = document.getElementById("overviewHiddenNotice");
-  const themeToggle = document.getElementById("themeToggle");
   const reportCategory = {js_category};
   const themeStorageKey = "doxyfw-dependency-theme";
   let selectedId = "";
@@ -2360,14 +2408,6 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     return "#" + mix.map((c) => c.toString(16).padStart(2, "0")).join("");
   }}
 
-  function updateThemeToggle() {{
-    if (!themeToggle) return;
-    const isDark = currentTheme === "dark";
-    themeToggle.setAttribute("aria-pressed", isDark ? "true" : "false");
-    themeToggle.textContent = isDark ? "ダーク" : "ライト";
-    themeToggle.title = isDark ? "ライト モードに切り替え" : "ダーク モードに切り替え";
-  }}
-
   function saveTheme(theme) {{
     try {{
       if (window.localStorage) window.localStorage.setItem(themeStorageKey, theme);
@@ -2376,12 +2416,55 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     }}
   }}
 
+  function clearSavedTheme() {{
+    try {{
+      if (window.localStorage) window.localStorage.removeItem(themeStorageKey);
+    }} catch (err) {{
+      // 保存できない環境では何もしない。
+    }}
+  }}
+
   function applyTheme(theme, persist) {{
     currentTheme = theme === "dark" ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", currentTheme);
     if (persist) saveTheme(currentTheme);
-    updateThemeToggle();
+    updateThemeMenuChecks();
     refreshOverviewGraphStyle();
+  }}
+
+  // テーマ設定は「システムの設定 (保存なし、prefers-color-scheme に追従)」「ダーク」「ライト」
+  // の 3 択。localStorage に保存があれば明示指定、なければシステムの設定とみなす。
+  function currentThemeChoice() {{
+    let stored = "";
+    try {{
+      stored = window.localStorage ? window.localStorage.getItem(themeStorageKey) || "" : "";
+    }} catch (err) {{
+      stored = "";
+    }}
+    if (stored === "dark" || stored === "light") return stored;
+    return "system";
+  }}
+
+  function systemPreferredTheme() {{
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }}
+
+  function setThemeChoice(choice) {{
+    if (choice === "system") {{
+      clearSavedTheme();
+      applyTheme(systemPreferredTheme(), false);
+      return;
+    }}
+    applyTheme(choice, true);
+  }}
+
+  function updateThemeMenuChecks() {{
+    const options = document.getElementById("themeOptions");
+    if (!options) return;
+    const choice = currentThemeChoice();
+    for (const button of options.querySelectorAll("[data-theme-choice]")) {{
+      button.classList.toggle("checked", button.getAttribute("data-theme-choice") === choice);
+    }}
   }}
 
   function graphColors() {{
@@ -3421,7 +3504,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       "<dt>ファイル</dt><dd>" + escapeHtml(filePath) + "</dd>" +
       "<dt>export</dt><dd>" + escapeHtml(file.exportCount || 0) + "</dd>" +
       "<dt>関数</dt><dd>" + escapeHtml(file.functionCount || rows.length) + "</dd>" +
-      "<dt>リンク</dt><dd>" + [linkFor(file, "Doxygen", false), linkFor(file, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "<dt>リンク</dt><dd>" + [pageLinkFor(file, true), linkFor(file, "Doxygen", false), linkFor(file, "Source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
     bindOverviewActions();
@@ -3462,7 +3545,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       "<dt>level</dt><dd>" + escapeHtml(fileLevelText(file)) + "</dd>" +
       "<dt>分類</dt><dd>" + escapeHtml(fileClassText(file)) + "</dd>" +
       "<dt>領域内訳</dt><dd>" + escapeHtml(fileAreasText(file)) + "</dd>" +
-      "<dt>リンク</dt><dd>" + [linkFor(file, "Doxygen", false), linkFor(file, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "<dt>リンク</dt><dd>" + [pageLinkFor(file, true), linkFor(file, "Doxygen", false), linkFor(file, "Source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       (items ? "<strong>関数</strong><ul>" + items + "</ul>" : "<p class=\\"dep-empty\\">関数はありません。</p>");
     bindFileDetailActions();
@@ -3481,7 +3564,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       "<dt>static</dt><dd>" + (fn.isStatic ? "yes" : "no") + "</dd>" +
       "<dt>ファイル</dt><dd>" + fileSelectionLink(fn.file, fn.file) + "</dd>" +
       "<dt>行</dt><dd>" + escapeHtml(fn.line) + "</dd>" +
-      "<dt>リンク</dt><dd>" + [linkFor(fn, "Doxygen", false), linkFor(fn, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "<dt>リンク</dt><dd>" + [pageLinkFor(fn, false), linkFor(fn, "Doxygen", false), linkFor(fn, "Source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       "<div class=\\"dep-neighbors\\">" +
       "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
@@ -5765,6 +5848,82 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     return "<a href=\\"" + escapeHtml(url) + "\\" target=\\"" + target + "\\">" + escapeHtml(label) + "</a>";
   }}
 
+  // --- make docs 発行ページ (シングルページ md HTML) への page リンク ---
+  // ページ種別 (variant) は ja / ja-details / en / en-details など。localStorage に永続化し、
+  // 未保存時の既定は「通常 (非 details)」で、言語は自言語が pageLanguages にあれば自言語、
+  // なければ en があれば en、それもなければリスト先頭。
+  const PAGE_VARIANT_STORAGE_KEY = "doxyfw-dependency-page-variant";
+
+  function defaultPageVariant() {{
+    const primary = String(navigator.language || "").split("-")[0].toLowerCase();
+    if (pageLanguages.indexOf(primary) !== -1) return primary;
+    if (pageLanguages.indexOf("en") !== -1) return "en";
+    return pageLanguages[0];
+  }}
+
+  function loadPageVariant() {{
+    let stored = "";
+    try {{
+      stored = window.localStorage ? window.localStorage.getItem(PAGE_VARIANT_STORAGE_KEY) || "" : "";
+    }} catch (err) {{
+      stored = "";
+    }}
+    if (stored && pageLanguages.indexOf(stored.replace(/-details$/, "")) !== -1) return stored;
+    return defaultPageVariant();
+  }}
+
+  let pageVariant = loadPageVariant();
+
+  function setPageVariant(variant) {{
+    if (variant === pageVariant) return;
+    pageVariant = variant;
+    try {{
+      if (window.localStorage) window.localStorage.setItem(PAGE_VARIANT_STORAGE_KEY, variant);
+    }} catch (err) {{
+      // localStorage が使えない環境ではページ内のみの設定として扱う。
+    }}
+    updatePageVariantMenuChecks();
+    refreshDetailPanes();
+  }}
+
+  function pageUrlForFile(filePath) {{
+    if (!pageUrlTemplate || !filePath) return "";
+    return pageUrlTemplate.replace("{{variant}}", pageVariant) + "/Files/" + filePath + ".html";
+  }}
+
+  // 関数見出しのアンカーは Pandoc の auto identifier (見出しテキストの小文字化)。
+  // md の関数見出しは "#### 関数名" のため、アンカー = 関数名の小文字化で構成できる。
+  // 同一ページ内の同名見出し衝突時の -N サフィックスは扱わない (C 関数はページ内で一意)。
+  function pageUrlForFunction(fn) {{
+    const fileUrl = pageUrlForFile(fn.file);
+    if (!fileUrl) return "";
+    return fileUrl + "#" + String(fn.name || "").toLowerCase();
+  }}
+
+  function pageLinkFor(target, isFile) {{
+    if (!pageUrlTemplate) return "";
+    const url = isFile ? pageUrlForFile(target.path) : pageUrlForFunction(target);
+    if (!url) return "";
+    return "<a href=\\"" + escapeHtml(url) + "\\" target=\\"doxyfw-dependency-page\\">Page</a>";
+  }}
+
+  // ページ種別変更時に、表示中の詳細ペインを再描画してリンクを更新する。
+  function refreshDetailPanes() {{
+    if (selectedId) {{
+      const fn = byId.get(selectedId);
+      if (fn) {{
+        renderDetail(fn);
+        renderFileDetail(fn.file);
+        renderOverviewFunctionDetail(fn);
+      }}
+      return;
+    }}
+    if (selectedFilePath) {{
+      renderFileDetail(selectedFilePath);
+      renderOverviewDetail(selectedFilePath);
+    }}
+  }}
+
   function neighborList(ids, emptyText) {{
     if (!ids || ids.length === 0) return "<p class=\\"dep-empty\\">" + emptyText + "</p>";
     const items = ids
@@ -5827,7 +5986,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       "<dt>static</dt><dd>" + (fn.isStatic ? "yes" : "no") + "</dd>" +
       "<dt>ファイル</dt><dd>" + fileSelectionLink(fn.file, fn.file) + "</dd>" +
       "<dt>行</dt><dd>" + escapeHtml(fn.line) + "</dd>" +
-      "<dt>リンク</dt><dd>" + [linkFor(fn, "Doxygen", false), linkFor(fn, "source", true)].filter(Boolean).join(" / ") + "</dd>" +
+      "<dt>リンク</dt><dd>" + [pageLinkFor(fn, false), linkFor(fn, "Doxygen", false), linkFor(fn, "Source", true)].filter(Boolean).join(" / ") + "</dd>" +
       "</dl>" +
       "<div class=\\"dep-neighbors\\">" +
       "<section><strong>呼び出し先 (ライブラリ内)</strong>" + neighborList(callees.get(fn.id), "対象範囲内の呼び出し先はありません。") + "</section>" +
@@ -6058,11 +6217,25 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       revealAllOverviewFiles();
     }});
   }}
-  if (themeToggle) {{
-    updateThemeToggle();
-    themeToggle.addEventListener("click", () => {{
-      applyTheme(currentTheme === "dark" ? "light" : "dark", true);
-    }});
+  {{
+    const themeOptions = document.getElementById("themeOptions");
+    if (themeOptions) {{
+      for (const button of themeOptions.querySelectorAll("[data-theme-choice]")) {{
+        button.addEventListener("click", () => {{
+          setThemeChoice(button.getAttribute("data-theme-choice"));
+          closeDownloadMenus(null);
+        }});
+      }}
+      updateThemeMenuChecks();
+    }}
+    // システムの設定 (保存なし) の間は、OS のテーマ変更へ追従する。
+    if (window.matchMedia) {{
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const followSystem = () => {{
+        if (currentThemeChoice() === "system") applyTheme(systemPreferredTheme(), false);
+      }};
+      if (typeof media.addEventListener === "function") media.addEventListener("change", followSystem);
+    }}
   }}
   // 詳細ペインの「コピー」ボタン: 表示内容 (プレーン テキスト) と、現在のタブ・選択状態を
   // 表す URL (正規ハッシュ付き) をクリップボードへコピーする。
@@ -6311,6 +6484,45 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     if (event.target.closest(".dep-download-menu")) return;
     closeDownloadMenus(null);
   }});
+
+  // 設定メニュー (ページ種別)。pageUrlTemplate が無いレポートでは非表示のまま。
+  const pageVariantOptions = document.getElementById("pageVariantOptions");
+
+  function pageVariantList() {{
+    const variants = [];
+    for (const lang of pageLanguages) {{
+      variants.push(lang);
+      variants.push(lang + "-details");
+    }}
+    return variants;
+  }}
+
+  function updatePageVariantMenuChecks() {{
+    if (!pageVariantOptions) return;
+    for (const button of pageVariantOptions.querySelectorAll("[data-page-variant]")) {{
+      button.classList.toggle("checked", button.getAttribute("data-page-variant") === pageVariant);
+    }}
+  }}
+
+  // 設定メニュー自体は常時表示 (テーマ設定があるため)。ページ種別セクションのみ
+  // pageUrlTemplate があるレポートで表示する。
+  const pageVariantSection = document.getElementById("pageVariantSection");
+  if (pageVariantSection && pageVariantOptions && pageUrlTemplate) {{
+    pageVariantSection.hidden = false;
+    for (const variant of pageVariantList()) {{
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dep-menu-option";
+      button.setAttribute("data-page-variant", variant);
+      button.textContent = variant;
+      button.addEventListener("click", () => {{
+        setPageVariant(variant);
+        closeDownloadMenus(null);
+      }});
+      pageVariantOptions.appendChild(button);
+    }}
+    updatePageVariantMenuChecks();
+  }}
 
   const FUNCTION_CSV_FIELDS = [
     "dependencyLevel",
@@ -6605,9 +6817,16 @@ def generate_report(
     output_dir: Path,
     category_id: str,
     source_dir: Optional[Path] = None,
+    page_template: str = "",
+    page_langs: Optional[List[str]] = None,
 ) -> Dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     data = build_report_data(xml_dir, output_dir, category_id)
+    # make docs (docsfw) が発行するシングルページ md HTML への URL テンプレート。
+    # "{variant}" プレースホルダーを ja / ja-details 等のページ種別で置換して使う。
+    # 空のときはページ リンク機能を無効にする (従来表示)。
+    data["pageUrlTemplate"] = page_template or ""
+    data["pageLanguages"] = list(page_langs) if page_langs else []
     write_data_js(output_dir, data)
     write_data_json(output_dir, data)
     write_csv(output_dir, data)
@@ -6617,9 +6836,10 @@ def generate_report(
 
 
 def main(argv: List[str]) -> int:
-    if len(argv) not in (3, 4, 5):
+    if len(argv) not in (3, 4, 5, 6, 7):
         print(
-            "使用方法: generate-dependency-report.py <xml_directory> <output_directory> [category_id] [source_directory]",
+            "使用方法: generate-dependency-report.py <xml_directory> <output_directory>"
+            " [category_id] [source_directory] [page_url_template] [page_languages]",
             file=sys.stderr,
         )
         return 2
@@ -6627,13 +6847,15 @@ def main(argv: List[str]) -> int:
     xml_dir = Path(argv[1])
     output_dir = Path(argv[2])
     category_id = argv[3] if len(argv) >= 4 else ""
-    source_dir = Path(argv[4]) if len(argv) == 5 and argv[4] else None
+    source_dir = Path(argv[4]) if len(argv) >= 5 and argv[4] else None
+    page_template = argv[5] if len(argv) >= 6 else ""
+    page_langs = argv[6].split() if len(argv) >= 7 and argv[6] else []
 
     if not xml_dir.is_dir():
         print(f"ERROR: XML directory not found: {xml_dir}", file=sys.stderr)
         return 1
 
-    data = generate_report(xml_dir, output_dir, category_id, source_dir)
+    data = generate_report(xml_dir, output_dir, category_id, source_dir, page_template, page_langs)
     print(
         "Generated dependency report: {} (functions={}, edges={})".format(
             output_dir,
