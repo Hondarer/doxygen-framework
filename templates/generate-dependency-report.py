@@ -2034,7 +2034,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
     <div class="dep-graph-layout">
       <div class="dep-graph-shell">
         <div class="dep-graph-toolbar">
-          <button type="button" id="overviewFit">Fit</button>
+          <button type="button" id="overviewFit">表示範囲にフィット</button>
           <button type="button" id="overviewRelayout">レイアウト再実行</button>
           <button type="button" id="overviewReset">初期化</button>
         </div>
@@ -2059,7 +2059,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="full">マップ全体を PNG で保存</button>
           <button type="button" role="menuitem" data-menu-scope="background" data-png-scope="viewport">表示範囲を PNG で保存</button>
           <div class="dep-graph-context-menu-separator" role="separator" aria-hidden="true" data-menu-scope="background"></div>
-          <button type="button" role="menuitem" data-menu-scope="background" data-action="fit">Fit</button>
+          <button type="button" role="menuitem" data-menu-scope="background" data-action="fit">表示範囲にフィット</button>
           <button type="button" role="menuitem" data-menu-scope="background" data-action="relayout">レイアウト再実行</button>
           <button type="button" role="menuitem" data-menu-scope="background" data-action="reset">初期化</button>
         </div>

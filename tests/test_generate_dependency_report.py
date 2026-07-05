@@ -608,6 +608,8 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("overviewCalleeDepth = 1;", index_html)
             self.assertIn('data-caller-depth="all"', index_html)
             self.assertIn('data-callee-depth="all"', index_html)
+            self.assertIn('id="overviewFit">表示範囲にフィット</button>', index_html)
+            self.assertIn('data-action="fit">表示範囲にフィット</button>', index_html)
             # エッジ強調は展開経路 (routeEdgeIds) を辿ったエッジ、または選択関数の循環グループ
             # 内のエッジ (selectedCycleIds) に限定し、表示中でも経路外のエッジは強調しない。
             self.assertIn("function overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, selection) {", index_html)
