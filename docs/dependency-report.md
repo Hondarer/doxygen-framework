@@ -67,7 +67,8 @@ postprocess.sh
 ただし、Doxygen は file ページと group ページに同じ実体関数の `memberdef` を出力することがあります。
 その場合は、関数名、実体ファイル、行番号が同じ `memberdef` を同一関数として扱い、file ページ側を優先して統合します。
 
-ソース リンクは、関数の実体ファイルに対応する Doxygen の `*_source.html` へ向けます。
+ソース リンクは、関数の実体ファイルに対応する Git blob URL を優先します。
+Git URL を解決できない場合は、Doxygen の `*_source.html` へ向けます。
 HTML リンクは、代表として採用した Doxygen `memberdef` のページへ向けます。
 
 ## 依存関係の扱い
@@ -173,6 +174,7 @@ level、分類、ファイルのフィルターも利用できます。
 同じ値を持つ行は、レポート生成時の決定論的な基本順序で並びます。
 
 関数行を選択すると、詳細領域に基本情報、`rank`、`depth`、領域、呼び出し種別、`export`、Doxygen ページへのリンク、ソース ページへのリンク、1 hop の呼び出し先、1 hop の呼び出し元を表示します。
+ソース ページへのリンクは Git blob URL を優先し、Git URL を解決できない場合に Doxygen のソース ページを使います。
 Doxygen ページへのリンクは `doxyfw-dependency-doxygen`、ソース ページへのリンクは `doxyfw-dependency-source` を `target` に指定し、それぞれ用途別の別タブまたは別ウィンドウを再利用します。
 呼び出し先と呼び出し元の関数名は、Doxygen ページへのリンクではなく、同じ表の関数選択として動作します。
 
@@ -201,6 +203,7 @@ level、分類、export、static、領域のフィルターを利用できます
 表は `関数一覧` と同じく、列見出しのクリックでソートできます。
 
 ファイル行を選択すると、詳細領域に基本情報、Doxygen ページへのリンク、ソース ページへのリンク、ファイル内の関数を表示します。
+ソース ページへのリンクは Git blob URL を優先し、Git URL を解決できない場合に Doxygen のソース ページを使います。
 ファイル詳細の関数名を選択すると、`関数一覧` タブへ切り替わり、対象関数を選択します。
 この操作では、選択中の対象もファイルから関数へ切り替わります。
 現在の選択が関数である状態で `ファイル一覧` タブを表示した場合は、その関数の所属ファイルを選択行として表示します。
@@ -256,6 +259,7 @@ PNG 保存では、現在のテーマと表示状態を反映します。
 | `id` | Doxygen の関数 ID |
 | `htmlUrl` | Doxygen HTML ページへの相対 URL |
 | `sourceUrl` | Doxygen ソース ページへの相対 URL |
+| `gitUrl` | Git blob ページへの URL |
 | `brief` | Doxygen から取得した概要説明 |
 
 `dependency-files.csv` の列は以下の通りです。
@@ -274,6 +278,7 @@ PNG 保存では、現在のテーマと表示状態を反映します。
 | `brief` | Doxygen から取得した概要説明 |
 | `htmlUrl` | Doxygen HTML ページへの相対 URL |
 | `sourceUrl` | Doxygen ソース ページへの相対 URL |
+| `gitUrl` | Git blob ページへの URL |
 
 ## データ形式
 

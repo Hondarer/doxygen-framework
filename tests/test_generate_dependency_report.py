@@ -235,10 +235,12 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertNotIn("dominantClass", fieldnames)
             self.assertIn("classes", fieldnames)
             self.assertIn("exportCount", fieldnames)
+            self.assertIn("gitUrl", fieldnames)
             with (output_dir / "dependency-functions.csv").open(encoding="utf-8", newline="") as f:
                 fieldnames = csv.DictReader(f).fieldnames
             self.assertIn("isExported", fieldnames)
             self.assertIn("cycleGroupSize", fieldnames)
+            self.assertIn("gitUrl", fieldnames)
 
             data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
@@ -1322,6 +1324,73 @@ class GenerateDependencyReportTest(unittest.TestCase):
             generate_dependency_report.generate_report(xml_dir, out_none, "cat")
             index_html = (out_none / "index.html").read_text(encoding="utf-8")
             self.assertIn("対象: cat</span>", index_html)
+
+    def test_source_git_url(self):
+        def run_git(repo, *args):
+            return subprocess.run(
+                ["git", "-C", str(repo), *args],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "a.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="src_2a_8c" kind="file">
+    <compoundname>src/a.c</compoundname>
+    <location file="src/a.c"/>
+    <sectiondef>
+      <memberdef kind="function" id="fn_a" static="yes">
+        <name>fn_a</name>
+        <location file="src/a.c" line="10" bodyfile="src/a.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            repo = temp_dir / "repo"
+            source_dir = repo / "prod"
+            (source_dir / "src").mkdir(parents=True)
+            (source_dir / "src" / "a.c").write_text("int fn_a(void) { return 0; }\n", encoding="utf-8")
+            run_git(repo, "init", "-q")
+            run_git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+            run_git(repo, "config", "user.email", "test@example.com")
+            run_git(repo, "config", "user.name", "test")
+            run_git(repo, "remote", "add", "origin", "git@github.com:example/project.git")
+            run_git(repo, "add", ".")
+            run_git(repo, "commit", "-q", "-m", "init")
+
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample", source_dir)
+            by_id = {row["id"]: row for row in data["functions"]}
+            by_file = {row["path"]: row for row in data["files"]}
+
+            expected_file_url = "https://github.com/example/project/blob/main/prod/src/a.c"
+            self.assertEqual(by_file["src/a.c"]["gitUrl"], expected_file_url)
+            self.assertEqual(by_id["fn_a"]["gitUrl"], expected_file_url + "#L10")
+            self.assertEqual(by_id["fn_a"]["sourceUrl"], "../src_2a_8c_source.html#l00010")
+
+            data_js = (output_dir / "dependency-data.js").read_text(encoding="utf-8")
+            self.assertIn('"gitUrl": "{}#L10"'.format(expected_file_url), data_js)
+            index_html = (output_dir / "index.html").read_text(encoding="utf-8")
+            self.assertIn("const url = source ? (fn.gitUrl || fn.sourceUrl) : fn.htmlUrl;", index_html)
+
+            plain_out = temp_dir / "plain"
+            plain_source_dir = temp_dir / "plain-source"
+            plain_source_dir.mkdir()
+            plain_data = generate_dependency_report.generate_report(xml_dir, plain_out, "sample", plain_source_dir)
+            plain_by_id = {row["id"]: row for row in plain_data["functions"]}
+            self.assertEqual(plain_by_id["fn_a"]["gitUrl"], "")
+            self.assertEqual(plain_by_id["fn_a"]["sourceUrl"], "../src_2a_8c_source.html#l00010")
 
 
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"

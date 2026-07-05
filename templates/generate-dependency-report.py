@@ -13,10 +13,12 @@ from __future__ import annotations
 import csv
 import html
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.parse
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -221,6 +223,145 @@ def build_file_source_url(compound_id: str) -> str:
     if compound_id == "":
         return ""
     return f"../{compound_id}_source.html"
+
+
+class GitUrlResolver:
+    def __init__(self, source_dir: Optional[Path]):
+        self.source_dir = source_dir
+        self.repo = self._run_git("rev-parse", "--show-toplevel") if source_dir is not None else ""
+        self.remote_url = self._run_git("config", "--get", "remote.origin.url") if self.repo else ""
+        self.ref = self._run_git("symbolic-ref", "--quiet", "--short", "HEAD") if self.repo else ""
+        self.base_url = ""
+        self.provider = ""
+        self.file_cache: Dict[str, str] = {}
+        if self.remote_url:
+            self.base_url, self.provider = self._build_remote_base(self.remote_url)
+        if self.repo and not self.ref:
+            self.ref = self._run_git("rev-parse", "HEAD")
+
+    def _run_git(self, *args: str) -> str:
+        if self.source_dir is None:
+            return ""
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.source_dir), *args],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return ""
+        if result.returncode != 0:
+            return ""
+        return result.stdout.strip()
+
+    @staticmethod
+    def _detect_provider(host: str) -> Tuple[str, str]:
+        for entry in os.environ.get("GIT_LINK_HOST_PROVIDER", "").split():
+            entry_host, sep, entry_value = entry.partition("=")
+            if sep != "=" or entry_host != host:
+                continue
+            provider, at, webhost = entry_value.partition("@")
+            if at == "@":
+                return provider, webhost
+            return entry_value, ""
+        if host == "github.com":
+            return "github", ""
+        if host == "gitlab.com" or "gitlab" in host:
+            return "gitlab", ""
+        if "gitbucket" in host:
+            return "gitbucket", ""
+        return "git", ""
+
+    @classmethod
+    def _build_remote_base(cls, remote_url: str) -> Tuple[str, str]:
+        url = remote_url.rstrip("/")
+        if url.endswith(".git"):
+            url = url[:-4]
+
+        base = ""
+        host = ""
+        if re.match(r"^https?://", url):
+            base = url
+            rest = re.sub(r"^https?://", "", url)
+            host = rest.split("/", 1)[0]
+        elif url.startswith("ssh://"):
+            rest = url[len("ssh://"):]
+            rest = rest.split("@", 1)[-1]
+            host_part, _, path_part = rest.partition("/")
+            host = host_part.split(":", 1)[0]
+            if path_part:
+                base = f"https://{host}/{path_part}"
+        elif re.match(r"^[^/]+@[^/]+:", url):
+            rest = url.split("@", 1)[1]
+            host, _, path_part = rest.partition(":")
+            if path_part:
+                base = f"https://{host}/{path_part}"
+        if not base or not host:
+            return "", ""
+
+        provider, webhost = cls._detect_provider(host)
+        if webhost:
+            base = base.replace(host, webhost, 1)
+        return base, provider
+
+    def url_for(self, file_path: str, line: Optional[int] = None) -> str:
+        if not self.repo or not self.base_url or not self.ref or self.source_dir is None:
+            return ""
+        if not file_path:
+            return ""
+        cached = self.file_cache.get(file_path)
+        if cached is None:
+            cached = self._file_url(file_path)
+            self.file_cache[file_path] = cached
+        if not cached or line is None:
+            return cached
+        return f"{cached}#L{line}"
+
+    def _file_url(self, file_path: str) -> str:
+        candidate = self.source_dir / file_path
+        try:
+            rel = candidate.resolve().relative_to(Path(self.repo).resolve()).as_posix()
+        except ValueError:
+            rel = self._run_git("ls-files", "--full-name", "--", str(candidate)).splitlines()[0:1]
+            if not rel:
+                return ""
+            rel = rel[0]
+        if not rel:
+            return ""
+        if not self._is_tracked(rel):
+            return ""
+        if self._is_ignored(rel):
+            return ""
+        encoded_rel = urllib.parse.quote(rel, safe="/")
+        if self.provider == "gitlab":
+            return f"{self.base_url}/-/blob/{self.ref}/{encoded_rel}"
+        return f"{self.base_url}/blob/{self.ref}/{encoded_rel}"
+
+    def _is_tracked(self, rel: str) -> bool:
+        if self.source_dir is None:
+            return False
+        try:
+            result = subprocess.run(
+                ["git", "-C", self.repo, "ls-files", "--error-unmatch", "--", rel],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return False
+        return result.returncode == 0
+
+    def _is_ignored(self, rel: str) -> bool:
+        if self.source_dir is None:
+            return False
+        try:
+            result = subprocess.run(
+                ["git", "-C", self.repo, "check-ignore", "-q", "--", rel],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return False
+        return result.returncode == 0
 
 
 def collect_raw_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
@@ -780,7 +921,12 @@ def compute_dependency_level(
     return base + dependency_depth
 
 
-def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[str, object]:
+def build_report_data(
+    xml_dir: Path,
+    output_dir: Path,
+    category_id: str,
+    source_dir: Optional[Path] = None,
+) -> Dict[str, object]:
     all_functions = collect_functions(xml_dir)
 
     external_ids: Set[str] = {fid for fid, info in all_functions.items() if is_external_function(info)}
@@ -806,6 +952,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
     depths = compute_dependency_depths(functions, cycle_map)
     file_briefs = collect_file_briefs(xml_dir)
     file_compound_ids = collect_file_compound_ids(xml_dir)
+    git_url_resolver = GitUrlResolver(source_dir)
 
     function_rows: List[Dict[str, object]] = []
     edges: List[Dict[str, object]] = []
@@ -854,6 +1001,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
             "cycleGroupSize": cycle_group_size,
             "htmlUrl": info.html_url,
             "sourceUrl": info.source_url,
+            "gitUrl": git_url_resolver.url_for(info.file, info.line),
             "brief": info.brief,
             "externalCallees": owned_to_external_callees.get(func_id, []),
             "externalCalleeCount": len(owned_to_external_callees.get(func_id, [])),
@@ -936,6 +1084,7 @@ def build_report_data(xml_dir: Path, output_dir: Path, category_id: str) -> Dict
                 "brief": file_briefs.get(file_path, ""),
                 "htmlUrl": build_file_html_url(file_compound_ids.get(file_path, "")),
                 "sourceUrl": build_file_source_url(file_compound_ids.get(file_path, "")),
+                "gitUrl": git_url_resolver.url_for(file_path),
             }
         )
 
@@ -1009,6 +1158,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "id",
         "htmlUrl",
         "sourceUrl",
+        "gitUrl",
         "brief",
     ]
     write_dict_csv("dependency-functions.csv", "utf-8", function_fields, data["functions"])
@@ -1027,6 +1177,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
         "brief",
         "htmlUrl",
         "sourceUrl",
+        "gitUrl",
     ]
     file_rows = []
     for row in data["files"]:
@@ -1044,6 +1195,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
                 "brief": row.get("brief", ""),
                 "htmlUrl": row.get("htmlUrl", ""),
                 "sourceUrl": row.get("sourceUrl", ""),
+                "gitUrl": row.get("gitUrl", ""),
             }
         )
     write_dict_csv("dependency-files.csv", "utf-8", file_fields, file_rows)
@@ -5842,7 +5994,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   }}
 
   function linkFor(fn, label, source) {{
-    const url = source ? fn.sourceUrl : fn.htmlUrl;
+    const url = source ? (fn.gitUrl || fn.sourceUrl) : fn.htmlUrl;
     if (!url) return "";
     const target = source ? "doxyfw-dependency-source" : "doxyfw-dependency-doxygen";
     return "<a href=\\"" + escapeHtml(url) + "\\" target=\\"" + target + "\\">" + escapeHtml(label) + "</a>";
@@ -6546,6 +6698,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     "id",
     "htmlUrl",
     "sourceUrl",
+    "gitUrl",
     "brief"
   ];
 
@@ -6561,7 +6714,8 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     "areas",
     "brief",
     "htmlUrl",
-    "sourceUrl"
+    "sourceUrl",
+    "gitUrl"
   ];
 
   function stableJsonText(value) {{
@@ -6603,7 +6757,8 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       areas: stableJsonText(file.areas),
       brief: file.brief || "",
       htmlUrl: file.htmlUrl || "",
-      sourceUrl: file.sourceUrl || ""
+      sourceUrl: file.sourceUrl || "",
+      gitUrl: file.gitUrl || ""
     }}));
   }}
 
@@ -6821,7 +6976,7 @@ def generate_report(
     page_langs: Optional[List[str]] = None,
 ) -> Dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    data = build_report_data(xml_dir, output_dir, category_id)
+    data = build_report_data(xml_dir, output_dir, category_id, source_dir)
     # make docs (docsfw) が発行するシングルページ md HTML への URL テンプレート。
     # "{variant}" プレースホルダーを ja / ja-details 等のページ種別で置換して使う。
     # 空のときはページ リンク機能を無効にする (従来表示)。
