@@ -15,6 +15,7 @@ import html
 import json
 import re
 import shutil
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -1049,9 +1050,44 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
     write_dict_csv("dependency-files-utf8-bom.csv", "utf-8-sig", file_fields, file_rows)
 
 
-def write_html(output_dir: Path, category_id: str) -> None:
+def collect_git_info(source_dir: Optional[Path]) -> str:
+    """対象 (Doxyfile.part の所在ディレクトリ) が所属する Git のブランチ名と短縮ハッシュを返す。
+
+    形式は "main(48c6d43)"。未コミットの追加・変更・削除がある場合は "main(48c6d43+)"。
+    Git 管理下でない場合や情報を取得できない場合は空文字列 (対象欄には付加しない)。
+    """
+    if source_dir is None:
+        return ""
+
+    def run_git(*args: str) -> Optional[str]:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(source_dir), *args],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return None
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+
+    if run_git("rev-parse", "--is-inside-work-tree") != "true":
+        return ""
+    branch = run_git("rev-parse", "--abbrev-ref", "HEAD")
+    short_hash = run_git("rev-parse", "--short=7", "HEAD")
+    if not branch or not short_hash:
+        return ""
+    status = run_git("status", "--porcelain")
+    dirty = "+" if status else ""
+    return f"{branch} ({short_hash}{dirty})"
+
+
+def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     title = "依存関係レポート"
     escaped_category = html.escape(category_id or "doxygen")
+    if git_info:
+        escaped_category += " " + html.escape(git_info)
     js_category = json.dumps(category_id or "doxygen", ensure_ascii=False)
     html_text = f"""<!doctype html>
 <html lang="ja">
@@ -6564,34 +6600,40 @@ def copy_graph_assets(output_dir: Path) -> None:
         shutil.copyfile(source, output_dir / asset_name)
 
 
-def generate_report(xml_dir: Path, output_dir: Path, category_id: str) -> Dict[str, object]:
+def generate_report(
+    xml_dir: Path,
+    output_dir: Path,
+    category_id: str,
+    source_dir: Optional[Path] = None,
+) -> Dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     data = build_report_data(xml_dir, output_dir, category_id)
     write_data_js(output_dir, data)
     write_data_json(output_dir, data)
     write_csv(output_dir, data)
-    write_html(output_dir, category_id)
+    write_html(output_dir, category_id, collect_git_info(source_dir))
     copy_graph_assets(output_dir)
     return data
 
 
 def main(argv: List[str]) -> int:
-    if len(argv) not in (3, 4):
+    if len(argv) not in (3, 4, 5):
         print(
-            "使用方法: generate-dependency-report.py <xml_directory> <output_directory> [category_id]",
+            "使用方法: generate-dependency-report.py <xml_directory> <output_directory> [category_id] [source_directory]",
             file=sys.stderr,
         )
         return 2
 
     xml_dir = Path(argv[1])
     output_dir = Path(argv[2])
-    category_id = argv[3] if len(argv) == 4 else ""
+    category_id = argv[3] if len(argv) >= 4 else ""
+    source_dir = Path(argv[4]) if len(argv) == 5 and argv[4] else None
 
     if not xml_dir.is_dir():
         print(f"ERROR: XML directory not found: {xml_dir}", file=sys.stderr)
         return 1
 
-    data = generate_report(xml_dir, output_dir, category_id)
+    data = generate_report(xml_dir, output_dir, category_id, source_dir)
     print(
         "Generated dependency report: {} (functions={}, edges={})".format(
             output_dir,

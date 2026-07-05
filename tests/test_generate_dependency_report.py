@@ -1232,6 +1232,83 @@ class GenerateDependencyReportTest(unittest.TestCase):
             # reverse-boundary-caller 警告は出力されない
             self.assertNotIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
 
+    def test_target_git_info(self):
+        # 対象欄への Git 情報付加を検証する。source_dir (Doxyfile.part の所在) が Git 管理下なら
+        # 「対象: <カテゴリー> <ブランチ>(<短縮ハッシュ>)」、未コミットの追加・変更・削除が
+        # あれば「+」付き、Git 管理下でなければ Git 情報は付かない。
+        def run_git(repo, *args):
+            return subprocess.run(
+                ["git", "-C", str(repo), *args],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "a.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="a_8c" kind="file">
+    <compoundname>a.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="fn_a" static="yes">
+        <name>fn_a</name>
+        <location file="src/a.c" line="10" bodyfile="src/a.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            repo = temp_dir / "repo"
+            repo.mkdir()
+            run_git(repo, "init", "-q")
+            run_git(repo, "symbolic-ref", "HEAD", "refs/heads/main")
+            run_git(repo, "config", "user.email", "test@example.com")
+            run_git(repo, "config", "user.name", "test")
+            (repo / "Doxyfile.part").write_text("", encoding="utf-8")
+            run_git(repo, "add", ".")
+            run_git(repo, "commit", "-q", "-m", "init")
+            short_hash = run_git(repo, "rev-parse", "--short=7", "HEAD")
+            self.assertEqual(len(short_hash), 7, msg=short_hash)
+
+            # 1. クリーンな Git 管理下: ブランチ名と短縮ハッシュが付く (+ なし)。
+            out_clean = temp_dir / "clean"
+            generate_dependency_report.generate_report(xml_dir, out_clean, "cat", repo)
+            index_html = (out_clean / "index.html").read_text(encoding="utf-8")
+            self.assertIn(
+                "対象: cat main ({})</span>".format(short_hash), index_html
+            )
+
+            # 2. 未コミットの追加がある: 「+」が付く。
+            (repo / "new.txt").write_text("x", encoding="utf-8")
+            out_dirty = temp_dir / "dirty"
+            generate_dependency_report.generate_report(xml_dir, out_dirty, "cat", repo)
+            index_html = (out_dirty / "index.html").read_text(encoding="utf-8")
+            self.assertIn(
+                "対象: cat main ({}+)</span>".format(short_hash), index_html
+            )
+
+            # 3. Git 管理下でないディレクトリ: Git 情報は付かない。
+            plain = temp_dir / "plain"
+            plain.mkdir()
+            out_plain = temp_dir / "plain_out"
+            generate_dependency_report.generate_report(xml_dir, out_plain, "cat", plain)
+            index_html = (out_plain / "index.html").read_text(encoding="utf-8")
+            self.assertIn("対象: cat</span>", index_html)
+
+            # 4. source_dir 省略時も Git 情報は付かない (従来互換)。
+            out_none = temp_dir / "none"
+            generate_dependency_report.generate_report(xml_dir, out_none, "cat")
+            index_html = (out_none / "index.html").read_text(encoding="utf-8")
+            self.assertIn("対象: cat</span>", index_html)
+
 
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
 LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"

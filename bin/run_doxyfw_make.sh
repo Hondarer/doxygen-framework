@@ -163,7 +163,13 @@ fi
 if [ -f "$xml_work_dir/index.xml" ] && grep -q '<compound ' "$xml_work_dir/index.xml"; then
     dependency_warn_log=$(mktemp)
     dependency_warn_extract=$(mktemp)
-    python3 "$DEPENDENCY_REPORT_GENERATOR" "$xml_work_dir" "$docs_doxygen_stage_dir/dependency" "$CATEGORY_ID" 2> "$dependency_warn_log"
+    # 対象 Doxyfile.part の所在ディレクトリを渡し、その所属 Git のブランチ名と
+    # コミット ハッシュを対象欄へ付加する (Git 管理下でない場合は非表示)。
+    dependency_source_dir=""
+    if [ -f "$DOXYFILE_PART" ]; then
+        dependency_source_dir=$(dirname "$DOXYFILE_PART")
+    fi
+    python3 "$DEPENDENCY_REPORT_GENERATOR" "$xml_work_dir" "$docs_doxygen_stage_dir/dependency" "$CATEGORY_ID" "$dependency_source_dir" 2> "$dependency_warn_log"
     dependency_report_exit=$?
     if [ -s "$dependency_warn_log" ]; then
         "$DOXY_WARNING_COLORIZE" < "$dependency_warn_log" || true
