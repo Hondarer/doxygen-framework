@@ -2090,11 +2090,18 @@ def write_html(output_dir: Path, category_id: str) -> None:
     if (!functionsByFile.has(fn.file)) functionsByFile.set(fn.file, []);
     functionsByFile.get(fn.file).push(fn);
   }}
+  // edgesByFunctionId は全体マップの関数選択時に、全エッジの線形走査を避けて
+  // 表示関数の近傍エッジだけを列挙するための隣接リスト (caller 側・callee 側の両方に登録)。
+  const edgesByFunctionId = new Map();
   for (const edge of edges) {{
     if (!callees.has(edge.caller)) callees.set(edge.caller, []);
     if (!callers.has(edge.callee)) callers.set(edge.callee, []);
     callees.get(edge.caller).push(edge.callee);
     callers.get(edge.callee).push(edge.caller);
+    if (!edgesByFunctionId.has(edge.caller)) edgesByFunctionId.set(edge.caller, []);
+    if (!edgesByFunctionId.has(edge.callee)) edgesByFunctionId.set(edge.callee, []);
+    edgesByFunctionId.get(edge.caller).push(edge);
+    if (edge.callee !== edge.caller) edgesByFunctionId.get(edge.callee).push(edge);
   }}
   const fileEdges = (data.fileEdges && data.fileEdges.length > 0) ? data.fileEdges : buildFileEdges(edges);
   const fileEdgeByKey = new Map(fileEdges.map((edge) => [edge.id, {{ data: edge }}]));
@@ -2109,6 +2116,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
     pairs.sort((a, b) => compareText(a.callerFile, b.callerFile) || compareText(a.caller, b.caller) || compareText(a.callee, b.callee));
   }}
   const OVERVIEW_SYNC_CHUNK_SIZE = 100;
+  // processOverviewChunks の 1 フレームあたりの処理時間予算 (ms)。
+  const OVERVIEW_CHUNK_FRAME_BUDGET_MS = 8;
   // 位置アニメーションの時間。
   const OVERVIEW_ANIMATION_MS = 430;
   // 状態クラス (ミュート等) のフェードの時間。
@@ -3507,6 +3516,27 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return {{ activeFiles: activeFiles, activeFileEdges: activeFileEdges, emphasisFileEdges: emphasisFileEdges, hasSelection: false }};
   }}
 
+  // ファイル ノード/エッジの data は不変 (id/ラベル/weight など) のため、初期化時に 1 回だけ
+  // 構築して毎 sync 再利用する。sync ごとに変わるのは classes と復活位置 (position) のみ。
+  // Phase A の element.data(target.data) は cytoscape が値を要素側へコピーするだけで
+  // 引数オブジェクトを書き換えないため、共有してよい。
+  const overviewFileNodeData = new Map(files.map((file) => [file.path, {{
+    id: file.path,
+    label: shortPath(file.path),
+    weight: Math.max(1, Number(file.functionCount || 1)),
+    path: file.path
+  }}]));
+  const overviewFileEdgeData = new Map(fileEdges.map((edge) => [edge.id, {{
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    kind: "file-edge",
+    fromFile: edge.fromFile,
+    toFile: edge.toFile,
+    label: edge.label,
+    weight: edge.weight
+  }}]));
+
   function overviewBaseElements(selection) {{
     const context = overviewSelectionContext(selection);
     const selectionState = overviewSelectionState(fileEdgeByKey, context);
@@ -3521,12 +3551,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         classes.push("dep-file-node-muted");
       }}
       const fileElement = {{
-        data: {{
-          id: file.path,
-          label: shortPath(file.path),
-          weight: Math.max(1, Number(file.functionCount || 1)),
-          path: file.path
-        }},
+        data: overviewFileNodeData.get(file.path),
         classes: classes.join(" ")
       }};
       const restorePosition = overviewRestorePositions.get(file.path);
@@ -3542,16 +3567,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
         classes.push("dep-base-edge-muted");
       }}
       elements.push({{
-        data: {{
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          kind: "file-edge",
-          fromFile: edge.fromFile,
-          toFile: edge.toFile,
-          label: edge.label,
-          weight: edge.weight
-        }},
+        data: overviewFileEdgeData.get(edge.id),
         classes: classes.join(" ")
       }});
     }}
@@ -3595,18 +3611,28 @@ def write_html(output_dir: Path, category_id: str) -> None:
     }}
   }}
 
+  // relatedFunctionIdsForSelection は 1 回の sync 内で複数箇所 (overviewSelectionState と
+  // buildOverviewElements 系) から呼ばれるため、直近結果をメモ化する。呼び出し関係
+  // (edges/callers/callees) は静的データであり、キーは選択 id と深さ設定のみで決まる。
+  // 返す Set は読み取り専用として扱うこと (呼び出し側で変更しない)。
+  let overviewRelatedSelectionCache = {{ key: null, value: null }};
+
   // 選択関数から表示する関連関数 id 集合と、強調対象のエッジ id 集合 (呼び出し元/先の
   // 展開で辿った経路) を求める。選択関数の循環グループ全体は呼び出し元/先の深さ設定に
   // 関わらず常に表示する (routeEdgeIds には含めないが、循環グループ内のエッジは
   // overviewFunctionEdgeClasses 側の selectedCycleIds 判定で別途強調する)。
   function relatedFunctionIdsForSelection(selectedId) {{
+    const cacheKey = selectedId + "|" + overviewCallerDepth + "|" + overviewCalleeDepth;
+    if (overviewRelatedSelectionCache.key === cacheKey) return overviewRelatedSelectionCache.value;
     const ids = new Set([selectedId]);
     const routeEdgeIds = new Set();
     const selectedFn = byId.get(selectedId);
     for (const c of cycleGroupFunctionIds(selectedFn)) ids.add(c);
     collectOverviewRelatedIds(selectedId, callers, overviewCallerDepth, "caller", ids, routeEdgeIds);
     collectOverviewRelatedIds(selectedId, callees, overviewCalleeDepth, "callee", ids, routeEdgeIds);
-    return {{ ids: ids, routeEdgeIds: routeEdgeIds }};
+    const value = {{ ids: ids, routeEdgeIds: routeEdgeIds }};
+    overviewRelatedSelectionCache = {{ key: cacheKey, value: value }};
+    return value;
   }}
 
   function visibleFunctionIdsForOverview(selection) {{
@@ -3620,6 +3646,24 @@ def write_html(output_dir: Path, category_id: str) -> None:
       return ids;
     }}
     return new Set();
+  }}
+
+  // 表示関数集合 (includedFnIds) の間を結ぶ関数間エッジを、全エッジの線形走査を避けて
+  // 隣接リスト (edgesByFunctionId) から列挙する。両端に登録されるため id で重複排除する。
+  // 結果集合は「両端が included のエッジすべて」で、全走査と同一。
+  function overviewIncludedFunctionEdges(includedFnIds) {{
+    const seen = new Set();
+    const result = [];
+    for (const fnId of includedFnIds) {{
+      for (const edge of (edgesByFunctionId.get(fnId) || [])) {{
+        if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
+        const key = edge.caller + "->" + edge.callee;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(edge);
+      }}
+    }}
+    return result;
   }}
 
   // 強調対象は、呼び出し元/先の展開で辿った経路上のエッジ (routeEdgeIds) と、選択関数の
@@ -3672,8 +3716,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       childrenByFile.get(fn.file).push(fn.id);
     }}
     if (context.selectedId) {{
-      for (const edge of edges) {{
-        if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
+      for (const edge of overviewIncludedFunctionEdges(includedFnIds)) {{
         elements.push({{
           data: {{
             id: edge.caller + "->" + edge.callee,
@@ -3718,12 +3761,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           classes.push("dep-file-node-muted");
         }}
         elements.push({{
-          data: {{
-            id: file.path,
-            label: shortPath(file.path),
-            weight: Math.max(1, Number(file.functionCount || 1)),
-            path: file.path
-          }},
+          data: overviewFileNodeData.get(file.path),
           classes: classes.join(" ")
         }});
       }}
@@ -3738,16 +3776,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
           classes.push("dep-base-edge-muted");
         }}
         elements.push({{
-          data: {{
-            id: edge.id,
-            source: edge.source,
-            target: edge.target,
-            kind: "file-edge",
-            fromFile: edge.fromFile,
-            toFile: edge.toFile,
-            label: edge.label,
-            weight: edge.weight
-          }},
+          data: overviewFileEdgeData.get(edge.id),
           classes: classes.join(" ")
         }});
       }}
@@ -3789,9 +3818,8 @@ def write_html(output_dir: Path, category_id: str) -> None:
       }}
     }}))) return null;
     if (context.selectedId) {{
-      if (!(await processOverviewChunks(edges, token, (chunk) => {{
+      if (!(await processOverviewChunks(overviewIncludedFunctionEdges(includedFnIds), token, (chunk) => {{
         for (const edge of chunk) {{
-          if (!includedFnIds.has(edge.caller) || !includedFnIds.has(edge.callee)) continue;
           elements.push({{
             data: {{
               id: edge.caller + "->" + edge.callee,
@@ -4722,10 +4750,22 @@ def write_html(output_dir: Path, category_id: str) -> None:
     return false;
   }}
 
+  // 100 件単位のチャンクを、1 フレームあたり OVERVIEW_CHUNK_FRAME_BUDGET_MS の時間予算内で
+  // 連続処理する。予算を使い切ったら次フレームへ譲る (応答性の担保)。フレームごとに最低
+  // 1 チャンクは処理するため、コールバックが予算より重くても必ず前進する。
+  // token 失効チェックはチャンクごとに従来どおり行う。
   async function processOverviewChunks(items, token, callback) {{
-    for (let index = 0; index < items.length; index += OVERVIEW_SYNC_CHUNK_SIZE) {{
-      if (!isOverviewSyncTokenActive(token)) return false;
-      callback(items.slice(index, index + OVERVIEW_SYNC_CHUNK_SIZE));
+    let index = 0;
+    while (index < items.length) {{
+      const frameStart = performance.now();
+      while (index < items.length) {{
+        if (!isOverviewSyncTokenActive(token)) return false;
+        callback(items.slice(index, index + OVERVIEW_SYNC_CHUNK_SIZE));
+        index += OVERVIEW_SYNC_CHUNK_SIZE;
+        if (performance.now() - frameStart >= OVERVIEW_CHUNK_FRAME_BUDGET_MS) break;
+      }}
+      // 従来実装は最終チャンク後にもフレーム待機していたため、末尾の待機も維持する
+      // (追加直後の描画・スタイル確定タイミングに依存する呼び出し元への互換)。
       await nextOverviewFrame();
     }}
     return isOverviewSyncTokenActive(token);
