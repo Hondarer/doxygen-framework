@@ -610,6 +610,19 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('data-callee-depth="all"', index_html)
             self.assertIn('id="overviewFit">表示範囲にフィット</button>', index_html)
             self.assertIn('data-action="fit">表示範囲にフィット</button>', index_html)
+            # 詳細ペインの「コピー」ボタン: 3 ペインとも本文 (dep-detail-body) と分離した
+            # footer に置き、表示内容 + 正規ハッシュ URL をクリップボードへコピーする。
+            self.assertIn('<button type="button" class="dep-detail-copy" data-copy-source="detail" disabled>コピー</button>', index_html)
+            self.assertIn('<button type="button" class="dep-detail-copy" data-copy-source="fileDetail" disabled>コピー</button>', index_html)
+            self.assertIn('<button type="button" class="dep-detail-copy" data-copy-source="overviewDetail" disabled>コピー</button>', index_html)
+            self.assertIn('<div class="dep-detail-body" id="detail">', index_html)
+            self.assertIn("function writeTextToClipboard(text) {", index_html)
+            self.assertIn("function detailPaneToMarkdown(root, linkTabs) {", index_html)
+            self.assertIn('const url = window.location.href.split("#")[0] + currentUrlHashString();', index_html)
+            self.assertIn('const text = detailPaneToMarkdown(source, linkTabs) + "\\n\\n## 依存関係レポートへのリンク\\n\\n<" + url + ">\\n";', index_html)
+            # 非活性のコピー ボタンにはホバー表現を適用しない。
+            self.assertIn(".dep-detail-copy:hover:not(:disabled) {", index_html)
+            self.assertIn("function updateDetailCopyButtons() {", index_html)
             # エッジ強調は展開経路 (routeEdgeIds) を辿ったエッジ、または選択関数の循環グループ
             # 内のエッジ (selectedCycleIds) に限定し、表示中でも経路外のエッジは強調しない。
             self.assertIn("function overviewFunctionEdgeClasses(edge, selectedCycleIds, routeEdgeIds, selection) {", index_html)
@@ -1230,6 +1243,7 @@ URL_STATE_PROBE_SCRIPT = Path(__file__).resolve().parent / "url_state_probe.js"
 FILE_TO_FN_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_file_to_fn_probe.js"
 OVERVIEW_DEPTH_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_depth_probe.js"
 OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_context_menu_probe.js"
+DETAIL_COPY_PROBE_SCRIPT = Path(__file__).resolve().parent / "detail_copy_probe.js"
 PUPPETEER_DIR = (
     Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
 )
@@ -1814,6 +1828,82 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertTrue(route["x2_x1"], msg=str(data))
             # 両端 (c_0, c_3) は表示されるが展開経路に含まれないエッジは強調されない。
             self.assertFalse(data["nonRouteEdgeEmphasized"], msg=str(data))
+
+    def _run_detail_copy_probe(self, index_html, function_id="c_2", file_path="src/chain.c"):
+        result = subprocess.run(
+            [_node_binary(), str(DETAIL_COPY_PROBE_SCRIPT), str(index_html), function_id, file_path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg="detail copy probe failed:\n{}\n{}".format(result.stdout, result.stderr),
+        )
+        line = next(
+            (ln for ln in result.stdout.splitlines() if ln.startswith("RESULT ")),
+            None,
+        )
+        self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
+        return json.loads(line[len("RESULT "):])
+
+    def test_detail_copy_button(self):
+        # 3 つの詳細ペイン (関数一覧・ファイル一覧・全体マップ) の「コピー」ボタンで、
+        # 表示内容 (プレーン テキスト) と現在のタブ・選択状態を表す URL がコピーされることを
+        # 検証する。クリップボードはプローブ側でスタブして捕捉する。
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            index_html = self._generate_depth_report(Path(temp_dir_text))
+            data = self._run_detail_copy_probe(index_html)
+
+            self.assertEqual(data["pageErrors"], [], msg=str(data))
+            # 非選択状態では 3 ペインともコピー ボタンが非活性。関数選択後はすべて活性化する
+            # (関数選択は所属ファイルの詳細も表示するため fileDetail も活性)。
+            self.assertEqual(
+                data["initialDisabled"],
+                {"detail": True, "fileDetail": True, "overviewDetail": True},
+                msg=str(data),
+            )
+            self.assertEqual(
+                data["selectedDisabled"],
+                {"detail": False, "fileDetail": False, "overviewDetail": False},
+                msg=str(data),
+            )
+            # 関数一覧: Markdown 形式の本文 + #tab=functions&fn=... の URL (末尾改行付き)。
+            fn_copy = data["functionCopy"]
+            self.assertTrue(fn_copy["clicked"], msg=str(fn_copy))
+            # brief がない場合、H1 見出しとリストの間の空行は 1 行。
+            self.assertTrue(fn_copy["text"].startswith("# c_2\n\n- "), msg=str(fn_copy))
+            # 関数タブ内のファイル名リンクは、ファイル タブを開く md リンクになる。
+            self.assertIn("- ファイル: [src/chain.c](", fn_copy["text"], msg=str(fn_copy))
+            self.assertIn("#tab=files&file=src%2Fchain.c)", fn_copy["text"], msg=str(fn_copy))
+            # 見出し行の後には 1 行の空行が入り、関数リンクは関数タブを開く md リンクになる。
+            self.assertIn("\n## 呼び出し元\n\n- [c_1](", fn_copy["text"], msg=str(fn_copy))
+            self.assertIn("#tab=functions&fn=c_1) src/chain.c", fn_copy["text"], msg=str(fn_copy))
+            # リンク欄は Markdown リンク表現になる。
+            self.assertIn("- リンク: [Doxygen](", fn_copy["text"], msg=str(fn_copy))
+            # 末尾は「## 依存関係レポートへのリンク」見出し + 空行 + <URL> + 改行。
+            self.assertIn("\n## 依存関係レポートへのリンク\n\n<file://", fn_copy["text"], msg=str(fn_copy))
+            self.assertTrue(fn_copy["text"].endswith("#tab=functions&fn=c_2>\n"), msg=str(fn_copy))
+            # ファイル一覧: Markdown 形式の本文 + #tab=files&file=... の URL (末尾改行付き)。
+            file_copy = data["fileCopy"]
+            self.assertTrue(file_copy["clicked"], msg=str(file_copy))
+            self.assertTrue(file_copy["text"].startswith("# chain.c\n\n- "), msg=str(file_copy))
+            self.assertIn("- ファイル: src/chain.c", file_copy["text"], msg=str(file_copy))
+            # ファイル タブ内の関数名リンクは、関数タブを開く md リンクになる。
+            self.assertIn("\n## 関数\n\n- [c_4](", file_copy["text"], msg=str(file_copy))
+            self.assertIn("#tab=functions&fn=c_4) leaf-static", file_copy["text"], msg=str(file_copy))
+            self.assertTrue(file_copy["text"].endswith("#tab=files&file=src%2Fchain.c>\n"), msg=str(file_copy))
+            # 全体マップ: Markdown 形式の本文 + #tab=overview&fn=... の URL (末尾改行付き)。
+            # 全体マップからのコピーでは、関数・ファイル リンクとも全体マップ タブを指す。
+            overview_copy = data["overviewCopy"]
+            self.assertTrue(overview_copy["clicked"], msg=str(overview_copy))
+            self.assertTrue(overview_copy["text"].startswith("# c_2\n\n"), msg=str(overview_copy))
+            self.assertIn("#tab=overview&fn=c_1) src/chain.c", overview_copy["text"], msg=str(overview_copy))
+            self.assertIn("#tab=overview&file=src%2Fchain.c)", overview_copy["text"], msg=str(overview_copy))
+            self.assertNotIn("#tab=functions", overview_copy["text"], msg=str(overview_copy))
+            self.assertNotIn("#tab=files", overview_copy["text"], msg=str(overview_copy))
+            self.assertTrue(overview_copy["text"].endswith("#tab=overview&fn=c_2>\n"), msg=str(overview_copy))
 
     def test_overview_context_menu_suppression(self):
         # 独自メニューがカーソル位置に補正されて表示されても、右クリックでブラウザー標準

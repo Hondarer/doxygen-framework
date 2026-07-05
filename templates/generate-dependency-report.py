@@ -1545,6 +1545,36 @@ def write_html(output_dir: Path, category_id: str) -> None:
       min-height: 240px;
       background: var(--dep-bg);
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }}
+    .dep-detail-body {{
+      flex: 1 1 auto;
+      min-height: 0;
+    }}
+    .dep-detail-footer {{
+      flex: 0 0 auto;
+      text-align: right;
+      padding-top: 8px;
+    }}
+    .dep-detail-copy {{
+      border: 1px solid var(--dep-border);
+      border-radius: 4px;
+      padding: 4px 12px;
+      background: var(--dep-input-bg);
+      color: var(--dep-input-text);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }}
+    .dep-detail-copy:hover:not(:disabled) {{
+      background: color-mix(in srgb, var(--dep-accent) 12%, var(--dep-bg));
+      border-color: var(--dep-input-focus);
+      color: var(--dep-input-focus);
+    }}
+    .dep-detail-copy:disabled {{
+      cursor: default;
+      color: var(--dep-muted);
     }}
     .dep-detail h2 {{
       margin: 0 0 8px;
@@ -1862,16 +1892,23 @@ def write_html(output_dir: Path, category_id: str) -> None:
       .dep-filter-notice {{
         flex: 0 0 auto;
       }}
-      .dep-table-wrap,
-      .dep-detail {{
+      .dep-table-wrap {{
         max-height: 100%;
         overflow: auto;
         scrollbar-width: auto;
       }}
-      .dep-table-wrap {{
+      /* スクロールは本文 (dep-detail-body) 側で行い、コピー ボタン (footer) は
+         ペイン右下に固定表示する。 */
+      .dep-detail {{
+        max-height: 100%;
+        overflow: hidden;
+      }}
+      .dep-detail-body {{
+        overflow: auto;
+        scrollbar-width: auto;
         scrollbar-color: var(--dep-table-scrollbar-thumb) var(--dep-input-bg);
       }}
-      .dep-detail {{
+      .dep-table-wrap {{
         scrollbar-color: var(--dep-table-scrollbar-thumb) var(--dep-input-bg);
       }}
       .dep-table-wrap {{
@@ -1985,8 +2022,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         </table>
       </div>
     </div>
-    <aside class="dep-detail" id="detail">
-      <p class="dep-empty">関数を選択してください。</p>
+    <aside class="dep-detail">
+      <div class="dep-detail-body" id="detail">
+        <p class="dep-empty">関数を選択してください。</p>
+      </div>
+      <div class="dep-detail-footer">
+        <button type="button" class="dep-detail-copy" data-copy-source="detail" disabled>コピー</button>
+      </div>
     </aside>
   </div>
   </section>
@@ -2025,8 +2067,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
         </table>
       </div>
     </div>
-    <aside class="dep-detail" id="fileDetail">
-      <p class="dep-empty">ファイルを選択してください。</p>
+    <aside class="dep-detail">
+      <div class="dep-detail-body" id="fileDetail">
+        <p class="dep-empty">ファイルを選択してください。</p>
+      </div>
+      <div class="dep-detail-footer">
+        <button type="button" class="dep-detail-copy" data-copy-source="fileDetail" disabled>コピー</button>
+      </div>
     </aside>
   </div>
   </section>
@@ -2064,8 +2111,13 @@ def write_html(output_dir: Path, category_id: str) -> None:
           <button type="button" role="menuitem" data-menu-scope="background" data-action="reset">初期化</button>
         </div>
       </div>
-      <aside class="dep-detail dep-graph-detail" id="overviewDetail">
-        <p class="dep-empty">ファイルまたは関数を選択してください。</p>
+      <aside class="dep-detail dep-graph-detail">
+        <div class="dep-detail-body" id="overviewDetail">
+          <p class="dep-empty">ファイルまたは関数を選択してください。</p>
+        </div>
+        <div class="dep-detail-footer">
+          <button type="button" class="dep-detail-copy" data-copy-source="overviewDetail" disabled>コピー</button>
+        </div>
       </aside>
     </div>
   </section>
@@ -5782,6 +5834,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDetailCopyButtons();
   }}
 
   function selectFile(path, opts) {{
@@ -5814,6 +5867,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDetailCopyButtons();
   }}
 
   function selectOverviewEdge(edgeKey) {{
@@ -5830,6 +5884,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDetailCopyButtons();
   }}
 
   function clearOverviewSelection() {{
@@ -5845,6 +5900,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDetailCopyButtons();
   }}
 
   function clearSelection() {{
@@ -5860,6 +5916,7 @@ def write_html(output_dir: Path, category_id: str) -> None:
       resetOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDetailCopyButtons();
   }}
 
   function debounce(callback, delayMs) {{
@@ -5971,6 +6028,166 @@ def write_html(output_dir: Path, category_id: str) -> None:
       applyTheme(currentTheme === "dark" ? "light" : "dark", true);
     }});
   }}
+  // 詳細ペインの「コピー」ボタン: 表示内容 (プレーン テキスト) と、現在のタブ・選択状態を
+  // 表す URL (正規ハッシュ付き) をクリップボードへコピーする。
+  function writeTextToClipboard(text) {{
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
+      return navigator.clipboard.writeText(text);
+    }}
+    // 非対応環境向けフォールバック: 一時 textarea を選択して execCommand でコピーする。
+    return new Promise((resolve, reject) => {{
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      let succeeded = false;
+      try {{
+        succeeded = document.execCommand("copy");
+      }} catch (err) {{
+        succeeded = false;
+      }}
+      document.body.removeChild(textarea);
+      if (succeeded) {{
+        resolve();
+      }} else {{
+        reject(new Error("execCommand copy failed"));
+      }}
+    }});
+  }}
+
+  // 詳細ペインの表示内容を Markdown へ変換する。構造は 3 ペイン共通:
+  //   h2 (タイトル) -> "# "、section 見出しの strong / h3 -> "## "、
+  //   dl の dt/dd ペア -> "- dt: dd"、ul/ol の li -> "- "、p -> 素の段落。
+  // 見出しの前後には空行を入れ、Markdown として妥当な体裁にする。
+  function detailPaneToMarkdown(root, linkTabs) {{
+    const lines = [];
+    const baseUrl = window.location.href.split("#")[0];
+    // 関数/ファイル リンクの遷移先タブ。既定は関数タブ/ファイル タブだが、全体マップの
+    // 詳細ペインからのコピーでは双方とも全体マップ タブを指す。
+    const tabs = linkTabs || {{ fn: "functions", file: "files" }};
+    const labelOf = (el) => (el.textContent || "").replace(/\\s+/g, " ").trim();
+    // インライン変換: リンク類は Markdown リンク表現 [text](url) にする。
+    //   - data-function-id (関数リンク) -> #tab=<tabs.fn>&fn=...
+    //   - data-file-path (ファイル リンク) -> #tab=<tabs.file>&file=...
+    //   - 実 URL を持つアンカー (Doxygen / source) -> a.href で絶対 URL 化
+    const inlineTextOf = (el) => {{
+      let text = "";
+      for (const node of el.childNodes) {{
+        if (node.nodeType === Node.TEXT_NODE) {{
+          text += node.textContent;
+        }} else if (node.nodeType === Node.ELEMENT_NODE) {{
+          const functionId = node.getAttribute ? node.getAttribute("data-function-id") : null;
+          const filePath = node.getAttribute ? node.getAttribute("data-file-path") : null;
+          if (functionId) {{
+            text += "[" + labelOf(node) + "](" + baseUrl + "#tab=" + tabs.fn + "&fn=" + encodeURIComponent(functionId) + ")";
+          }} else if (filePath) {{
+            text += "[" + labelOf(node) + "](" + baseUrl + "#tab=" + tabs.file + "&file=" + encodeURIComponent(filePath) + ")";
+          }} else if (node.tagName === "A" && (node.getAttribute("href") || "") !== "" && node.getAttribute("href") !== "#") {{
+            text += "[" + labelOf(node) + "](" + node.href + ")";
+          }} else {{
+            text += inlineTextOf(node);
+          }}
+        }}
+      }}
+      return text;
+    }};
+    const textOf = (el) => inlineTextOf(el).replace(/\\s+/g, " ").trim();
+    const pushBlank = () => {{
+      if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    }};
+    const pushHeading = (prefix, el) => {{
+      const text = textOf(el);
+      if (!text) return;
+      pushBlank();
+      lines.push(prefix + " " + text);
+      lines.push("");
+    }};
+    const walk = (node) => {{
+      for (const child of node.children) {{
+        const tag = child.tagName;
+        if (tag === "H2") {{
+          pushHeading("#", child);
+        }} else if (tag === "H3" || tag === "STRONG") {{
+          pushHeading("##", child);
+        }} else if (tag === "P") {{
+          const text = textOf(child);
+          if (text) {{
+            pushBlank();
+            lines.push(text);
+          }}
+        }} else if (tag === "DL") {{
+          pushBlank();
+          let term = "";
+          for (const item of child.children) {{
+            if (item.tagName === "DT") {{
+              term = textOf(item);
+            }} else if (item.tagName === "DD") {{
+              lines.push("- " + term + ": " + textOf(item));
+            }}
+          }}
+        }} else if (tag === "UL" || tag === "OL") {{
+          pushBlank();
+          for (const li of child.children) {{
+            lines.push("- " + textOf(li));
+          }}
+        }} else {{
+          walk(child);
+        }}
+      }}
+    }};
+    walk(root);
+    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    return lines.join("\\n");
+  }}
+
+  function showCopyFeedback(button, label) {{
+    const original = button.textContent;
+    button.textContent = label;
+    button.disabled = true;
+    button.dataset.copyFeedback = "1";
+    window.setTimeout(() => {{
+      button.textContent = original;
+      delete button.dataset.copyFeedback;
+      // 表示復帰時の活性状態は現在の選択状態に従う。
+      updateDetailCopyButtons();
+    }}, 1500);
+  }}
+
+  // 非選択状態ではコピー ボタンを非活性にする。ペインごとの活性条件:
+  //   detail (関数一覧) = 関数選択中、fileDetail (ファイル一覧) = ファイル表示中、
+  //   overviewDetail (全体マップ) = 関数・ファイル・エッジのいずれか選択中。
+  function updateDetailCopyButtons() {{
+    const enabledBySource = {{
+      detail: Boolean(selectedId),
+      fileDetail: Boolean(selectedFilePath),
+      overviewDetail: Boolean(selectedId || selectedFilePath || selectedEdgeKey)
+    }};
+    for (const button of document.querySelectorAll(".dep-detail-copy")) {{
+      if (button.dataset.copyFeedback === "1") continue;
+      const source = button.getAttribute("data-copy-source") || "";
+      button.disabled = !enabledBySource[source];
+    }}
+  }}
+
+  for (const button of document.querySelectorAll(".dep-detail-copy")) {{
+    button.addEventListener("click", () => {{
+      const source = document.getElementById(button.getAttribute("data-copy-source") || "");
+      if (!source) return;
+      // 全体マップの詳細ペインからのコピーでは、関数・ファイル リンクとも全体マップ タブを指す。
+      const linkTabs = button.getAttribute("data-copy-source") === "overviewDetail"
+        ? {{ fn: "overview", file: "overview" }}
+        : null;
+      const url = window.location.href.split("#")[0] + currentUrlHashString();
+      const text = detailPaneToMarkdown(source, linkTabs) + "\\n\\n## 依存関係レポートへのリンク\\n\\n<" + url + ">\\n";
+      writeTextToClipboard(text)
+        .then(() => showCopyFeedback(button, "コピーしました"))
+        .catch(() => showCopyFeedback(button, "コピーできません"));
+    }});
+  }}
+  updateDetailCopyButtons();
   if (overviewGraphMenu) {{
     overviewGraphMenu.addEventListener("contextmenu", (event) => {{
       event.preventDefault();
