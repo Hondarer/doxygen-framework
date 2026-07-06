@@ -6048,7 +6048,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   function linkFor(fn, label, source) {{
     const url = source ? (fn.gitUrl || fn.sourceUrl) : fn.htmlUrl;
     if (!url) return "";
-    const target = source ? "doxyfw-dependency-source" : "doxyfw-dependency-doxygen";
+    const target = source ? "source-file" : "doxygen-page";
     return "<a href=\\"" + escapeHtml(url) + "\\" target=\\"" + target + "\\">" + escapeHtml(label) + "</a>";
   }}
 
