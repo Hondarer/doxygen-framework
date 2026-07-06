@@ -848,6 +848,33 @@ def warn_reverse_boundary_call(caller: FunctionInfo, callee: FunctionInfo) -> No
     )
 
 
+def warn_phantom_shadows_internal(
+    caller: FunctionInfo,
+    phantom: FunctionInfo,
+    internal: FunctionInfo,
+) -> None:
+    """phantom な外部関数が同名の内部関数と名前が一致する場合に Warning を出力する。
+
+    シグネチャ不一致の冗長な extern 宣言などにより Doxygen が別 ID の phantom を生成し、
+    内部関数が外部扱いになる状況を検出する。
+    """
+    print(
+        "Warning: phantom-shadows-internal: '{}' ({}:{}) is classified as external"
+        " but an internal definition exists ({}:{}). Called from '{}' ({}:{})."
+        " This may be caused by a redundant extern declaration with a mismatched signature.".format(
+            phantom.name,
+            phantom.file,
+            phantom.line if phantom.line is not None else "",
+            internal.file,
+            internal.line if internal.line is not None else "",
+            caller.name,
+            caller.file,
+            caller.line if caller.line is not None else "",
+        ),
+        file=sys.stderr,
+    )
+
+
 def dominant_call_kind(info: FunctionInfo, functions: Dict[str, FunctionInfo]) -> str:
     if not info.callees:
         return "none"
@@ -932,12 +959,22 @@ def build_report_data(
     external_ids: Set[str] = {fid for fid, info in all_functions.items() if is_external_function(info)}
     functions: Dict[str, FunctionInfo] = {fid: info for fid, info in all_functions.items() if fid not in external_ids}
 
+    name_to_internal: Dict[str, FunctionInfo] = {
+        info.name: info for _, info in functions.items() if info.body_file
+    }
+
     owned_to_external_callees: Dict[str, List[Dict[str, str]]] = {}
     for fid, info in functions.items():
         ext_names: List[str] = sorted(
             {all_functions[cid].name for cid in info.callees if cid in external_ids}
         )
         owned_to_external_callees[fid] = [{"name": n} for n in ext_names]
+        for cid in info.callees:
+            if cid in external_ids:
+                phantom = all_functions[cid]
+                internal = name_to_internal.get(phantom.name)
+                if internal is not None:
+                    warn_phantom_shadows_internal(info, phantom, internal)
         info.callees = {cid for cid in info.callees if cid not in external_ids}
 
     for info in functions.values():

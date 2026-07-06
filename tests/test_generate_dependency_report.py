@@ -22,6 +22,12 @@ generate_dependency_report = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = generate_dependency_report
 SPEC.loader.exec_module(generate_dependency_report)
 
+NORMALIZER_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "templates" / "normalize-function-references.py"
+NORMALIZER_SPEC = importlib.util.spec_from_file_location("normalize_function_references", NORMALIZER_SCRIPT_PATH)
+normalize_function_references = importlib.util.module_from_spec(NORMALIZER_SPEC)
+sys.modules[NORMALIZER_SPEC.name] = normalize_function_references
+NORMALIZER_SPEC.loader.exec_module(normalize_function_references)
+
 
 def write_xml(directory, name, content):
     (directory / name).write_text(content, encoding="utf-8")
@@ -1096,6 +1102,115 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("lib_to_src", stderr.getvalue())
             self.assertIn("src_leaf", stderr.getvalue())
 
+    def test_cross_file_reference_is_remapped_for_static_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "caller.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="caller_8c" kind="file">
+    <compoundname>caller.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="caller_usage" static="yes">
+        <name>usage</name>
+        <location file="src/caller.c" line="10" bodyfile="src/caller.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="caller_main" static="no">
+        <name>main</name>
+        <references refid="ctrl_usage" compoundref="ctrl_8c">usage</references>
+        <location file="src/caller.c" line="20" bodyfile="src/caller.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "ctrl.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="ctrl_8c" kind="file">
+    <compoundname>ctrl.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="ctrl_usage" static="yes">
+        <name>usage</name>
+        <location file="src/ctrl.c" line="50" bodyfile="src/ctrl.c" bodystart="50"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_stderr = io.StringIO()
+            with contextlib.redirect_stderr(normalize_stderr):
+                normalize_function_references.normalize_xml_dir(str(xml_dir))
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+
+            by_id = {row["id"]: row for row in data["functions"]}
+            edge_pairs = {(row["caller"], row["callee"]) for row in data["edges"]}
+
+            self.assertIn(("caller_main", "caller_usage"), edge_pairs)
+            self.assertNotIn(("caller_main", "ctrl_usage"), edge_pairs)
+            self.assertEqual(by_id["caller_usage"]["inScopeCallerCount"], 1)
+            self.assertEqual(by_id["ctrl_usage"]["inScopeCallerCount"], 0)
+            self.assertIn("Info: static-cross-file-reference remapped", normalize_stderr.getvalue())
+
+    def test_cross_file_referencedby_is_remapped_for_static_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "caller.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="caller_8c" kind="file">
+    <compoundname>caller.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="caller_usage" static="yes">
+        <name>usage</name>
+        <referencedby refid="ctrl_main" compoundref="ctrl_8c">main</referencedby>
+        <location file="src/caller.c" line="10" bodyfile="src/caller.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="caller_main" static="no">
+        <name>main</name>
+        <location file="src/caller.c" line="20" bodyfile="src/caller.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "ctrl.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="ctrl_8c" kind="file">
+    <compoundname>ctrl.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="ctrl_main" static="no">
+        <name>main</name>
+        <location file="src/ctrl.c" line="50" bodyfile="src/ctrl.c" bodystart="50"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_function_references.normalize_xml_dir(str(xml_dir))
+            caller_xml = (xml_dir / "caller.xml").read_text(encoding="utf-8")
+            self.assertIn('referencedby refid="caller_main"', caller_xml)
+            self.assertNotIn('referencedby refid="ctrl_main"', caller_xml)
 
     def test_c_keyword_phantom_excluded(self):
         """C キーワード (if, for など) が phantom memberdef として生成された場合に除外されることを確認する。
@@ -1247,6 +1362,106 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
             # reverse-boundary-caller 警告は出力されない
             self.assertNotIn("Warning: reverse-boundary-caller detected", stderr.getvalue())
+
+    def test_phantom_shadows_internal_warning(self):
+        """bodyfile なし phantom と同名の内部関数が存在する場合に Warning が出力されることを確認する。
+
+        シグネチャ不一致の冗長な extern 宣言により Doxygen が別 ID の phantom を生成した場合に、
+        依存関係マップで内部関数が外部扱いになる状況を検出する目的で Warning を出力する。
+        """
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "com_cssub.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="com__CSSUB_8c" kind="file">
+    <compoundname>com_CSSUB.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="phantom_csTtagSet" static="no">
+        <name>csTtagSet</name>
+        <location file="libsrc/com_CSSUB.c" line="45"/>
+      </memberdef>
+      <memberdef kind="function" id="api_TtagSet" static="no">
+        <name>Api_com_TtagSet</name>
+        <references refid="phantom_csTtagSet">csTtagSet</references>
+        <location file="libsrc/com_CSSUB.c" line="611" bodyfile="libsrc/com_CSSUB.c" bodystart="611"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "com_cstags.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="com__csTags_8c" kind="file">
+    <compoundname>com_csTags.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="real_csTtagSet" static="no">
+        <name>csTtagSet</name>
+        <location file="libsrc/com_csTags.c" line="179" bodyfile="libsrc/com_csTags.c" bodystart="179"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertIn("Warning: phantom-shadows-internal:", stderr.getvalue())
+            self.assertIn("csTtagSet", stderr.getvalue())
+            self.assertNotIn("phantom_csTtagSet", by_id)
+            self.assertIn("real_csTtagSet", by_id)
+            self.assertIn("api_TtagSet", by_id)
+            external_names = [ec["name"] for ec in by_id["api_TtagSet"]["externalCallees"]]
+            self.assertIn("csTtagSet", external_names)
+
+    def test_phantom_shadows_internal_warning_not_for_true_external(self):
+        """同名の内部関数が存在しない場合は phantom-shadows-internal 警告が出ないことを確認する。"""
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "lib.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="lib_8c" kind="file">
+    <compoundname>lib.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="lib_caller" static="no">
+        <name>lib_caller</name>
+        <references refid="ext_memcpy">memcpy</references>
+        <location file="libsrc/lib.c" line="10" bodyfile="libsrc/lib.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="ext_memcpy" static="no">
+        <name>memcpy</name>
+        <location file="libsrc/lib.c" line="100"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+
+            self.assertNotIn("Warning: phantom-shadows-internal:", stderr.getvalue())
 
     def test_target_git_info(self):
         # 対象欄への Git 情報付加を検証する。source_dir (Doxyfile.part の所在) が Git 管理下なら

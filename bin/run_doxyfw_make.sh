@@ -82,18 +82,18 @@ remove_obsolete_outputs() {
 }
 
 prepare_doxyfile() {
-    temp_doxyfile="$1"
-    output_file="$2"
-    warn_logfile_doxy="$3"
-    xml_work_dir_doxy="$4"
-    docs_doxygen_stage_dir_doxy="$5"
+    local input_doxyfile="$1"
+    local output_file="$2"
+    local warn_logfile_doxy="$3"
+    local xml_work_dir_doxy="$4"
+    local docs_doxygen_stage_dir_doxy="$5"
 
     sed -e "s|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $docs_doxygen_stage_dir_doxy/|" \
         -e "s|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $xml_work_dir_doxy|" \
         -e "s|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $xml_work_dir_doxy/doxyfw.tag|" \
         -e "s|^\(INPUT_FILTER[[:space:]]*=\).*|\1 \"python3 $INPUT_FILTER_ABS\"|" \
         -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $warn_logfile_doxy|" \
-        "$temp_doxyfile" > "$output_file"
+        "$input_doxyfile" > "$output_file"
 }
 
 trap cleanup EXIT HUP INT TERM
@@ -161,6 +161,24 @@ if [ $fatal_warning -ne 0 ]; then
 fi
 
 if [ -f "$xml_work_dir/index.xml" ] && grep -q '<compound ' "$xml_work_dir/index.xml"; then
+    normalize_warn_log=$(mktemp)
+    normalize_warn_extract=$(mktemp)
+    python3 "$FUNCTION_REFERENCE_NORMALIZER" "$xml_work_dir" 2> "$normalize_warn_log"
+    normalize_exit=$?
+    if [ -s "$normalize_warn_log" ]; then
+        "$DOXY_WARNING_COLORIZE" < "$normalize_warn_log" || true
+    fi
+    if [ -x "$EXTRACT_DOXY_WARNINGS" ]; then
+        "$EXTRACT_DOXY_WARNINGS" "$normalize_warn_log" "$normalize_warn_extract"
+        if [ -s "$normalize_warn_extract" ]; then
+            cat "$normalize_warn_extract" >> "$doxy_warn_stage"
+        fi
+    fi
+    rm -f "$normalize_warn_log" "$normalize_warn_extract"
+    if [ $normalize_exit -ne 0 ]; then
+        exit $normalize_exit
+    fi
+
     dependency_warn_log=$(mktemp)
     dependency_warn_extract=$(mktemp)
     # 対象 Doxyfile.part の所在ディレクトリを渡し、その所属 Git のブランチ名と

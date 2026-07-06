@@ -20,6 +20,11 @@ Doxybook2 はグラフ データをテンプレート変数として公開して
     start
     :Doxygen 実行;
     note right: XML + HTML を生成
+    :normalize-function-references.py;
+    note right
+        同名 static 関数の誤参照を
+        XML 段階で補正
+    end note
     :extract-graphs.py;
     note right
         XML の graphType 要素と
