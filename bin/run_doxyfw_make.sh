@@ -71,6 +71,17 @@ replace_warn_file() {
     fi
 }
 
+parse_yaml_config_value() {
+    config_file="$1"
+    key="$2"
+
+    if [ ! -f "$config_file" ]; then
+        return
+    fi
+
+    awk -v k="$key" 'BEGIN { FS=":" } $1 == k { sub(/[ \t]*#.*$/, "", $2); sub(/^[ \t]+/, "", $2); print $2; exit }' "$config_file"
+}
+
 remove_obsolete_outputs() {
     rm -rf "$DOCS_DOXYGEN_DIR" "$DOCS_DOXYBOOK2_DIR"
     rm -f "$DOXY_WARN_OUTPUT"
@@ -187,6 +198,8 @@ if [ -f "$xml_work_dir/index.xml" ] && grep -q '<compound ' "$xml_work_dir/index
     if [ -f "$DOXYFILE_PART" ]; then
         dependency_source_dir=$(dirname "$DOXYFILE_PART")
     fi
+    dependency_git_link_host_provider=$(parse_yaml_config_value "$WORKSPACE_DIR/.vscode/git_link.yaml" "gitLinkHostProvider")
+    export GIT_LINK_HOST_PROVIDER="$dependency_git_link_host_provider"
     python3 "$DEPENDENCY_REPORT_GENERATOR" "$xml_work_dir" "$docs_doxygen_stage_dir/dependency" "$CATEGORY_ID" "$dependency_source_dir" "$DEPENDENCY_PAGE_TEMPLATE" "$DEPENDENCY_PAGE_LANGS" 2> "$dependency_warn_log"
     dependency_report_exit=$?
     if [ -s "$dependency_warn_log" ]; then

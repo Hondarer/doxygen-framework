@@ -230,14 +230,11 @@ class GitUrlResolver:
         self.source_dir = source_dir
         self.repo = self._run_git("rev-parse", "--show-toplevel") if source_dir is not None else ""
         self.remote_url = self._run_git("config", "--get", "remote.origin.url") if self.repo else ""
-        self.ref = self._run_git("symbolic-ref", "--quiet", "--short", "HEAD") if self.repo else ""
         self.base_url = ""
         self.provider = ""
         self.file_cache: Dict[str, str] = {}
         if self.remote_url:
             self.base_url, self.provider = self._build_remote_base(self.remote_url)
-        if self.repo and not self.ref:
-            self.ref = self._run_git("rev-parse", "HEAD")
 
     def _run_git(self, *args: str) -> str:
         if self.source_dir is None:
@@ -245,6 +242,21 @@ class GitUrlResolver:
         try:
             result = subprocess.run(
                 ["git", "-C", str(self.source_dir), *args],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return ""
+        if result.returncode != 0:
+            return ""
+        return result.stdout.strip()
+
+    def _run_repo_git(self, *args: str) -> str:
+        if not self.repo:
+            return ""
+        try:
+            result = subprocess.run(
+                ["git", "-C", self.repo, *args],
                 capture_output=True,
                 text=True,
             )
@@ -305,7 +317,7 @@ class GitUrlResolver:
         return base, provider
 
     def url_for(self, file_path: str, line: Optional[int] = None) -> str:
-        if not self.repo or not self.base_url or not self.ref or self.source_dir is None:
+        if not self.repo or not self.base_url or self.source_dir is None:
             return ""
         if not file_path:
             return ""
@@ -332,10 +344,13 @@ class GitUrlResolver:
             return ""
         if self._is_ignored(rel):
             return ""
+        ref = self._run_repo_git("log", "-1", "--format=%H", "--", rel)
+        if not ref:
+            return ""
         encoded_rel = urllib.parse.quote(rel, safe="/")
         if self.provider == "gitlab":
-            return f"{self.base_url}/-/blob/{self.ref}/{encoded_rel}"
-        return f"{self.base_url}/blob/{self.ref}/{encoded_rel}"
+            return f"{self.base_url}/-/blob/{ref}/{encoded_rel}"
+        return f"{self.base_url}/blob/{ref}/{encoded_rel}"
 
     def _is_tracked(self, rel: str) -> bool:
         if self.source_dir is None:

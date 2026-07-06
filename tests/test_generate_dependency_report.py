@@ -1584,12 +1584,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
             run_git(repo, "remote", "add", "origin", "git@github.com:example/project.git")
             run_git(repo, "add", ".")
             run_git(repo, "commit", "-q", "-m", "init")
+            commit_hash = run_git(repo, "log", "-1", "--format=%H", "--", "prod/src/a.c")
 
             data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample", source_dir)
             by_id = {row["id"]: row for row in data["functions"]}
             by_file = {row["path"]: row for row in data["files"]}
 
-            expected_file_url = "https://github.com/example/project/blob/main/prod/src/a.c"
+            expected_file_url = "https://github.com/example/project/blob/{}/prod/src/a.c".format(commit_hash)
             self.assertEqual(by_file["src/a.c"]["gitUrl"], expected_file_url)
             self.assertEqual(by_id["fn_a"]["gitUrl"], expected_file_url + "#L10")
             self.assertEqual(by_id["fn_a"]["sourceUrl"], "../src_2a_8c_source.html#l00010")
@@ -1606,6 +1607,31 @@ class GenerateDependencyReportTest(unittest.TestCase):
             plain_by_id = {row["id"]: row for row in plain_data["functions"]}
             self.assertEqual(plain_by_id["fn_a"]["gitUrl"], "")
             self.assertEqual(plain_by_id["fn_a"]["sourceUrl"], "../src_2a_8c_source.html#l00010")
+
+            mapped_repo = temp_dir / "mapped-repo"
+            mapped_source_dir = mapped_repo / "prod"
+            (mapped_source_dir / "src").mkdir(parents=True)
+            (mapped_source_dir / "src" / "a.c").write_text("int fn_a(void) { return 0; }\n", encoding="utf-8")
+            run_git(mapped_repo, "init", "-q")
+            run_git(mapped_repo, "config", "user.email", "test@example.com")
+            run_git(mapped_repo, "config", "user.name", "test")
+            run_git(mapped_repo, "remote", "add", "origin", "git@git.internal:example/project.git")
+            run_git(mapped_repo, "add", ".")
+            run_git(mapped_repo, "commit", "-q", "-m", "init")
+            mapped_hash = run_git(mapped_repo, "log", "-1", "--format=%H", "--", "prod/src/a.c")
+            original_provider = os.environ.get("GIT_LINK_HOST_PROVIDER")
+            os.environ["GIT_LINK_HOST_PROVIDER"] = "git.internal=gitlab@web.internal"
+            try:
+                mapped_out = temp_dir / "mapped"
+                mapped_data = generate_dependency_report.generate_report(xml_dir, mapped_out, "sample", mapped_source_dir)
+            finally:
+                if original_provider is None:
+                    os.environ.pop("GIT_LINK_HOST_PROVIDER", None)
+                else:
+                    os.environ["GIT_LINK_HOST_PROVIDER"] = original_provider
+            mapped_by_file = {row["path"]: row for row in mapped_data["files"]}
+            expected_mapped_url = "https://web.internal/example/project/-/blob/{}/prod/src/a.c".format(mapped_hash)
+            self.assertEqual(mapped_by_file["src/a.c"]["gitUrl"], expected_mapped_url)
 
 
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"

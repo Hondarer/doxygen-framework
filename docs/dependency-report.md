@@ -70,6 +70,8 @@ postprocess.sh
 ソース リンクは、関数の実体ファイルに対応する Git blob URL を優先します。
 Git URL を解決できない場合は、Doxygen の `*_source.html` へ向けます。
 HTML リンクは、代表として採用した Doxygen `memberdef` のページへ向けます。
+Git blob URL の ref には、リンク対象ファイルの最終コミット SHA を使います。
+また、workspace の `.vscode/git_link.yaml` に `gitLinkHostProvider` が指定されている場合は、Source リンクの Git URL 生成にも同じ host/provider/webhost 読み替えを適用します。
 
 ## 依存関係の扱い
 
