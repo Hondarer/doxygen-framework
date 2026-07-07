@@ -9,6 +9,7 @@
 //   3. ハッシュなしで開く -> 従来どおり関数一覧タブ (後方互換)。ハッシュは書き込まれない。
 //   4. ページ内でタブ切り替えと選択を行う -> location.hash が追従する。
 //   5. ページ表示後にハッシュを書き換える (hashchange) -> 状態が追従する。
+//   6. #tab=...&edge=<from>~<to> で開く -> ファイル間 edge 選択が復元される。
 //
 // argv: index.html パス、関数 id、ファイル パス。結果は "RESULT " 接頭辞付き JSON 1 行。
 
@@ -59,9 +60,18 @@ async function pageState(page) {
       activePanel: activeButton ? activeButton.getAttribute('data-tab-target') : '',
       selectedId: selection[0] || '',
       selectedFilePath: selection[1] || '',
-      hash: window.location.hash
+      selectedEdgeKey: selection[2] || '',
+      hash: window.location.hash,
+      title: document.title
     };
   });
+}
+
+function edgeHashValue(edgeKey) {
+  const parts = String(edgeKey || '').split('\n');
+  if (parts.length < 2 || !parts[0] || !parts[1]) return '';
+  const encodePart = (value) => encodeURIComponent(value).replace(/~/g, '%7E');
+  return encodePart(parts[0]) + '~' + encodePart(parts[1]);
 }
 
 async function run(reportPath, functionId, filePath) {
@@ -75,6 +85,9 @@ async function run(reportPath, functionId, filePath) {
     let page = await newReportPage(browser, baseUrl + '#tab=overview&fn=' + encodedFn, errors);
     await sleep(400);
     const fnScenario = await pageState(page);
+    const edgeIds = await page.evaluate(() => window.depReportOverviewTestApi.fileEdgeIds());
+    const edgeKey = edgeIds[0] || '';
+    const edgeValue = edgeHashValue(edgeKey);
     await page.close();
 
     // 2. ファイル指定 + ファイル一覧
@@ -83,7 +96,19 @@ async function run(reportPath, functionId, filePath) {
     const fileScenario = await pageState(pageFile);
     await pageFile.close();
 
-    // 3. ハッシュなし (後方互換) + 4. 操作に応じたハッシュ追従 + 5. hashchange 追従
+    // 3. ファイル間 edge 指定 + 全体マップ
+    let pageEdge = await newReportPage(browser, baseUrl + '#tab=overview&edge=' + edgeValue, errors);
+    await sleep(400);
+    const edgeScenario = await pageState(pageEdge);
+    await pageEdge.close();
+
+    // 4. ファイル間 edge 指定 + 関数一覧
+    let pageFunctionEdge = await newReportPage(browser, baseUrl + '#tab=functions&edge=' + edgeValue, errors);
+    await sleep(400);
+    const functionEdgeScenario = await pageState(pageFunctionEdge);
+    await pageFunctionEdge.close();
+
+    // 5. ハッシュなし (後方互換) + 6. 操作に応じたハッシュ追従 + 7. hashchange 追従
     const pagePlain = await newReportPage(browser, baseUrl, errors);
     await sleep(400);
     const plainScenario = await pageState(pagePlain);
@@ -96,15 +121,22 @@ async function run(reportPath, functionId, filePath) {
     }, filePath);
     await sleep(400);
     const afterHashChange = await pageState(pagePlain);
+    await pagePlain.evaluate((edge) => window.depReportOverviewTestApi.selectEdge(edge), edgeKey);
+    await sleep(200);
+    const afterEdgeInteraction = await pageState(pagePlain);
     await pagePlain.close();
 
     return {
       pageErrors: errors,
       fnScenario,
       fileScenario,
+      edgeKey,
+      edgeScenario,
+      functionEdgeScenario,
       plainScenario,
       afterInteraction,
-      afterHashChange
+      afterHashChange,
+      afterEdgeInteraction
     };
   } finally {
     await browser.close();

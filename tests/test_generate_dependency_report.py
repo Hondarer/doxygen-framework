@@ -1102,6 +1102,179 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("lib_to_src", stderr.getvalue())
             self.assertIn("src_leaf", stderr.getvalue())
 
+    def test_macro_reference_adds_function_edge(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "trace.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="trace_8c" kind="file">
+    <compoundname>trace.c</compoundname>
+    <sectiondef>
+      <memberdef kind="define" id="macro_wrap" static="no">
+        <name>WRAP</name>
+        <initializer><ref refid="real_write" kindref="member">real_write</ref>(x, __FILE__, __LINE__)</initializer>
+      </memberdef>
+      <memberdef kind="function" id="real_write" static="no">
+        <name>real_write</name>
+        <location file="libsrc/trace.c" line="10" bodyfile="libsrc/trace.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="caller" static="no">
+        <name>caller</name>
+        <references refid="macro_wrap" compoundref="trace_8c">WRAP</references>
+        <location file="libsrc/trace.c" line="20" bodyfile="libsrc/trace.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            edge_pairs = {(row["caller"], row["callee"]) for row in data["edges"]}
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertIn(("caller", "real_write"), edge_pairs)
+            self.assertEqual(by_id["caller"]["inScopeCalleeCount"], 1)
+            self.assertEqual(by_id["real_write"]["inScopeCallerCount"], 1)
+
+    def test_nested_macro_reference_adds_function_edge(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "trace.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="trace_8c" kind="file">
+    <compoundname>trace.c</compoundname>
+    <sectiondef>
+      <memberdef kind="define" id="macro_inner" static="no">
+        <name>INNER</name>
+        <initializer><ref refid="real_write" kindref="member">real_write</ref>(x, __FILE__, __LINE__)</initializer>
+      </memberdef>
+      <memberdef kind="define" id="macro_outer" static="no">
+        <name>OUTER</name>
+        <initializer><ref refid="macro_inner" kindref="member">INNER</ref>(x)</initializer>
+      </memberdef>
+      <memberdef kind="function" id="real_write" static="no">
+        <name>real_write</name>
+        <location file="libsrc/trace.c" line="10" bodyfile="libsrc/trace.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="caller" static="no">
+        <name>caller</name>
+        <references refid="macro_outer" compoundref="trace_8c">OUTER</references>
+        <location file="libsrc/trace.c" line="20" bodyfile="libsrc/trace.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            edge_pairs = {(row["caller"], row["callee"]) for row in data["edges"]}
+
+            self.assertIn(("caller", "real_write"), edge_pairs)
+
+    def test_macro_reference_adds_multiple_function_edges(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "trace.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="trace_8c" kind="file">
+    <compoundname>trace.c</compoundname>
+    <sectiondef>
+      <memberdef kind="define" id="macro_writef" static="no">
+        <name>com_util_tracer_writef</name>
+        <initializer><ref refid="real_writef" kindref="member">_com_util_tracer_writef</ref>(handle, level, timestamp, fmt)</initializer>
+      </memberdef>
+      <memberdef kind="define" id="macro_trace" static="no">
+        <name>POTR_TRACE</name>
+        <initializer><ref refid="macro_writef" kindref="member">com_util_tracer_writef</ref>(<ref refid="trace_get" kindref="member">potr_trace_get</ref>(), level, NULL, fmt)</initializer>
+      </memberdef>
+      <memberdef kind="function" id="trace_get" static="no">
+        <name>potr_trace_get</name>
+        <location file="libsrc/trace.c" line="10" bodyfile="libsrc/trace.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="real_writef" static="no">
+        <name>_com_util_tracer_writef</name>
+        <location file="libsrc/trace.c" line="20" bodyfile="libsrc/trace.c" bodystart="20"/>
+      </memberdef>
+      <memberdef kind="function" id="caller" static="no">
+        <name>caller</name>
+        <references refid="macro_trace" compoundref="trace_8c">POTR_TRACE</references>
+        <location file="libsrc/trace.c" line="30" bodyfile="libsrc/trace.c" bodystart="30"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            edge_pairs = {(row["caller"], row["callee"]) for row in data["edges"]}
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertIn(("caller", "trace_get"), edge_pairs)
+            self.assertIn(("caller", "real_writef"), edge_pairs)
+            self.assertEqual(by_id["caller"]["inScopeCalleeCount"], 2)
+
+    def test_macro_reference_cycle_warns_and_does_not_loop(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "trace.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="trace_8c" kind="file">
+    <compoundname>trace.c</compoundname>
+    <sectiondef>
+      <memberdef kind="define" id="macro_a" static="no">
+        <name>MACRO_A</name>
+        <initializer><ref refid="macro_b" kindref="member">MACRO_B</ref>(x)</initializer>
+      </memberdef>
+      <memberdef kind="define" id="macro_b" static="no">
+        <name>MACRO_B</name>
+        <initializer><ref refid="macro_a" kindref="member">MACRO_A</ref>(x)</initializer>
+      </memberdef>
+      <memberdef kind="function" id="caller" static="no">
+        <name>caller</name>
+        <references refid="macro_a" compoundref="trace_8c">MACRO_A</references>
+        <location file="libsrc/trace.c" line="20" bodyfile="libsrc/trace.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertIn("Warning: macro-reference-cycle detected", stderr.getvalue())
+            self.assertEqual(by_id["caller"]["inScopeCalleeCount"], 0)
+
     def test_cross_file_reference_is_remapped_for_static_target(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
             temp_dir = Path(temp_dir_text)
@@ -2449,7 +2622,7 @@ class OverviewInteractionTest(unittest.TestCase):
         # URL ハッシュ (#tab=...&fn=... / &file=...) によるタブ・選択状態の復元と、
         # 操作 (選択・タブ切り替え・hashchange) に応じたハッシュの追従更新を検証する。
         with tempfile.TemporaryDirectory() as temp_dir_text:
-            index_html = self._generate_large_layout_report(Path(temp_dir_text))
+            index_html = self._generate_large_layout_report(Path(temp_dir_text), cross_single_callees=True)
             data = self._run_url_state_probe(index_html)
 
             self.assertEqual(data["pageErrors"], [], msg=str(data["pageErrors"]))
@@ -2458,21 +2631,89 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertEqual(fn_scenario["activePanel"], "overviewPanel", msg=str(fn_scenario))
             self.assertEqual(fn_scenario["selectedId"], "f_05", msg=str(fn_scenario))
             self.assertEqual(fn_scenario["hash"], "#tab=overview&fn=f_05", msg=str(fn_scenario))
+            self.assertEqual(
+                fn_scenario["title"],
+                "依存関係レポート - 全体マップ - src/big_file.c@func_05",
+                msg=str(fn_scenario),
+            )
             # 2. #tab=files&file=... で開く -> ファイル一覧 + ファイル選択が復元される。
             file_scenario = data["fileScenario"]
             self.assertEqual(file_scenario["activePanel"], "fileListPanel", msg=str(file_scenario))
             self.assertEqual(file_scenario["selectedFilePath"], "src/other_1.c", msg=str(file_scenario))
+            self.assertEqual(
+                file_scenario["title"],
+                "依存関係レポート - ファイル一覧 - src/other_1.c",
+                msg=str(file_scenario),
+            )
+            edge_key = data["edgeKey"]
+            self.assertEqual(edge_key, "src/big_file.c\nsrc/other_1.c", msg=str(data))
+            edge_scenario = data["edgeScenario"]
+            self.assertEqual(edge_scenario["activePanel"], "overviewPanel", msg=str(edge_scenario))
+            self.assertEqual(edge_scenario["selectedId"], "", msg=str(edge_scenario))
+            self.assertEqual(edge_scenario["selectedFilePath"], "", msg=str(edge_scenario))
+            self.assertEqual(edge_scenario["selectedEdgeKey"], edge_key, msg=str(edge_scenario))
+            self.assertEqual(
+                edge_scenario["hash"],
+                "#tab=overview&edge=src%2Fbig_file.c~src%2Fother_1.c",
+                msg=str(edge_scenario),
+            )
+            self.assertEqual(
+                edge_scenario["title"],
+                "依存関係レポート - 全体マップ - src/big_file.c ~ src/other_1.c",
+                msg=str(edge_scenario),
+            )
+            function_edge_scenario = data["functionEdgeScenario"]
+            self.assertEqual(function_edge_scenario["activePanel"], "functionListPanel", msg=str(function_edge_scenario))
+            self.assertEqual(function_edge_scenario["selectedId"], "", msg=str(function_edge_scenario))
+            self.assertEqual(function_edge_scenario["selectedFilePath"], "", msg=str(function_edge_scenario))
+            self.assertEqual(function_edge_scenario["selectedEdgeKey"], edge_key, msg=str(function_edge_scenario))
+            self.assertEqual(
+                function_edge_scenario["hash"],
+                "#tab=functions&edge=src%2Fbig_file.c~src%2Fother_1.c",
+                msg=str(function_edge_scenario),
+            )
+            self.assertEqual(
+                function_edge_scenario["title"],
+                "依存関係レポート - 関数一覧 - src/big_file.c ~ src/other_1.c",
+                msg=str(function_edge_scenario),
+            )
             # 3. ハッシュなしで開く -> 従来どおり関数一覧タブで、ハッシュは書き込まれない。
             plain_scenario = data["plainScenario"]
             self.assertEqual(plain_scenario["activePanel"], "functionListPanel", msg=str(plain_scenario))
             self.assertEqual(plain_scenario["hash"], "", msg=str(plain_scenario))
+            self.assertEqual(plain_scenario["title"], "依存関係レポート - 関数一覧", msg=str(plain_scenario))
             # 4. 関数選択 + 全体マップへの切り替えでハッシュが追従する。
             after_interaction = data["afterInteraction"]
             self.assertEqual(after_interaction["hash"], "#tab=overview&fn=f_05", msg=str(after_interaction))
+            self.assertEqual(
+                after_interaction["title"],
+                "依存関係レポート - 全体マップ - src/big_file.c@func_05",
+                msg=str(after_interaction),
+            )
             # 5. 表示後のハッシュ書き換え (hashchange) に状態が追従する。
             after_hash_change = data["afterHashChange"]
             self.assertEqual(after_hash_change["activePanel"], "fileListPanel", msg=str(after_hash_change))
             self.assertEqual(after_hash_change["selectedFilePath"], "src/other_1.c", msg=str(after_hash_change))
+            self.assertEqual(
+                after_hash_change["title"],
+                "依存関係レポート - ファイル一覧 - src/other_1.c",
+                msg=str(after_hash_change),
+            )
+            after_edge_interaction = data["afterEdgeInteraction"]
+            self.assertEqual(after_edge_interaction["activePanel"], "fileListPanel", msg=str(after_edge_interaction))
+            self.assertEqual(after_edge_interaction["selectedId"], "", msg=str(after_edge_interaction))
+            self.assertEqual(after_edge_interaction["selectedFilePath"], "", msg=str(after_edge_interaction))
+            self.assertEqual(after_edge_interaction["selectedEdgeKey"], edge_key, msg=str(after_edge_interaction))
+            self.assertEqual(
+                after_edge_interaction["hash"],
+                "#tab=files&edge=src%2Fbig_file.c~src%2Fother_1.c",
+                msg=str(after_edge_interaction),
+            )
+            self.assertEqual(
+                after_edge_interaction["title"],
+                "依存関係レポート - ファイル一覧 - src/big_file.c ~ src/other_1.c",
+                msg=str(after_edge_interaction),
+            )
 
     def test_overview_seed_fn_click_relayout(self):
         # 無選択 -> ファイル ノードを実クリック (Phase B 開始) -> seed 表示中にファイル内の関数を

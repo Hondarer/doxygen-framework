@@ -65,6 +65,13 @@ class DefinitionLocation:
     line: int
 
 
+@dataclass
+class MacroInfo:
+    id: str
+    name: str
+    refs: Set[str] = field(default_factory=set)
+
+
 def normalize_path(path_text: str) -> str:
     return path_text.replace("\\", "/")
 
@@ -453,6 +460,103 @@ def collect_raw_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
     return functions
 
 
+def collect_macros(xml_dir: Path) -> Dict[str, MacroInfo]:
+    macros: Dict[str, MacroInfo] = {}
+
+    for path in xml_files(xml_dir):
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+
+        for member in root.findall(".//memberdef[@kind='define']"):
+            macro_id = member.get("id", "")
+            if macro_id == "":
+                continue
+            name = find_text(member, "name") or macro_id
+            refs: Set[str] = set()
+            initializer = member.find("initializer")
+            if initializer is not None:
+                refs = {
+                    ref.get("refid", "")
+                    for ref in initializer.findall(".//ref")
+                    if ref.get("refid", "") != ""
+                }
+            current = macros.get(macro_id)
+            if current is None:
+                macros[macro_id] = MacroInfo(id=macro_id, name=name, refs=refs)
+            else:
+                current.refs.update(refs)
+
+    return macros
+
+
+def warn_macro_reference_cycle(stack: List[str], macro_id: str, macros: Dict[str, MacroInfo]) -> None:
+    cycle_start = stack.index(macro_id) if macro_id in stack else 0
+    cycle_ids = stack[cycle_start:] + [macro_id]
+    cycle_names = [macros[mid].name if mid in macros else mid for mid in cycle_ids]
+    print(
+        "Warning: macro-reference-cycle detected: {}".format(" -> ".join(cycle_names)),
+        file=sys.stderr,
+    )
+
+
+def build_macro_target_map(
+    macros: Dict[str, MacroInfo],
+    function_ids: Set[str],
+) -> Dict[str, Set[str]]:
+    resolved: Dict[str, Set[str]] = {}
+    warned_cycles: Set[Tuple[str, ...]] = set()
+
+    def resolve(macro_id: str, stack: List[str]) -> Set[str]:
+        cached = resolved.get(macro_id)
+        if cached is not None:
+            return set(cached)
+        if macro_id in stack:
+            cycle_start = stack.index(macro_id)
+            cycle_key = tuple(stack[cycle_start:] + [macro_id])
+            if cycle_key not in warned_cycles:
+                warned_cycles.add(cycle_key)
+                warn_macro_reference_cycle(stack, macro_id, macros)
+            return set()
+
+        macro = macros.get(macro_id)
+        if macro is None:
+            return set()
+
+        targets: Set[str] = set()
+        next_stack = stack + [macro_id]
+        for refid in macro.refs:
+            if refid in function_ids:
+                targets.add(refid)
+            elif refid in macros:
+                targets.update(resolve(refid, next_stack))
+
+        resolved[macro_id] = set(targets)
+        return set(targets)
+
+    for macro_id in macros:
+        resolve(macro_id, [])
+    return resolved
+
+
+def expand_macro_references(raw_functions: Dict[str, FunctionInfo], macros: Dict[str, MacroInfo]) -> None:
+    if not macros:
+        return
+    macro_targets = build_macro_target_map(macros, set(raw_functions.keys()))
+    if not macro_targets:
+        return
+
+    macro_ids = set(macros.keys())
+    for info in raw_functions.values():
+        expanded = set(info.callees)
+        for callee_id in info.callees:
+            if callee_id not in macro_ids:
+                continue
+            expanded.update(macro_targets.get(callee_id, set()))
+        info.callees = expanded
+
+
 def canonicalize_functions(raw_functions: Dict[str, FunctionInfo]) -> Dict[str, FunctionInfo]:
     grouped: Dict[Tuple[str, ...], List[FunctionInfo]] = defaultdict(list)
     for info in raw_functions.values():
@@ -673,7 +777,9 @@ def apply_definition_locations(
 
 
 def collect_functions(xml_dir: Path) -> Dict[str, FunctionInfo]:
-    functions = canonicalize_functions(collect_raw_functions(xml_dir))
+    raw_functions = collect_raw_functions(xml_dir)
+    expand_macro_references(raw_functions, collect_macros(xml_dir))
+    functions = canonicalize_functions(raw_functions)
     apply_definition_locations(xml_dir, functions)
     return functions
 
@@ -2858,9 +2964,42 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       syncSelectedFileRowScroll(true);
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
   }}
 
-  // タブと選択状態を URL ハッシュ (#tab=...&fn=... / &file=...) で共有できるようにする。
+  function selectedFunctionTitleText(fn) {{
+    if (!fn) return "";
+    return text(fn.file) + "@" + text(fn.name || fn.id);
+  }}
+
+  function selectedEdgeTitleText(edgeKey) {{
+    const parts = text(edgeKey).split("\\n");
+    const fromFile = parts[0] || "";
+    const toFile = parts[1] || "";
+    if (!fromFile || !toFile) return "";
+    return fromFile + " ~ " + toFile;
+  }}
+
+  function updateDocumentTitle() {{
+    const tabTitleNames = {{
+      functionListPanel: "関数一覧",
+      fileListPanel: "ファイル一覧",
+      overviewPanel: "全体マップ"
+    }};
+    const parts = ["依存関係レポート", tabTitleNames[activeTab] || "関数一覧"];
+    let selectionText = "";
+    if (selectedEdgeKey) {{
+      selectionText = selectedEdgeTitleText(selectedEdgeKey);
+    }} else if (selectedId) {{
+      selectionText = selectedFunctionTitleText(byId.get(selectedId));
+    }} else if (selectedFilePath) {{
+      selectionText = selectedFilePath;
+    }}
+    if (selectionText) parts.push(selectionText);
+    document.title = parts.join(" - ");
+  }}
+
+  // タブと選択状態を URL ハッシュ (#tab=...&fn=... / &file=... / &edge=...) で共有できるようにする。
   // file:// の固定 URL でも機能するよう、クエリ文字列でなくハッシュ フラグメントを使う。
   const urlHashTabNames = {{
     functionListPanel: "functions",
@@ -2874,9 +3013,22 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   }};
   let applyingUrlHash = false;
 
+  function encodeEdgeHashPart(value) {{
+    return encodeURIComponent(value).replace(/~/g, "%7E");
+  }}
+
+  function edgeHashValue(edgeKey) {{
+    const parts = text(edgeKey).split("\\n");
+    if (parts.length < 2 || !parts[0] || !parts[1]) return "";
+    return encodeEdgeHashPart(parts[0]) + "~" + encodeEdgeHashPart(parts[1]);
+  }}
+
   function currentUrlHashString() {{
     const params = ["tab=" + (urlHashTabNames[activeTab] || "functions")];
-    if (selectedId) {{
+    const edgeValue = selectedEdgeKey ? edgeHashValue(selectedEdgeKey) : "";
+    if (edgeValue) {{
+      params.push("edge=" + edgeValue);
+    }} else if (selectedId) {{
       params.push("fn=" + encodeURIComponent(selectedId));
     }} else if (selectedFilePath) {{
       params.push("file=" + encodeURIComponent(selectedFilePath));
@@ -2896,9 +3048,35 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     }}
   }}
 
+  function rawHashParam(rawHash, key) {{
+    const prefix = key + "=";
+    for (const part of rawHash.split("&")) {{
+      if (part.startsWith(prefix)) return part.slice(prefix.length);
+    }}
+    return "";
+  }}
+
+  function edgeKeyFromHash(rawHash) {{
+    const rawEdge = rawHashParam(rawHash, "edge");
+    if (!rawEdge) return "";
+    const separator = rawEdge.indexOf("~");
+    if (separator <= 0 || separator === rawEdge.length - 1) return "";
+    try {{
+      const fromFile = decodeURIComponent(rawEdge.slice(0, separator));
+      const toFile = decodeURIComponent(rawEdge.slice(separator + 1));
+      const edgeKey = overviewEdgeKey(fromFile, toFile);
+      return fileEdgeByKey.has(edgeKey) ? edgeKey : "";
+    }} catch (err) {{
+      return "";
+    }}
+  }}
+
   function applyStateFromUrlHash() {{
     const rawHash = window.location.hash.replace(/^#/, "");
-    if (!rawHash) return;
+    if (!rawHash) {{
+      updateDocumentTitle();
+      return;
+    }}
     let params = null;
     try {{
       params = new URLSearchParams(rawHash);
@@ -2907,9 +3085,12 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     }}
     applyingUrlHash = true;
     try {{
+      const edgeKey = edgeKeyFromHash(rawHash);
       const fnId = params.get("fn") || "";
       const filePath = params.get("file") || "";
-      if (fnId && byId.has(fnId)) {{
+      if (edgeKey) {{
+        selectOverviewEdge(edgeKey);
+      }} else if (fnId && byId.has(fnId)) {{
         selectFunction(fnId);
       }} else if (filePath && fileByPath.has(filePath)) {{
         selectFile(filePath);
@@ -2921,6 +3102,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
     }}
     // 不正値を取り除いた正規形へ書き戻す。
     updateUrlHashFromState();
+    updateDocumentTitle();
   }}
 
   function addMetric(label, value) {{
@@ -6233,6 +6415,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
     updateDetailCopyButtons();
   }}
 
@@ -6266,11 +6449,13 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
     updateDetailCopyButtons();
   }}
 
   function selectOverviewEdge(edgeKey) {{
     if (!edgeKey) return;
+    if (!fileEdgeByKey.has(edgeKey)) return;
     selectedId = "";
     selectedFilePath = "";
     selectedEdgeKey = edgeKey;
@@ -6283,6 +6468,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
     updateDetailCopyButtons();
   }}
 
@@ -6299,6 +6485,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       renderOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
     updateDetailCopyButtons();
   }}
 
@@ -6315,6 +6502,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       resetOverviewGraph();
     }}
     updateUrlHashFromState();
+    updateDocumentTitle();
     updateDetailCopyButtons();
   }}
 
@@ -6917,6 +7105,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       selectFile: (path) => selectFile(path),
       selectFunction: (id) => selectFunction(id),
       selectEdge: (id) => selectOverviewEdge(id),
+      fileEdgeIds: () => fileEdges.map((edge) => edge.id),
       clearSelection: () => clearOverviewSelection(),
       hideFile: (path) => hideOverviewFile(path),
       revealAll: () => revealAllOverviewFiles(),

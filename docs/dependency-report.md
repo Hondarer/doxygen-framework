@@ -10,7 +10,7 @@
 対象範囲内の他関数を呼び出さない関数を依存度の低い関数として扱い、その関数を呼ぶ側へ向かって依存 level を上げます。
 
 このレポートは、変更リスクを完全に判定するものではありません。
-Doxygen が XML に出力した `references` と `referencedby` に基づくため、関数ポインター、マクロ経由、条件付きコンパイルで隠れた呼び出し、対象範囲外ライブラリへの呼び出しは分析対象に含まれない場合があります。
+Doxygen が XML に出力した `references`、`referencedby`、`define` の `initializer` 内の参照に基づくため、関数ポインター、XML に参照情報が出ないマクロ経由、条件付きコンパイルで隠れた呼び出し、対象範囲外ライブラリへの呼び出しは分析対象に含まれない場合があります。
 
 ## 生成タイミング
 
@@ -61,7 +61,7 @@ postprocess.sh
 ## 入力データ
 
 入力は Doxygen が生成した XML ファイルです。
-主に `memberdef kind="function"`、`location`、`references`、`referencedby` を読み取ります。
+主に `memberdef kind="function"`、`memberdef kind="define"`、`location`、`references`、`referencedby`、`initializer` を読み取ります。
 
 関数の識別には Doxygen の `id` を使います。
 ただし、Doxygen は file ページと group ページに同じ実体関数の `memberdef` を出力することがあります。
@@ -82,6 +82,11 @@ Git blob URL の ref には、リンク対象ファイルの最終コミット S
 
 `referencedby` は Doxygen XML から読み取りますが、最終的な呼び出し元一覧は `references` から作った edge をもとに再構成します。
 この処理により、group ページ由来の重複 `memberdef` を統合した後も、呼び出し元数を一貫した形で算出できます。
+
+関数の `references` が `define` を指す場合、依存関係レポートはその `define` の `initializer` に含まれる参照をたどります。
+到達先が対象範囲内の関数であれば、呼び出し元関数からその関数への edge として扱います。
+この処理は多段マクロにも適用されるため、`POTR_TRACE` から `com_util_tracer_writef` を経由して `_com_util_tracer_writef` に到達するような呼び出し関係も、XML に各 `define` と参照が出力されていれば補完できます。
+`define` 同士が循環している場合、該当する経路は補完せず、`Warning: macro-reference-cycle detected` で始まる警告を出力します。
 
 Doxygen の `references` や `referencedby` が、同名 `static` 関数を別ファイルの `refid` に誤解決する場合があります。
 このため、doxyfw は dependency report 生成より前の XML 正規化ステップで、cross-file の不正な static 参照を補正します。
