@@ -67,6 +67,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
         <references refid="c_leaf" compoundref="file__c_8c">lib_leaf</references>
         <location file="src/file_a.c" line="40" bodyfile="src/file_a.c" bodystart="40"/>
       </memberdef>
+      <memberdef kind="function" id="a_to_include" static="no">
+        <name>src_to_include_user</name>
+        <references refid="api_export" compoundref="api_8h">api_export</references>
+        <location file="src/file_a.c" line="50" bodyfile="src/file_a.c" bodystart="50"/>
+      </memberdef>
     </sectiondef>
   </compounddef>
 </doxygen>
@@ -106,6 +111,11 @@ class GenerateDependencyReportTest(unittest.TestCase):
         <references refid="d_leaf" compoundref="file__d_8c">lib_other_leaf</references>
         <location file="libsrc/file_c.c" line="20" bodyfile="libsrc/file_c.c" bodystart="20"/>
       </memberdef>
+      <memberdef kind="function" id="c_to_internal" static="no">
+        <name>lib_to_internal_user</name>
+        <references refid="internal_static_leaf" compoundref="internal_8h">internal_static_leaf</references>
+        <location file="libsrc/file_c.c" line="30" bodyfile="libsrc/file_c.c" bodystart="30"/>
+      </memberdef>
     </sectiondef>
   </compounddef>
 </doxygen>
@@ -128,6 +138,10 @@ class GenerateDependencyReportTest(unittest.TestCase):
         <references refid="c_leaf" compoundref="file__c_8c">lib_leaf</references>
         <location file="include/api.h" line="20" bodyfile="include/api.h" bodystart="20"/>
       </memberdef>
+      <memberdef kind="function" id="api_static_leaf" static="yes">
+        <name>api_static_leaf</name>
+        <location file="include/api.h" line="30" bodyfile="include/api.h" bodystart="30"/>
+      </memberdef>
     </sectiondef>
   </compounddef>
 </doxygen>
@@ -145,6 +159,37 @@ class GenerateDependencyReportTest(unittest.TestCase):
         <name>internal_to_lib</name>
         <references refid="c_leaf" compoundref="file__c_8c">lib_leaf</references>
         <location file="include_internal/internal.h" line="10" bodyfile="include_internal/internal.h" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="internal_to_include" static="no">
+        <name>internal_to_include</name>
+        <references refid="api_export" compoundref="api_8h">api_export</references>
+        <location file="include_internal/internal.h" line="20" bodyfile="include_internal/internal.h" bodystart="20"/>
+      </memberdef>
+      <memberdef kind="function" id="internal_to_peer_internal" static="no">
+        <name>internal_to_peer_internal</name>
+        <references refid="peer_internal_leaf" compoundref="peer__internal_8h">peer_internal_leaf</references>
+        <location file="include_internal/internal.h" line="30" bodyfile="include_internal/internal.h" bodystart="30"/>
+      </memberdef>
+      <memberdef kind="function" id="internal_static_leaf" static="yes">
+        <name>internal_static_leaf</name>
+        <location file="include_internal/internal.h" line="40" bodyfile="include_internal/internal.h" bodystart="40"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "peer_internal_8h.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="peer__internal_8h" kind="file">
+    <compoundname>peer_internal.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="peer_internal_leaf" static="yes">
+        <name>peer_internal_leaf</name>
+        <location file="include_internal/peer_internal.h" line="10" bodyfile="include_internal/peer_internal.h" bodystart="10"/>
       </memberdef>
     </sectiondef>
   </compounddef>
@@ -177,6 +222,14 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["b_leaf"]["dependencyLevel"], 1001)
             self.assertEqual(by_id["b_leaf"]["dependencyRank"], 1)
             self.assertEqual(by_id["b_leaf"]["dependencyClass"], "leaf-global")
+            self.assertEqual(by_id["api_static_leaf"]["dependencyLevel"], 1000)
+            self.assertEqual(by_id["api_static_leaf"]["dependencyRank"], 1)
+            self.assertEqual(by_id["api_static_leaf"]["dependencyClass"], "include-static-leaf")
+            self.assertEqual(by_id["api_static_leaf"]["sourceArea"], "include")
+            self.assertEqual(by_id["internal_static_leaf"]["dependencyLevel"], 1001)
+            self.assertEqual(by_id["internal_static_leaf"]["dependencyRank"], 1)
+            self.assertEqual(by_id["internal_static_leaf"]["dependencyClass"], "include-internal-static-leaf")
+            self.assertEqual(by_id["internal_static_leaf"]["sourceArea"], "include_internal")
             self.assertEqual(by_id["c_leaf"]["dependencyLevel"], 1003)
             self.assertEqual(by_id["a_local"]["dependencyLevel"], 2001)
             self.assertEqual(by_id["a_local"]["dependencyRank"], 2)
@@ -184,6 +237,18 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["a_local"]["dependencyClass"], "file-local")
             self.assertEqual(by_id["c_user"]["dependencyLevel"], 3001)
             self.assertEqual(by_id["c_user"]["dependencyClass"], "libsrc-file-caller")
+            self.assertEqual(by_id["c_to_internal"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["c_to_internal"]["dependencyRank"], 3)
+            self.assertEqual(by_id["c_to_internal"]["dependencyClass"], "libsrc-file-caller")
+            self.assertEqual(by_id["c_to_internal"]["sourceArea"], "libsrc")
+            self.assertEqual(by_id["c_to_internal"]["maxCalleeArea"], "include_internal")
+            self.assertEqual(by_id["c_to_internal"]["dominantCallKind"], "libsrc-file-caller")
+            self.assertEqual(by_id["a_to_include"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["a_to_include"]["dependencyRank"], 3)
+            self.assertEqual(by_id["a_to_include"]["dependencyClass"], "libsrc-file-caller")
+            self.assertEqual(by_id["a_to_include"]["sourceArea"], "src")
+            self.assertEqual(by_id["a_to_include"]["maxCalleeArea"], "include")
+            self.assertEqual(by_id["a_to_include"]["dominantCallKind"], "libsrc-file-caller")
             self.assertEqual(by_id["a_cross"]["dependencyLevel"], 4001)
             self.assertEqual(by_id["a_cross"]["dependencyClass"], "src-file-caller")
             self.assertEqual(by_id["a_to_lib"]["dependencyLevel"], 5001)
@@ -191,24 +256,42 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(by_id["a_to_lib"]["sourceArea"], "src")
             self.assertEqual(by_id["a_to_lib"]["maxCalleeArea"], "libsrc")
             self.assertEqual(by_id["a_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
-            self.assertEqual(by_id["api_to_lib"]["dependencyClass"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["api_to_lib"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["api_to_lib"]["dependencyRank"], 3)
+            self.assertEqual(by_id["api_to_lib"]["dependencyClass"], "libsrc-file-caller")
             self.assertEqual(by_id["api_to_lib"]["sourceArea"], "include")
-            self.assertEqual(by_id["api_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["api_to_lib"]["dominantCallKind"], "libsrc-file-caller")
             self.assertTrue(by_id["api_to_lib"]["isExported"])
-            self.assertEqual(by_id["internal_to_lib"]["dependencyClass"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["internal_to_lib"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["internal_to_lib"]["dependencyRank"], 3)
+            self.assertEqual(by_id["internal_to_lib"]["dependencyClass"], "libsrc-file-caller")
             self.assertEqual(by_id["internal_to_lib"]["sourceArea"], "include_internal")
-            self.assertEqual(by_id["internal_to_lib"]["dominantCallKind"], "other-to-libsrc-caller")
+            self.assertEqual(by_id["internal_to_lib"]["dominantCallKind"], "libsrc-file-caller")
             self.assertFalse(by_id["internal_to_lib"]["isExported"])
+            self.assertEqual(by_id["internal_to_include"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["internal_to_include"]["dependencyRank"], 3)
+            self.assertEqual(by_id["internal_to_include"]["dependencyClass"], "libsrc-file-caller")
+            self.assertEqual(by_id["internal_to_include"]["sourceArea"], "include_internal")
+            self.assertEqual(by_id["internal_to_include"]["maxCalleeArea"], "include")
+            self.assertEqual(by_id["internal_to_include"]["dominantCallKind"], "libsrc-file-caller")
+            self.assertEqual(by_id["internal_to_peer_internal"]["dependencyLevel"], 3001)
+            self.assertEqual(by_id["internal_to_peer_internal"]["dependencyRank"], 3)
+            self.assertEqual(by_id["internal_to_peer_internal"]["dependencyClass"], "libsrc-file-caller")
+            self.assertEqual(by_id["internal_to_peer_internal"]["sourceArea"], "include_internal")
+            self.assertEqual(by_id["internal_to_peer_internal"]["maxCalleeArea"], "include_internal")
+            self.assertEqual(by_id["internal_to_peer_internal"]["dominantCallKind"], "libsrc-file-caller")
             self.assertEqual(by_id["a_cross"]["crossFileCalleeCount"], 1)
+            self.assertFalse(any(row["dependencyClass"] == "include-callee" for row in data["functions"]))
+            self.assertFalse(any(edge["callKind"] == "include-callee" for edge in data["edges"]))
             self.assertTrue(by_id["api_export"]["isExported"])
             self.assertFalse(by_id["d_leaf"]["isExported"])
-            self.assertEqual(data["summary"]["exportCount"], 2)
+            self.assertEqual(data["summary"]["exportCount"], 3)
             self.assertIn("fileEdges", data)
             self.assertTrue(data["fileEdges"])
             self.assertTrue(all(edge["fromFile"] != edge["toFile"] for edge in data["fileEdges"]))
             self.assertTrue(all(edge["label"] == str(edge["weight"]) for edge in data["fileEdges"]))
             file_by_path = {row["path"]: row for row in data["files"]}
-            self.assertEqual(file_by_path["include/api.h"]["exportCount"], 2)
+            self.assertEqual(file_by_path["include/api.h"]["exportCount"], 3)
             self.assertEqual(file_by_path["include_internal/internal.h"]["exportCount"], 0)
             self.assertTrue((output_dir / "index.html").is_file())
             self.assertTrue((output_dir / "dependency-data.js").is_file())
@@ -252,7 +335,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertTrue(data_js.startswith("window.DoxyfwDependencyData = "))
             payload = data_js.removeprefix("window.DoxyfwDependencyData = ").rstrip(";\n")
             payload_data = json.loads(payload)
-            self.assertEqual(payload_data["summary"]["functionCount"], 11)
+            self.assertEqual(payload_data["summary"]["functionCount"], 18)
             self.assertIn("fileEdges", payload_data)
 
             index_html = (output_dir / "index.html").read_text(encoding="utf-8")

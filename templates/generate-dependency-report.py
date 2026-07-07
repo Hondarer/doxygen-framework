@@ -852,7 +852,6 @@ def detect_cycle_groups(functions: Dict[str, FunctionInfo]) -> Tuple[Dict[str, s
 
 AREA_ORDER = {
     "same-file": 1,
-    "include-callee": 2,
     "libsrc-file-caller": 3,
     "src-file-caller": 4,
     "other-to-libsrc-caller": 5,
@@ -861,9 +860,10 @@ AREA_ORDER = {
 
 DEPENDENCY_RANKS = {
     "leaf-static": 0,
+    "include-static-leaf": 1,
+    "include-internal-static-leaf": 1,
     "leaf-global": 1,
     "file-local": 2,
-    "include-callee": 2,
     "libsrc-file-caller": 3,
     "src-file-caller": 4,
     "other-to-libsrc-caller": 5,
@@ -873,9 +873,10 @@ DEPENDENCY_RANKS = {
 
 DEPENDENCY_LEVEL_BASES = {
     "leaf-static": 0,
+    "include-static-leaf": 1000,
+    "include-internal-static-leaf": 1000,
     "leaf-global": 1000,
     "file-local": 2000,
-    "include-callee": 2000,
     "libsrc-file-caller": 3000,
     "src-file-caller": 4000,
     "other-to-libsrc-caller": 5000,
@@ -896,6 +897,13 @@ def path_area(file_path: str) -> str:
     if "include" in parts:
         return "include"
     return "other"
+
+
+def call_area(file_path: str) -> str:
+    area = path_area(file_path)
+    if area in {"include", "include_internal"}:
+        return "libsrc"
+    return area
 
 
 # Doxygen が制御構文を phantom memberdef として生成するとき、name に C キーワードが設定される。
@@ -936,13 +944,15 @@ def classify_call_kind(caller: FunctionInfo, callee: FunctionInfo) -> str:
     if caller.file == callee.file:
         return "same-file"
 
-    caller_area = path_area(caller.file)
-    callee_area = path_area(callee.file)
+    caller_source_area = path_area(caller.file)
+    callee_source_area = path_area(callee.file)
 
-    if callee_area == "include" and caller_area in {"libsrc", "src", "include_internal"}:
-        return "include-callee"
-    if callee_area == "include_internal" and caller_area == "libsrc":
-        return "include-callee"
+    if callee_source_area in {"include", "include_internal"}:
+        if caller_source_area in {"include", "include_internal", "libsrc", "src"}:
+            return "libsrc-file-caller"
+
+    caller_area = call_area(caller.file)
+    callee_area = call_area(callee.file)
 
     if caller_area == "libsrc" and callee_area == "libsrc":
         return "libsrc-file-caller"
@@ -1045,6 +1055,11 @@ def classify_function(info: FunctionInfo, functions: Dict[str, FunctionInfo], cy
         return "cycle"
     if not info.callees:
         if info.is_static:
+            area = path_area(info.file)
+            if area == "include":
+                return "include-static-leaf"
+            if area == "include_internal":
+                return "include-internal-static-leaf"
             return "leaf-static"
         return "leaf-global"
     call_kind = dominant_call_kind(info, functions)
@@ -1064,7 +1079,7 @@ def compute_dependency_level(
     if dependency_depth is None:
         return None
     base = DEPENDENCY_LEVEL_BASES[dependency_class]
-    if dependency_class in {"leaf-static", "leaf-global"}:
+    if dependency_class in {"leaf-static", "include-static-leaf", "include-internal-static-leaf", "leaf-global"}:
         return base + len(info.callers)
     return base + dependency_depth
 
@@ -1888,6 +1903,8 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       line-height: 1.2;
     }}
     .badge.leaf-static,
+    .badge.include-static-leaf,
+    .badge.include-internal-static-leaf,
     .badge.leaf-global {{
       background: var(--dep-badge-leaf-bg);
       border-color: var(--dep-badge-leaf-border);
@@ -3119,7 +3136,12 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
 
   function graphClassFor(klass) {{
     if (klass === "cycle") return "dep-danger-node";
-    if (klass === "leaf-static" || klass === "leaf-global") return "dep-leaf-node";
+    if (
+      klass === "leaf-static" ||
+      klass === "include-static-leaf" ||
+      klass === "include-internal-static-leaf" ||
+      klass === "leaf-global"
+    ) return "dep-leaf-node";
     if (klass === "file-local") return "dep-local-node";
     return "dep-caller-node";
   }}
