@@ -46,6 +46,11 @@ def normalize_path(path_text: str) -> str:
     return path_text.replace("\\", "/")
 
 
+def is_file_scope_static_candidate(meta: FunctionMeta) -> bool:
+    _, ext = os.path.splitext(meta.file_path.lower())
+    return meta.is_static and ext in (".c", ".cc", ".cpp", ".cxx")
+
+
 def xml_files(xml_dir: str) -> List[str]:
     result = []
     for path in sorted(glob.glob(os.path.join(xml_dir, "*.xml"))):
@@ -143,7 +148,7 @@ def process_memberdef_block(
         target = by_id.get(refid)
         if target is None:
             return match.group(0)
-        if not (target.is_static and target.file_path != current.file_path):
+        if not (is_file_scope_static_candidate(target) and target.file_path != current.file_path):
             return match.group(0)
         replacement_id = remap_target_id(current, target, by_file_and_name)
         if replacement_id is None:
@@ -186,7 +191,7 @@ def process_memberdef_block(
         target = by_id.get(refid)
         if target is None:
             return match.group(0)
-        if not (current.is_static and target.file_path != current.file_path):
+        if not (is_file_scope_static_candidate(current) and target.file_path != current.file_path):
             return match.group(0)
         replacement_id = remap_target_id(current, target, by_file_and_name)
         if replacement_id is None:

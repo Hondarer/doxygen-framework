@@ -1385,6 +1385,104 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('referencedby refid="caller_main"', caller_xml)
             self.assertNotIn('referencedby refid="ctrl_main"', caller_xml)
 
+    def test_cross_file_reference_keeps_static_inline_header_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "caller.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="caller_8c" kind="file">
+    <compoundname>caller.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="caller_main" static="no">
+        <name>main</name>
+        <references refid="helper_h_1a123" compoundref="helper_8h">helper</references>
+        <location file="src/caller.c" line="20" bodyfile="src/caller.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "helper.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="helper_8h" kind="file">
+    <compoundname>helper.h</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="helper_h_1a123" static="yes">
+        <name>helper</name>
+        <location file="include/helper.h" line="10" bodyfile="include/helper.h" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_stderr = io.StringIO()
+            with contextlib.redirect_stderr(normalize_stderr):
+                normalize_function_references.normalize_xml_dir(str(xml_dir))
+
+            caller_xml = (xml_dir / "caller.xml").read_text(encoding="utf-8")
+            self.assertIn('references refid="helper_h_1a123"', caller_xml)
+            self.assertNotIn("Warning: static-cross-file-reference unresolved", normalize_stderr.getvalue())
+
+    def test_cross_file_reference_keeps_csharp_public_static_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "program.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="program_8cs" kind="file">
+    <compoundname>Program.cs</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="program_main" static="yes">
+        <name>Main</name>
+        <references refid="calc_library_8cs_1a123" compoundref="calc_library_8cs">Calculate</references>
+        <location file="src/cmd/CalcApp/Program.cs" line="51" bodyfile="src/cmd/CalcApp/Program.cs" bodystart="51"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "calc_library.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="calc_library_8cs" kind="file">
+    <compoundname>CalcLibrary.cs</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="calc_library_8cs_1a123" static="yes">
+        <name>Calculate</name>
+        <location file="libsrc/CalcLib/CalcLibrary.cs" line="68" bodyfile="libsrc/CalcLib/CalcLibrary.cs" bodystart="68"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_stderr = io.StringIO()
+            with contextlib.redirect_stderr(normalize_stderr):
+                normalize_function_references.normalize_xml_dir(str(xml_dir))
+
+            program_xml = (xml_dir / "program.xml").read_text(encoding="utf-8")
+            self.assertIn('references refid="calc_library_8cs_1a123"', program_xml)
+            self.assertNotIn("Warning: static-cross-file-reference unresolved", normalize_stderr.getvalue())
+
     def test_c_keyword_phantom_excluded(self):
         """C キーワード (if, for など) が phantom memberdef として生成された場合に除外されることを確認する。
 
