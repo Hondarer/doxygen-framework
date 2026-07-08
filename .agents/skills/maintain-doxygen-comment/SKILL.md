@@ -332,17 +332,17 @@ typedef struct
 ### @code{.c} ~ @endcode
 
 プログラミング コードの例は、まずこれを使います。  
-`@code` と `@endcode` の行には `*` を付け、コード本体には `*` を付けません。
+`@code` と `@endcode` の行には `*` を付けず、コード本体と同じ 4 の倍数カラムから開始します。
 
 ```c
 /**
  *  @par            使用例
- *  @code{.c}
+    @code{.c}
     int result;
     if (add(10, 20, &result) == CALC_SUCCESS) {
         printf("%d\n", result);
     }
- *  @endcode
+    @endcode
  */
 ```
 
@@ -357,10 +357,30 @@ typedef struct
 シェル コマンド、設定ファイル、Doxygen コマンド自体の例示に使います。  
 シンタックス ハイライトは不要だが、そのままの形を保ちたいときに選びます。
 
+### @code{.unparsed} ~ @endcode
+
+プレーン テキストの例示では、`@code{.unparsed}` を使います。
+`.unparsed` は構文ハイライトせず、Doxygen コマンドを解釈させずに内容をそのまま表示します。
+`@code{.unparsed}` と `@endcode` の行には `*` を付けず、コード ブロック本文と同じ 4 の倍数カラムから開始します。
+
+プレーン テキストには、`@code{.unparsed}` が利用できますが、Doxygen では、ログ・設定・コマンド出力・ASCII 図のような純粋な逐語表示には `@verbatim ~ @endverbatim` が推奨されているため、`@verbatim ~ @endverbatim` を優先選択してください。
+
+```c
+/**
+ *  @brief          プレーン テキストのサンプルを示します。
+ *
+    @code{.unparsed}
+    plain text
+        indentation is preserved
+    @param is not treated as a command here
+    @endcode
+ */
+```
+
 ### Markdown 形式のコード ブロック
 
-複数言語が混ざる例では Markdown のコード ブロックも使えます。  
-ただし、この repo では C の使用例が中心なので、関数コメント内のコード例は `@code{.c}` を優先して問題ありません。
+このリポジトリでは、Markdown 形式のコード ブロックは非推奨です。
+C の使用例は `@code{.c}`、プレーン テキストは `@verbatim ~ @endverbatim` または `@code{.unparsed}` を優先します。
 
 ### 改行
 

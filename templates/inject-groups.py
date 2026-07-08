@@ -933,13 +933,18 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     print("  [ok] {}: {} inserted (filtered)".format(files_md_path.name, ", ".join(generated)))
 
 
-def generate_perchild_md(group_md_path):
+def generate_perchild_md(group_md_path, classes_dir=None):
     """
     子グループの group__*.md を読み込み、**Module:** breadcrumb 行を除去した
     perchild 用コンテンツを生成する。
 
     フロントマター、HTML コメント、H1 は保持し、postprocess.sh の !include 処理に任せる。
     **Module:** で始まる行とその直後の連続する空行のみ除去する。
+    struct / class メンバー本文の !include Classes/...md は、postprocess.sh の
+    perchild 展開の内側でネストし解決されないため、classes_dir が与えられた場合は
+    resolve_classes_includes でここで raw Classes 本文に展開する。perchild は
+    postprocess.sh が offset 1 で展開するため offset=1 を与え、最終的に
+    スタンドアロン Modules ページと同じ offset 2 に揃える。
 
     Returns:
         str: perchild ファイルに書き出すコンテンツ
@@ -958,7 +963,7 @@ def generate_perchild_md(group_md_path):
             while i < n and lines[i] == "":
                 i += 1
             continue
-        result.append(line)
+        result.extend(resolve_classes_includes([line], classes_dir, 1))
         i += 1
 
     return "\n".join(result)
@@ -995,9 +1000,76 @@ def flatten_descendants(parent_id, hierarchy):
     return result
 
 
+def collect_child_group_ids(hierarchy):
+    """
+    階層内で子として参照されるグループ ID を収集する。
+
+    Returns:
+        set: 子グループ ID の集合
+    """
+    child_ids = set()
+    for children in hierarchy.values():
+        for child_id, _ in children:
+            child_ids.add(child_id)
+    return child_ids
+
+
+def remove_merged_child_group_outputs(docs_dir, merged_child_ids):
+    """
+    root group に統合済みの子孫 group ページと目次リンクを削除する。
+
+    Doxybook2 が生成した Modules/group__*.md は postprocess.sh 前の段階では
+    index_groups.md から参照されるため、ページ削除と同時に目次行も削除する。
+    """
+    if not merged_child_ids:
+        return
+
+    removed_pages = 0
+    removed_index_lines = 0
+
+    for modules_dir in sorted(docs_dir.rglob("Modules")):
+        if not modules_dir.is_dir():
+            continue
+
+        for group_id in sorted(merged_child_ids):
+            child_md = modules_dir / "{}.md".format(group_id)
+            if child_md.exists():
+                child_md.unlink()
+                removed_pages += 1
+
+        index_path = modules_dir.parent / "index_groups.md"
+        if not index_path.exists():
+            continue
+
+        lines = index_path.read_text(encoding="utf-8").split("\n")
+        filtered_lines = []
+        for line in lines:
+            remove_line = False
+            for group_id in merged_child_ids:
+                if "]({}/{}.md)".format(modules_dir.name, group_id) in line:
+                    remove_line = True
+                    break
+                if "]({}.md)".format(group_id) in line:
+                    remove_line = True
+                    break
+            if remove_line:
+                removed_index_lines += 1
+            else:
+                filtered_lines.append(line)
+
+        if len(filtered_lines) != len(lines):
+            index_path.write_text("\n".join(filtered_lines), encoding="utf-8", newline="\n")
+
+    print(
+        "[inject-groups] merged child group outputs removed: pages={}, index_lines={}".format(
+            removed_pages, removed_index_lines
+        )
+    )
+
+
 def inject_children_into_parent_groups(docs_dir, hierarchy):
     """
-    各親グループの Modules ページに子孫グループの内容を挿入する。
+    root group の Modules ページに子孫グループの内容を挿入する。
 
     Files 注入の perfile__ パターンと同様に perchild__*.md 中間ファイルを生成し、
     親グループ MD に ## 子グループタイトル セクションと !include ディレクティブを追記する。
@@ -1006,10 +1078,16 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
 
     3 層以上の階層は ## パス形式の見出しでフラットに表現し、
     見出しレベルの増加を回避する。
+
+    子 group ページは root group に内容が統合されるため、最終 Markdown では
+    スタンドアロンページとして残さない。
     """
     processed = 0
+    merged_child_ids = set()
+    child_group_ids = collect_child_group_ids(hierarchy)
+    root_group_ids = set(hierarchy.keys()) - child_group_ids
 
-    for parent_id in sorted(hierarchy.keys()):
+    for parent_id in sorted(root_group_ids):
         descendants = flatten_descendants(parent_id, hierarchy)
         if not descendants:
             continue
@@ -1023,6 +1101,9 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
                 continue
 
             modules_rel = str(modules_dir.relative_to(docs_dir))
+            classes_dir = modules_dir.parent / "Classes"
+            if not classes_dir.is_dir():
+                classes_dir = None
 
             content = parent_md.read_text(encoding="utf-8")
             if "!include {}/perchild__".format(modules_rel) in content:
@@ -1038,7 +1119,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
                     print("  -> 警告: {} が見つかりません".format(child_md))
                     continue
 
-                perchild_content = generate_perchild_md(child_md)
+                perchild_content = generate_perchild_md(child_md, classes_dir)
                 perchild_name = "perchild__{}__{}.md".format(parent_id, descendant_id)
                 perchild_path = modules_dir / perchild_name
                 with open(str(perchild_path), "w", encoding="utf-8", newline="\n") as f:
@@ -1048,6 +1129,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
                 append_lines.append("\n!doxyfw-structure-title!## {}\n".format(path_title))
                 append_lines.append("\n!include {}\n".format(include_path))
                 generated.append(descendant_id)
+                merged_child_ids.add(descendant_id)
 
             if not generated:
                 continue
@@ -1058,6 +1140,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
             print("  [ok] {}: {} inserted".format(parent_md.name, ", ".join(generated)))
             processed += 1
 
+    remove_merged_child_group_outputs(docs_dir, merged_child_ids)
     print("[inject-groups] parent groups processed: {}".format(processed))
 
 
