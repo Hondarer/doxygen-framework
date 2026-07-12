@@ -162,6 +162,11 @@ extern int calcHandler(const int kind, const int a, const int b, int *result);
 int calcHandler(const int kind, const int a, const int b, int *result)
 ```
 
+### static (ファイル スコープ) 関数・変数
+
+ヘッダーに宣言がないため、`.c` の定義側に Doxygen 形式 (`/** */`) で記載します。  
+プレーンな `/* */` コメントでは書きません。
+
 ### .c ファイル自体の説明
 
 実装ファイルには `@file` コメントを書きます。  
@@ -454,6 +459,7 @@ C の使用例は `@code{.c}`、プレーン テキストは `@verbatim ~ @endve
 - `@par` でファイル全体の大きな構造化をしようとする
 - 省略できる `@details` を通常の詳細説明に使う
 - `@code` ブロックのコード本体まで `*` を付ける
+- `@code` ブロック内のコメントに `/* */` を使う (`*/` がドキュメント コメントを早期終端しビルド エラーになるため `//` を使う)
 - `<br />` を改行用途で使う
 - 画像だけに依存した説明を作る
 - docs にない複雑な書式を、出力確認なしで採用する
