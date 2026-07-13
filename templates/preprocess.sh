@@ -49,12 +49,17 @@ python3 "$SCRIPT_DIR/fix-anonymous-enums.py" "$XML_FOLDER"
 # 各 XML ファイルを処理
 while IFS= read -r xml_file; do
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
-    
+
+    # Doxybook2 v1.6.1 は Doxygen の parblock 要素を認識しない。
+    # parblock は複数の para 要素をまとめるだけなので、内容を維持してラッパーだけを除去する。
+    # see: https://github.com/matusnovak/doxybook2/blob/master/src/Doxybook/XmlTextParser.cpp
+    sed -e 's|<parblock>||g' \
+        -e 's|</parblock>||g' \
+        "$xml_file" | \
     # PlantUML 変換
     # <plantuml ...> と </plantuml> をコードフェンス + @startuml / @enduml に変換する。
     sed -e 's|\s*<plantuml\([^>]*\)>|\n\n```plantuml\n@startuml\n|g' \
-        -e 's|</plantuml>|\n@enduml\n```|g' \
-        "$xml_file" | \
+        -e 's|</plantuml>|\n@enduml\n```|g' | \
     # パラメータ direction 変換
     # doxybook2 は direction 属性を独自に処理しないため、テキストとして埋め込む。
     # direction 属性を [in]/[out]/[in,out] テキストに変換し「名前 [方向]」形式で埋め込む。
