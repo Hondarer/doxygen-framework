@@ -44,6 +44,11 @@ if [ "${DOXYFW_PROCESS_GROUP:-0}" != "1" ]; then
     esac
 fi
 
+case "$(uname -s 2>/dev/null)" in
+    MINGW* | MSYS* | CYGWIN*) doxyfw_is_windows=1 ;;
+    *) doxyfw_is_windows=0 ;;
+esac
+
 run_tmp_root=""
 lock_dir=""
 cleanup_done=0
@@ -53,12 +58,55 @@ normalize_warn_log=""
 normalize_warn_extract=""
 dependency_warn_log=""
 dependency_warn_extract=""
+managed_child_pid=""
+
+# Windows では bash がフォアグラウンドの子プロセスの終了までトラップの実行を
+# 保留するため、doxygen などの長時間処理をフォアグラウンドで実行すると
+# シグナルを受けても後処理を開始できない。バックグラウンドで起動して wait で
+# 待つことで、シグナル受信時に即座にトラップを実行できるようにする。
+# see: https://www.gnu.org/software/bash/manual/html_node/Signals.html
+# Linux では setsid によるプロセス グループ配送が機能するため従来どおり
+# フォアグラウンドで実行する。
+run_interruptible() {
+    local rc=0
+
+    if [ "$doxyfw_is_windows" -eq 1 ]; then
+        "$@" &
+        managed_child_pid=$!
+        wait "$managed_child_pid"
+        rc=$?
+        managed_child_pid=""
+    else
+        "$@"
+        rc=$?
+    fi
+    return "$rc"
+}
 
 cleanup() {
     if [ "$cleanup_done" -eq 1 ]; then
         return 0
     fi
     cleanup_done=1
+
+    # 管理下の子プロセスが実行中なら先に終了する。子プロセスが run_tmp_root
+    # 配下のファイルを開いたままだと Windows では rm -rf が失敗するため、
+    # 一時領域の削除より前に行う必要がある。
+    if [ -n "$managed_child_pid" ] && kill -0 "$managed_child_pid" 2>/dev/null; then
+        if [ "$doxyfw_is_windows" -eq 1 ] && command -v taskkill.exe >/dev/null 2>&1; then
+            managed_child_winpid="$managed_child_pid"
+            # MSYS の pid は Windows の pid と一致しない場合があるため変換する。
+            # see: https://cygwin.com/cygwin-ug-net/proc.html
+            if [ -r "/proc/$managed_child_pid/winpid" ]; then
+                managed_child_winpid=$(cat "/proc/$managed_child_pid/winpid" 2>/dev/null || printf '%s' "$managed_child_pid")
+            fi
+            MSYS2_ARG_CONV_EXCL='*' taskkill.exe /PID "$managed_child_winpid" /T /F >/dev/null 2>&1 || true
+        else
+            kill -KILL "$managed_child_pid" 2>/dev/null || true
+        fi
+        wait "$managed_child_pid" 2>/dev/null || true
+        managed_child_pid=""
+    fi
 
     rm -f "$temp_doxyfile" "$warn_logfile" \
         "$normalize_warn_log" "$normalize_warn_extract" \
@@ -224,10 +272,14 @@ else
     prepare_doxyfile "$MAKEFILE_DIR/Doxyfile" "$temp_doxyfile" "$warn_logfile_doxy" "$xml_work_dir_doxy" "$docs_doxygen_stage_dir_doxy" || exit 1
 fi
 
-(
-    cd "$DOXYGEN_RUNDIR" &&
-    doxygen "$temp_doxyfile" > >("$MAKEFILE_DIR/bin/doxygen-colorize-output.sh")
-)
+run_doxygen_pass() {
+    (
+        cd "$DOXYGEN_RUNDIR" &&
+        doxygen "$temp_doxyfile" > >("$MAKEFILE_DIR/bin/doxygen-colorize-output.sh")
+    )
+}
+
+run_interruptible run_doxygen_pass
 doxygen_exit=$?
 "$DOXY_WARNING_COLORIZE" < "$warn_logfile" || true
 if [ -x "$EXTRACT_DOXY_WARNINGS" ]; then
@@ -300,11 +352,15 @@ elif [ ! -f "$xml_work_dir/index.xml" ] || ! grep -q '<compound ' "$xml_work_dir
     touch "$SKIP_MARKER"
 fi
 
-if [ ! -f "$SKIP_MARKER" ]; then
+run_markdown_make() {
     "$MARKDOWN_MAKE" -C "$MAKEFILE_DIR" markdown-generation \
         DOXYFW_XML_WORK_DIR="$xml_work_dir" \
         DOCS_DOXYBOOK2_DIR="$docs_doxybook2_stage_dir" \
         DOXY_WARN_OUTPUT="$doxy_warn_stage"
+}
+
+if [ ! -f "$SKIP_MARKER" ]; then
+    run_interruptible run_markdown_make
     markdown_exit=$?
     if [ $markdown_exit -ne 0 ]; then
         exit $markdown_exit
