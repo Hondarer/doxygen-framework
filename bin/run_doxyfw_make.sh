@@ -371,6 +371,15 @@ else
 fi
 rm -f "$SKIP_MARKER"
 
+# 公開置換の途中でシグナルの trap が実行されると、退避の mv と差し替えの
+# mv の間で中断した場合に、公開済み出力が退避ディレクトリに残ったまま
+# 公開先から消失する。置換の区間ではシグナルを記録するだけにとどめ、
+# 置換の完了後に改めて処理する。区間の内容は mv と rm だけであり、
+# 短時間で完了するため中断の応答性への影響は小さい。
+publish_pending_signal=""
+trap 'publish_pending_signal=130' INT
+trap 'publish_pending_signal=143' TERM
+trap 'publish_pending_signal=129' HUP
 acquire_lock
 replace_dir "$docs_doxygen_stage_dir" "$DOCS_DOXYGEN_DIR" || exit $?
 if [ -d "$docs_doxybook2_stage_dir" ]; then
@@ -381,4 +390,10 @@ fi
 replace_warn_file "$doxy_warn_stage" "$DOXY_WARN_OUTPUT"
 if [ -n "$APP_DOCS_DIR" ]; then
     rmdir "$APP_DOCS_DIR" 2>/dev/null || true
+fi
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
+if [ -n "$publish_pending_signal" ]; then
+    on_signal "$publish_pending_signal"
 fi
