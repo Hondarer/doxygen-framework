@@ -2,10 +2,70 @@
 
 set -u
 
+# GNU Make と同じ foreground process group で直接処理すると、Ctrl-C 時に
+# make と本スクリプトが同時に終了し、EXIT trap の完了を待てない場合がある。
+# Linux では実処理を独立セッションで起動し、外側のプロセスがシグナルを
+# プロセス グループ全体へ転送して cleanup の完了まで待つ。
+if [ "${DOXYFW_PROCESS_GROUP:-0}" != "1" ]; then
+    case "$(uname -s 2>/dev/null)" in
+        MINGW* | MSYS* | CYGWIN*) ;;
+        *)
+            if ! command -v setsid >/dev/null 2>&1; then
+                echo "ERROR: setsid is required to manage the Doxygen process group on Linux." >&2
+                exit 2
+            fi
+
+            doxyfw_group_pid=""
+            forward_group_signal() {
+                local sig="$1"
+                local exit_code="$2"
+
+                trap - INT TERM HUP
+                if [ -n "$doxyfw_group_pid" ]; then
+                    kill "-$sig" -- "-$doxyfw_group_pid" 2>/dev/null || true
+                    wait "$doxyfw_group_pid" 2>/dev/null || true
+                fi
+                exit "$exit_code"
+            }
+
+            trap 'forward_group_signal TERM 130' INT
+            trap 'forward_group_signal TERM 143' TERM
+            trap 'forward_group_signal HUP 129' HUP
+            DOXYFW_PROCESS_GROUP=1 setsid --wait "${BASH:-/bin/bash}" "$0" "$@" &
+            doxyfw_group_pid="$!"
+            if wait "$doxyfw_group_pid"; then
+                doxyfw_group_exit=0
+            else
+                doxyfw_group_exit=$?
+            fi
+            trap - INT TERM HUP
+            exit "$doxyfw_group_exit"
+            ;;
+    esac
+fi
+
 run_tmp_root=""
 lock_dir=""
+cleanup_done=0
+temp_doxyfile=""
+warn_logfile=""
+normalize_warn_log=""
+normalize_warn_extract=""
+dependency_warn_log=""
+dependency_warn_extract=""
 
 cleanup() {
+    if [ "$cleanup_done" -eq 1 ]; then
+        return 0
+    fi
+    cleanup_done=1
+
+    rm -f "$temp_doxyfile" "$warn_logfile" \
+        "$normalize_warn_log" "$normalize_warn_extract" \
+        "$dependency_warn_log" "$dependency_warn_extract"
+    if [ -n "${SKIP_MARKER:-}" ]; then
+        rm -f "$SKIP_MARKER"
+    fi
     if [ -n "$lock_dir" ] && [ -d "$lock_dir" ]; then
         rmdir "$lock_dir" 2>/dev/null || true
     fi
@@ -21,6 +81,12 @@ cleanup() {
     if [ -n "${DOXYFW_TMP_ROOT:-}" ]; then
         rmdir "$DOXYFW_TMP_ROOT" 2>/dev/null || true
     fi
+}
+
+on_signal() {
+    local signal_exit="$1"
+    trap - INT TERM HUP
+    exit "$signal_exit"
 }
 
 acquire_lock() {
@@ -47,6 +113,11 @@ replace_dir() {
     final_dir="$2"
     parent_dir=$(dirname "$final_dir")
     backup_dir="$final_dir.doxyfw-old.$PPID.$RANDOM"
+
+    if [ ! -d "$stage_dir" ]; then
+        echo "ERROR: Staged Doxygen output does not exist: $stage_dir" >&2
+        return 1
+    fi
 
     mkdir -p "$parent_dir"
     rm -rf "$backup_dir"
@@ -107,7 +178,10 @@ prepare_doxyfile() {
         "$input_doxyfile" > "$output_file"
 }
 
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
 
 tmp_base_dir="$DOXYFW_TMP_ROOT/$DOXYFW_RUNTIME_KEY"
 mkdir -p "$tmp_base_dir"
@@ -231,6 +305,10 @@ if [ ! -f "$SKIP_MARKER" ]; then
         DOXYFW_XML_WORK_DIR="$xml_work_dir" \
         DOCS_DOXYBOOK2_DIR="$docs_doxybook2_stage_dir" \
         DOXY_WARN_OUTPUT="$doxy_warn_stage"
+    markdown_exit=$?
+    if [ $markdown_exit -ne 0 ]; then
+        exit $markdown_exit
+    fi
 else
     rm -rf "$docs_doxybook2_stage_dir"
     rm -rf "$xml_work_dir"
@@ -238,9 +316,9 @@ fi
 rm -f "$SKIP_MARKER"
 
 acquire_lock
-replace_dir "$docs_doxygen_stage_dir" "$DOCS_DOXYGEN_DIR"
+replace_dir "$docs_doxygen_stage_dir" "$DOCS_DOXYGEN_DIR" || exit $?
 if [ -d "$docs_doxybook2_stage_dir" ]; then
-    replace_dir "$docs_doxybook2_stage_dir" "$DOCS_DOXYBOOK2_DIR"
+    replace_dir "$docs_doxybook2_stage_dir" "$DOCS_DOXYBOOK2_DIR" || exit $?
 else
     rm -rf "$DOCS_DOXYBOOK2_DIR"
 fi
