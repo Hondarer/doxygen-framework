@@ -73,6 +73,36 @@ HTML リンクは、代表として採用した Doxygen `memberdef` のページ
 Git blob URL の ref には、リンク対象ファイルの最終コミット SHA を使います。
 また、workspace の `.vscode/git_link.yaml` に `gitLinkHostProvider` が指定されている場合は、Source リンクの Git URL 生成にも同じ host/provider/webhost 読み替えを適用します。
 
+### 関数定義位置の解決
+
+`include` / `include_internal` のヘッダーで宣言された関数は、Doxygen の `location` がヘッダーを指すことがあります。
+この場合は、ソース ファイルの `programlisting` を走査して定義行を探し、見つかった位置で上書きします。
+
+候補が複数見つかった場合は `libsrc`、`include_internal`、`src`、その他の順に優先します。
+同順位では、`_linux`、`_windows`、それ以外の順に優先し、さらにファイル名と行番号の順で決めます。
+
+採用した定義位置が `src` になった場合は、次の警告を出力します。
+ライブラリ本体である `libsrc` に定義が見つからなかったことを示すため、多くは Doxygen の `INPUT` に `libsrc` が含まれていない設定ミスです。
+
+```text
+Warning: include function definition fallback to src: com_util_foo (src/cmd/sample/sample.c:401)
+```
+
+定義行の判定では、`programlisting` に定義行と呼び出し行の区別がないため、行の字面を見ます。
+複数行にまたがる呼び出しの継続行は、行内に `;` を持たず、定義行と同じく「関数名 + `(`」の形になります。
+そこで、関数名の直前に置かれた前置きが「型名や修飾子 (識別子) の並びと、任意のポインター記号」の形であることを要求します。
+
+| 行 | 判定 | 前置き |
+|---|---|---|
+| `int com_util_foo(com_util_screen *s,` | 定義 | `int` |
+| `COM_UTIL_EXPORT int COM_UTIL_API com_util_foo(` | 定義 | `COM_UTIL_EXPORT int COM_UTIL_API` |
+| `(void)com_util_foo(s, POSITION_TOP,` | 呼び出し | `(void)` |
+| `rc = com_util_foo(a,` | 呼び出し | `rc =` |
+| `cfg.com_util_foo(a,` | 呼び出し | `cfg.` |
+| `bar(baz, com_util_foo(a,` | 呼び出し | `bar(baz,` |
+
+前置きが識別子の並びに見えても、`if`、`return`、`case` などの文の開始キーワードを含む場合は定義とみなしません。
+
 ## 依存関係の扱い
 
 呼び出し関係は `caller -> callee` の向きで扱います。

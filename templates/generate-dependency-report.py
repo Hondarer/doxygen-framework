@@ -658,21 +658,54 @@ def source_definition_sort_key(location: DefinitionLocation) -> Tuple[int, int, 
     )
 
 
+# 関数定義行で関数名の前に置けるのは、型名と修飾子 (識別子) の並びと、任意のポインター
+# 記号だけである。C++ の修飾名を許容するため "::" も認める。
+# 呼び出し行の前置き (キャスト "(void)"、メンバー アクセス "cfg."、間接参照 "p->"、
+# 代入 "rc ="、引数の区切り "foo(a," など) はいずれもこの形にならないため、これを
+# 満たすことを要求すると、定義行と呼び出し行を区別できる。
+_DEFINITION_PREFIX_RE = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_]*(?:(?:::|[\s*&]+)[A-Za-z_][A-Za-z0-9_]*)*[\s*&]*(?:::)?$"
+)
+
+# 前置きが識別子の並びに見えても、文の開始キーワードであれば定義ではない。
+_STATEMENT_KEYWORDS: frozenset = frozenset({
+    "if", "else", "for", "while", "do", "switch", "case", "default",
+    "return", "goto", "break", "continue", "sizeof", "typeof",
+})
+
+_DEFINITION_PREFIX_SPLIT_RE = re.compile(r"[\s*&]+|::")
+
+
 def is_definition_reference_line(line_text: str, function_name: str) -> bool:
+    """programlisting の 1 行が、関数定義の開始行かどうかを判定する。
+
+    Doxygen の programlisting には定義行と呼び出し行の区別がないため、行の字面から
+    判定する。複数行にまたがる呼び出しの継続行は行内に ";" を持たず、定義行と同じく
+    「関数名 + (」の形になるため、前置きの形で区別する。
+    """
     text = " ".join(line_text.strip().split())
     if text == "" or function_name == "" or ";" in text:
         return False
 
-    match = re.search(r"(^|[^A-Za-z0-9_])" + re.escape(function_name) + r"\s*\(", text)
+    # 前置きに直前の区切り文字を含めるため、関数名そのものの開始位置を取る。
+    # 区切り文字を落とすと "cfg.xLog(" の前置きが "cfg" となり、識別子の並びと
+    # 区別できなくなる。
+    match = re.search(
+        r"(?:^|(?<=[^A-Za-z0-9_]))" + re.escape(function_name) + r"\s*\(", text
+    )
     if match is None:
         return False
 
     prefix = text[: match.start()].strip()
     if prefix == "":
         return False
-    if re.search(r"(^|[^A-Za-z0-9_])(if|for|while|switch|return|sizeof)\s*\(?$", prefix):
+    if _DEFINITION_PREFIX_RE.match(prefix) is None:
         return False
-    if re.search(r"(\=|\!|\<|\>|\&\&|\|\|)\s*$", prefix):
+    if any(
+        token in _STATEMENT_KEYWORDS
+        for token in _DEFINITION_PREFIX_SPLIT_RE.split(prefix)
+        if token
+    ):
         return False
     return True
 

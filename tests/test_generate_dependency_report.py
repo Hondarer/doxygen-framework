@@ -1988,6 +1988,83 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertEqual(mapped_by_file["src/a.c"]["gitUrl"], expected_mapped_url)
 
 
+class IsDefinitionReferenceLineTest(unittest.TestCase):
+    """programlisting の 1 行が関数定義の開始行かどうかの判定を検証する。"""
+
+    def _judge(self, line, name="com_util_foo"):
+        return generate_dependency_report.is_definition_reference_line(line, name)
+
+    def test_definition_lines_are_detected(self):
+        # Arrange
+        lines = [
+            "int com_util_foo(int a)",
+            "static void com_util_foo(void)",
+            "const char *com_util_foo(void)",
+            "static char * com_util_foo(void)",
+            "COM_UTIL_EXPORT int COM_UTIL_API com_util_foo(",
+            "int com_util_foo(com_util_pinned_prompt *screen,",
+            "static SQLITE_NOINLINE int com_util_foo(int a){",
+        ]
+
+        # Pre-Assert
+        # (なし)
+
+        # Act
+        results = [self._judge(line) for line in lines]
+
+        # Assert
+        # [確認_定義行] 型名と修飾子だけを前置きに持つ行は、すべて定義行と判定されること。
+        for line, result in zip(lines, results):
+            self.assertTrue(result, msg=line)
+
+    def test_multiline_call_continuation_is_rejected(self):
+        # Arrange
+        # [状態] 複数行にまたがる呼び出しの継続行は、行内に ";" を持たないものとする。
+        lines = [
+            "(void)com_util_foo(session->screen, COM_UTIL_POSITION_TOP,",
+            "(int)com_util_foo(a,",
+            "rc = com_util_foo(a,",
+            "cfg.com_util_foo(a,",
+            "p->com_util_foo(a,",
+            "bar(baz, com_util_foo(a,",
+            "ok = ok && com_util_foo(a,",
+            "return com_util_foo(a,",
+            "if (com_util_foo(a,",
+            "} else if (com_util_foo(a,",
+            "case FOO: com_util_foo(a,",
+        ]
+
+        # Pre-Assert
+        # (なし)
+
+        # Act
+        results = [self._judge(line) for line in lines]
+
+        # Assert
+        # [確認_呼び出し行] 呼び出しの前置きを持つ行は、いずれも定義行と判定されないこと。
+        for line, result in zip(lines, results):
+            self.assertFalse(result, msg=line)
+
+    def test_lines_without_prefix_or_with_semicolon_are_rejected(self):
+        # Arrange
+        lines = [
+            "com_util_foo(a,",
+            "int com_util_foo(int a);",
+            "",
+        ]
+
+        # Pre-Assert
+        # (なし)
+
+        # Act
+        results = [self._judge(line) for line in lines]
+
+        # Assert
+        # [確認_対象外] 前置きのない行、宣言行、空行は、定義行と判定されないこと。
+        for line, result in zip(lines, results):
+            self.assertFalse(result, msg=repr(line))
+
+
 PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_interaction_probe.js"
 LARGE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_large_layout_probe.js"
 SCOPE_LAYOUT_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_scope_layout_probe.js"
