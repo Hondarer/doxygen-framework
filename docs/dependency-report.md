@@ -18,15 +18,19 @@ Doxygen が XML に出力した `references`、`referencedby`、`define` の `in
 
 ```text
 Doxygen 実行
+関数参照の正規化
 dependency report 生成
 merge-member-docs.py
 extract-graphs.py
+materialize-group-members.py
 preprocess.sh
 doxybook2
+inject-groups.py
 postprocess.sh
 ```
 
 `generate-dependency-report.py` は Doxygen XML が存在する段階で実行されます。
+`materialize-group-members.py` はレポート生成後に実行されるため、ソース ファイル XML へ複製したグループ メンバーは依存関係の関数数や呼び出し関係へ影響しません。
 そのため、doxybook2 が存在しない環境でも Doxygen XML が生成されていればレポートは生成されます。
 
 ## 出力先

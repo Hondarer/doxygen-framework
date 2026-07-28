@@ -20,7 +20,8 @@ briefdescription / detaileddescription / inbodydescription のインナー XML �
 
 グループへ移動した関数は、ファイル コンパウンドに完全な memberdef を持たず
 <member refid="group__..."> 参照のみとなるため、本処理 (完全 memberdef が対象) では
-自然に対象外となる (グループ メンバーは inject-groups.py が別途処理する)。
+自然に対象外となる。グループ メンバーは後段の materialize-group-members.py が
+ソース ファイル コンパウンドへ具象化する。
 
 ダウンストリーム (extract-graphs.py / preprocess.sh) が XML を正規表現で扱い書式保持を
 前提とするため、ElementTree での全文再シリアライズは行わず、正規表現による外科的な

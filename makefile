@@ -8,6 +8,7 @@ DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
 EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
 DEPENDENCY_REPORT_GENERATOR := $(MAKEFILE_DIR)/templates/generate-dependency-report.py
 FUNCTION_REFERENCE_NORMALIZER := $(MAKEFILE_DIR)/templates/normalize-function-references.py
+GROUP_MEMBER_MATERIALIZER := $(MAKEFILE_DIR)/templates/materialize-group-members.py
 RUN_DOXYFW_SCRIPT := $(MAKEFILE_DIR)/bin/run_doxyfw_make.sh
 MARKDOWN_MAKE_CMD := $(MAKE)
 
@@ -179,6 +180,7 @@ default:
 	EXTRACT_DOXY_WARNINGS="$(EXTRACT_DOXY_WARNINGS)" \
 	DEPENDENCY_REPORT_GENERATOR="$(DEPENDENCY_REPORT_GENERATOR)" \
 	FUNCTION_REFERENCE_NORMALIZER="$(FUNCTION_REFERENCE_NORMALIZER)" \
+	GROUP_MEMBER_MATERIALIZER="$(GROUP_MEMBER_MATERIALIZER)" \
 	DEPENDENCY_PAGE_TEMPLATE="$(DEPENDENCY_PAGE_TEMPLATE)" \
 	DEPENDENCY_PAGE_LANGS="$(DEPENDENCY_PAGE_LANGS)" \
 	DOXYGEN_RUNDIR="$(DOXYGEN_RUNDIR)" \
@@ -210,6 +212,8 @@ markdown-generation:
 	python3 templates/merge-member-docs.py $(DOXYFW_XML_WORK_DIR) || exit 1
     # グラフ抽出 (XML のグラフ情報から PlantUML を生成し XML に挿入)
 	python3 templates/extract-graphs.py $(DOXYFW_XML_WORK_DIR) || exit 1
+    # グループへ移動したメンバーを定義元のソース ファイル XML へ具象化
+	python3 $(GROUP_MEMBER_MATERIALIZER) $(DOXYFW_XML_WORK_DIR) || exit 1
     # プリプロセッシング
 	templates/preprocess.sh $(DOXYFW_XML_WORK_DIR) || exit 1
     # xml -> md 変換

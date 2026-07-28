@@ -358,6 +358,10 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
 doxyfw は Doxybook2 変換前に `templates/merge-member-docs.py` を実行し、統合済みの宣言側 memberdef の説明を定義側 memberdef へ同期します。  
 これにより、ヘッダーとソースの両 Files ページへ宣言側と定義側の説明がそろって出力されます。
 
+グループへ移動したメンバーは、`templates/materialize-group-members.py` が group XML の memberdef を定義元のソース ファイル XML へ複製します。
+対象は関数に限定せず、定数、マクロ、変数、列挙型、型定義などの memberdef 全般です。
+複製後のメンバーは、ソースの Files ページにある通常の種類別セクションへ出力されます。
+
 ヘッダーのみを入力とするビルド (public) では、ソースを処理しないため、ヘッダーの Files ページには宣言側の説明だけが出力されます。
 
 ## @copyright { copyright description }
@@ -648,7 +652,8 @@ int factorial(int n);
 
 `@ingroup` コマンドを用いることで、複数のファイルや異なる箇所に置かれた関連機能を一つのグループとしてドキュメント化できます。
 
-`@ingroup` を使用すると Doxygen の仕様によりファイル側のページからメンバーが除外されますが、`inject-groups.py` の補完処理により Files ページへ自動的に復元されます。
+`@ingroup` を使用すると、Doxygen はファイル コンパウンドの完全な memberdef をグループ コンパウンドへ移し、ファイル側に参照だけを残す場合があります。
+ソース ファイル側の参照は `materialize-group-members.py` が完全な memberdef に変換し、ヘッダーなどの宣言ファイル側は `inject-groups.py` がグループ セクションとして補完します。
 このため、異なるファイル間でグループの親子関係 (ネスト) を定義するときは `@defgroup {子グループ}` + `@ingroup {親グループ}` の組み合わせを推奨します。`@addtogroup` は不要です。
 
 ```c

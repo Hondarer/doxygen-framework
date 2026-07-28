@@ -60,40 +60,6 @@ def source_basename_to_md_name(basename):
     return basename.replace("_", "__").replace(".", "_8") + ".md"
 
 
-def build_file_compound_map(xml_dir):
-    """
-    ファイル コンパウンド XML を走査し、ソースファイルパス → compound_id のマップを構築する。
-
-    group__*.xml などの非ファイル コンパウンドは除外する。
-    compound_id は Doxybook2 が生成する .md ファイルのベース名に相当する。
-
-    Returns:
-        dict: {location_file_path: compound_id}
-    """
-    file_map = {}
-    skip_names = {"compound.xsd", "combine.xslt", "index.xml", "Doxyfile.xml"}
-    for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "*.xml"))):
-        if os.path.basename(xml_file) in skip_names:
-            continue
-        try:
-            tree = ET.parse(xml_file)
-            root = tree.getroot()
-        except ET.ParseError:
-            continue
-        for compounddef in root.findall("compounddef"):
-            if compounddef.get("kind") != "file":
-                continue
-            compound_id = compounddef.get("id", "")
-            if not compound_id:
-                continue
-            location = compounddef.find("location")
-            if location is not None:
-                loc_file = location.get("file", "")
-                if loc_file:
-                    file_map[loc_file] = compound_id
-    return file_map
-
-
 def collect_groups(xml_dir):
     """
     XML ディレクトリからグループ情報と親子関係を収集する。
@@ -106,7 +72,7 @@ def collect_groups(xml_dir):
     また <innergroup> 要素から親子関係 (hierarchy) も収集する。
 
     Returns:
-        tuple: (group_data, hierarchy, body_file_data, member_langs)
+        tuple: (group_data, hierarchy, member_langs)
             group_data: {group_id: (title, {source_basename: (member_names_set, min_line)})}
                 group_id: グループ ID (例: "group__COMM__RESULT")
                 title: グループタイトル (例: "戻り値")
@@ -117,17 +83,12 @@ def collect_groups(xml_dir):
                 parent_id: 親グループ ID
                 child_id: 子グループ ID
                 child_title: 子グループのタイトル (XML の <innergroup> テキスト)
-            body_file_data: {bodyfile_path: [(group_id, member_name, bodystart_line)]}
-                bodyfile_path: Doxygen が記録した定義ファイルパス (例: "libsrc/calc/calcHandler.c")
-                member_name:   メンバー名
-                bodystart_line: 定義の開始行 (ソート用)
             member_langs: {group_id: {member_name: language}}
                 宣言ファイルの拡張子から推定したコード フェンスの言語指定。
                 EXT_LANGUAGE_MAP にない拡張子のメンバーは含まれない。
     """
     group_data = {}
     hierarchy = {}
-    body_file_data = {}
     member_langs = {}
 
     for xml_file in sorted(glob.glob(os.path.join(str(xml_dir), "group__*.xml"))):
@@ -179,19 +140,6 @@ def collect_groups(xml_dir):
                             member_langs[group_id] = {}
                         member_langs[group_id][name] = lang
 
-                    # bodyfile (定義ファイル) を収集する
-                    # bodyfile が宣言ファイル (file_path) と異なる場合のみ対象とする。
-                    # #define のように bodyfile が存在しないメンバーはスキップする。
-                    body_path = location.get("bodyfile", "")
-                    if body_path and body_path != file_path:
-                        try:
-                            body_line = int(location.get("bodystart", "999999"))
-                        except ValueError:
-                            body_line = 999999
-                        if body_path not in body_file_data:
-                            body_file_data[body_path] = []
-                        body_file_data[body_path].append((group_id, name, body_line))
-
             if file_data:
                 group_data[group_id] = (title, file_data)
 
@@ -205,7 +153,7 @@ def collect_groups(xml_dir):
             if innergroups:
                 hierarchy[group_id] = innergroups
 
-    return group_data, hierarchy, body_file_data, member_langs
+    return group_data, hierarchy, member_langs
 
 
 def fix_member_fence_language(docs_dir, member_langs):
@@ -223,7 +171,7 @@ def fix_member_fence_language(docs_dir, member_langs):
     正確に特定できる。メンバー本文中の言語なしフェンス (@code 由来など) は
     見出し直後ではないため変更されない。
 
-    perfile / perchild / body 注入より前に実行することで、グループ md から
+    perfile / perchild 注入より前に実行することで、グループ md から
     抽出されるすべての埋め込みセクションに言語指定が波及する。
 
     @param[in] docs_dir     doxybook2 出力ディレクトリ
@@ -606,12 +554,12 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
     embed=True の場合は見出しを 1 段シフトした内容を直接追記する。
     対象 md 自身が !include される側 (Classes/*.md) の場合に使う。
 
-    @param[in] md_path         追記対象の md (Files/*.md または Classes/*.md)
+    @param[in] md_path         追記対象の md
     @param[in] modules_dir     Modules ディレクトリ
     @param[in] modules_rel     docs_dir からの Modules 相対パス (!include 用)
     @param[in] ordered_members [(group_id, member_name)] 出力したい順
     @param[in] group_titles    {group_id: title}
-    @param[in] log_prefix      ログ表示用の種別 (例: "body", "class")
+    @param[in] log_prefix      ログ表示用の種別
     @param[in] embed           True: 直接埋め込み / False: !include 参照
     @param[in] classes_dir     Classes ディレクトリ (struct メンバー本文の
                                !include Classes/...md をインライン解決する。None で無効)
@@ -698,62 +646,6 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
     return True
 
 
-def inject_into_body_files_md(docs_dir, body_data, group_titles):
-    """
-    グループメンバーの定義ファイル (.c ページ) にグループセクションを補完する。
-
-    Doxygen が FILE コンパウンド XML に <member refid="..."> (参照のみ) を出力した場合、
-    Doxybook2 はそのメンバーを publicFunctions として扱わず、.c ページに
-    メンバーが出力されない。
-    この関数は Files/*.md への注入 (inject_into_files_md) と同じ perfile 機構を使い、
-    欠落メンバーのみを .c ページの末尾に ## グループタイトル セクションとして追記する。
-
-    inject-groups.py は postprocess.sh より前に実行されるため、
-    追記内容は postprocess.sh の変換 (!include 展開、dunder エスケープ等) を
-    同様に受ける。
-
-    Files/*.md はこの時点でフラット構造 (restructure-files.py 実行前) であり、
-    ファイル名は compound_id + ".md" 形式になっている。
-
-    @param[in] docs_dir     doxybook2 出力ディレクトリ
-    @param[in] body_data    {compound_id: [(group_id, member_name, line)]}
-    @param[in] group_titles {group_id: title}
-    """
-    processed = 0
-
-    for files_dir in sorted(docs_dir.rglob("Files")):
-        if not files_dir.is_dir():
-            continue
-
-        modules_dir = files_dir.parent / "Modules"
-        if not modules_dir.is_dir():
-            continue
-
-        modules_rel = str(modules_dir.relative_to(docs_dir))
-
-        # struct メンバー本文の !include Classes/...md 解決用 (同階層の Classes)
-        classes_dir = files_dir.parent / "Classes"
-        if not classes_dir.is_dir():
-            classes_dir = None
-
-        for compound_id, member_infos in body_data.items():
-            body_md_path = files_dir / (compound_id + ".md")
-            if not body_md_path.exists():
-                continue
-
-            # グループの出現順は定義行を基準にする
-            ordered_members = []
-            for (group_id, member_name, _) in sorted(member_infos, key=lambda x: x[2]):
-                ordered_members.append((group_id, member_name))
-
-            if append_missing_group_sections(
-                    body_md_path, modules_dir, modules_rel,
-                    ordered_members, group_titles, "body", classes_dir=classes_dir):
-                processed += 1
-
-    print("[inject-groups] body files processed: {}".format(processed))
-
-
 def collect_class_group_members(xml_dir):
     """
     クラス/構造体コンパウンドからグループへ移動したメンバーを収集する。
@@ -813,8 +705,8 @@ def inject_into_class_files_md(docs_dir, class_group_members, group_titles):
     """
     グループへ移動したクラス メンバーをクラス ページへ補完する。
 
-    inject_into_body_files_md と同じ perfile 機構で、欠落メンバーのみを
-    Classes/*.md の末尾に ## グループタイトル セクションとして追記する。
+    欠落メンバーのみを Classes/*.md の末尾に
+    ## グループタイトル セクションとして追記する。
 
     Classes/*.md は Files/*.md や Namespaces/*.md から !include される側のため、
     postprocess.sh はソート順 (Classes が Files / Namespaces より先) で
@@ -1164,20 +1056,19 @@ def main():
     # グループデータ収集:
     #   group_data:     {group_id: (title, {decl_basename: (names_set, min_line)})}
     #   hierarchy:      {parent_id: [(child_id, child_title), ...]}
-    #   body_file_data: {bodyfile_path: [(group_id, name, line)]}
     #   member_langs:   {group_id: {name: language}}
-    group_data, hierarchy, body_file_data, member_langs = collect_groups(xml_dir)
+    group_data, hierarchy, member_langs = collect_groups(xml_dir)
 
     if not group_data and not hierarchy:
         print("[inject-groups] Done: 0 file(s) processed")
         return 0
 
     # メンバー シグネチャ フェンスへの言語付与
-    # (perfile / perchild / body のすべての抽出より前に行い、埋め込みへ波及させる)
+    # (perfile / perchild のすべての抽出より前に行い、埋め込みへ波及させる)
     if member_langs:
         fix_member_fence_language(docs_dir, member_langs)
 
-    # グループ タイトルのマップ (body / class 注入とログで使用)
+    # グループ タイトルのマップ (class 注入とログで使用)
     group_titles = {}
     for gid, (title, _) in group_data.items():
         group_titles[gid] = title
@@ -1237,20 +1128,6 @@ def main():
             processed += 1
 
     print("[inject-groups] Done: {} file(s) processed".format(processed))
-
-    # 定義ファイル (.c ページ) へのグループセクション補完注入
-    if body_file_data:
-        # bodyfile_path → compound_id に変換する
-        file_compound_map = build_file_compound_map(xml_dir)
-        body_data = {}
-        for body_path, infos in body_file_data.items():
-            cid = file_compound_map.get(body_path)
-            if cid:
-                if cid not in body_data:
-                    body_data[cid] = []
-                body_data[cid].extend(infos)
-        if body_data:
-            inject_into_body_files_md(docs_dir, body_data, group_titles)
 
     # クラス ページへのグループ メンバー補完注入
     if class_group_members:
