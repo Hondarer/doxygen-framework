@@ -141,8 +141,37 @@ DOXYFW_RUNTIME_KEY := $(if $(CATEGORY_ID),$(CATEGORY_ID),root)
 
 .DEFAULT_GOAL := default
 
+# CATEGORY 指定時に対応する Doxyfile.part が見つからない場合の中止処理。
+# ベースの Doxyfile は INPUT を "./README.md ./src ./include" としているため、
+# Doxyfile.part を伴わずに実行すると libsrc を含まない不完全な入力で生成が成功して
+# しまい、libsrc を指す \ref の解決失敗や、include の関数定義を src の呼び出し行と
+# 誤認する依存関係レポートの警告として現れる。誤りに気付けるよう明示的に中止する。
+# clean では中止しないよう、parse 時ではなく default のレシピ内で判定する。
+define DOXYFILE_PART_GUARD
+	if [ -n "$(strip $(CATEGORY))" ] && [ -z "$(DOXYFILE_PART_PATH)" ]; then \
+		subs=""; \
+		for p in "$(DOXYGEN_RUNDIR)"/Doxyfile.part.*; do \
+			[ -f "$$p" ] || continue; \
+			subs="$$subs $${p##*/Doxyfile.part.}"; \
+		done; \
+		if [ -n "$$subs" ]; then \
+			printf 'ERROR: %s not found.\n' "$(DOXYFILE_PART)" >&2; \
+			printf 'CATEGORY=%s is configured per subcategory. Specify one of:%s\n' "$(CATEGORY)" "$$subs" >&2; \
+			for s in $$subs; do \
+				printf '  make -C "%s" CATEGORY=%s SUBCATEGORY=%s\n' "$(MAKEFILE_DIR)" "$(CATEGORY)" "$$s" >&2; \
+			done; \
+			printf 'To run every subcategory at once, use: make -C "%s/app/%s" doxy\n' "$(WORKSPACE_DIR)" "$(CATEGORY)" >&2; \
+		else \
+			printf 'ERROR: %s not found.\n' "$(DOXYFILE_PART)" >&2; \
+			printf 'Doxygen is not configured for CATEGORY=%s.\n' "$(CATEGORY)" >&2; \
+		fi; \
+		exit 2; \
+	fi
+endef
+
 .PHONY: default
 default:
+	@$(DOXYFILE_PART_GUARD)
 	@MAKEFILE_DIR="$(MAKEFILE_DIR)" \
 	WORKSPACE_DIR="$(WORKSPACE_DIR)" \
 	INPUT_FILTER_ABS="$(INPUT_FILTER_ABS)" \
@@ -215,6 +244,9 @@ markdown-generation:
 .PHONY: clean
 clean:
 	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR)
+    # 警告ファイルも生成物と同時に削除する。残しておくと、設定変更で発生しなくなった
+    # 警告が次回以降も検出済みとして扱われ続ける
+	-rm -f $(DOXY_WARN_OUTPUT)
     # 実行中プロセスの一時ディレクトリは削除しない。
     # rmdir コマンドは空のディレクトリのみを削除する
 	@if [ -n "$(APP_DOCS_DIR)" ]; then rmdir "$(APP_DOCS_DIR)" 2>/dev/null || true; fi

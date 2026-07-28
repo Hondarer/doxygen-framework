@@ -107,7 +107,7 @@ cd framework/doxyfw
 make clean CATEGORY=api
 ```
 
-このコマンドは `pages/doxygen/api/` と `app/api/docs/doxybook2/` を削除します。
+このコマンドは `pages/doxygen/api/`、`app/api/docs/doxybook2/`、および警告ファイル `app/api/doxy.warn` を削除します。
 
 さらに、親ディレクトリ (`pages/doxygen/`、`app/api/docs/`) が空になった場合は、親ディレクトリも自動的に削除されます。
 
@@ -228,12 +228,14 @@ Doxygen 実行ごとに `mktemp` で実行単位のディレクトリを作成�
 
 CATEGORY が指定された場合、clean ターゲットは以下の処理を自動的に行います。
 
-1. CATEGORY に応じたサブディレクトリを削除
+1. 警告ファイルを削除
+    - `app/{CATEGORY}/doxy.warn` (SUBCATEGORY ありの場合は `app/{CATEGORY}/doxy_{SUBCATEGORY}.warn`)
+2. CATEGORY に応じたサブディレクトリを削除
     - `pages/doxygen/{CATEGORY}/` (SUBCATEGORY ありの場合は `pages/doxygen/{CATEGORY}_{SUBCATEGORY}/`)
     - Doxybook2 Markdown 出力ディレクトリ。既定では `app/{CATEGORY}/docs/doxybook2/`
         - SUBCATEGORY ありの場合は既定で `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/`
     - `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` がある場合の Markdown 出力ディレクトリは `app/{CATEGORY}/docs/<name>/`
-2. 親ディレクトリが空になった場合、親ディレクトリも削除
+3. 親ディレクトリが空になった場合、親ディレクトリも削除
     - `pages/doxygen/`
     - `app/{CATEGORY}/docs/`
 
@@ -241,7 +243,21 @@ CATEGORY が指定された場合、clean ターゲットは以下の処理を�
 
 ### CATEGORY 指定時に Doxyfile.part が見つからない
 
-`app/{CATEGORY}/prod/Doxyfile.part` が存在しない場合、基本 Doxyfile のみで生成されます。意図した設定でドキュメントが生成されない場合は、ファイル名と配置場所を確認してください。
+`app/{CATEGORY}/prod/Doxyfile.part` が存在しない場合、生成は行わずエラー終了します。
+
+`Doxyfile.part.{SUBCATEGORY}` だけが存在する大分類では、`SUBCATEGORY` の指定が必須です。指定がないときは、利用できる小分類の一覧とコマンド例をエラー メッセージに表示します。
+
+```text
+ERROR: /path/to/app/com_util/prod/Doxyfile.part not found.
+CATEGORY=com_util is configured per subcategory. Specify one of: internal public
+  make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=internal
+  make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=public
+To run every subcategory at once, use: make -C "/path/to/app/com_util" doxy
+```
+
+`Doxyfile.part` も `Doxyfile.part.*` も存在しない大分類では、Doxygen が設定されていない旨を表示して終了します。
+
+基本 Doxyfile のみで生成しない理由は、その `INPUT` が `./README.md ./src ./include` であり、`libsrc` を含まないためです。この入力で生成すると、`libsrc` 配下を指す `\ref` の解決に失敗し、`include` で宣言した関数の定義位置を `src` 側の呼び出し行と誤認した依存関係レポートが出力されます。いずれも生成自体は成功するため、警告を読まない限り不完全なドキュメントに気付けません。
 
 ### SUBCATEGORY の制約違反でエラーになる
 
