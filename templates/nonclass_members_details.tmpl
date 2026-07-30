@@ -22,7 +22,8 @@
 
 {% if exists("publicTypes") %}!doxyfw-structure-title!## 型
 
-{% for child in publicTypes %}!doxyfw-structure-title!### {% if kind != "file" %}{{name}}::{% endif %}{{child.name}}
+{# グループは言語上のスコープではないため、名前空間の型だけを修飾する #}
+{% for child in publicTypes %}!doxyfw-structure-title!### {% if kind == "namespace" %}{{name}}::{% endif %}{{child.name}}
 
 {{ render("member_details", child) }}
 {% endfor %}{% endif %}
