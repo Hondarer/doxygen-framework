@@ -47,7 +47,13 @@ def replace_attribute(tag, name, value):
         .replace(">", "&gt;")
     )
     if pattern.search(tag):
-        return pattern.sub(r'\1="' + escaped + '"', tag, count=1)
+        # re.sub の置換文字列はバックスラッシュを解釈するため、関数から返す。
+        # see: https://docs.python.org/3/library/re.html#re.sub
+        return pattern.sub(
+            lambda match: '{}="{}"'.format(match.group(1), escaped),
+            tag,
+            count=1,
+        )
     return tag[:-2] + ' {}="{}"/>'.format(name, escaped)
 
 
@@ -358,7 +364,11 @@ def materialize(xml_dir):
                     xml_path, operation["old_id"], len(matches)
                 )
             )
-        file_updates[xml_path] = pattern.sub(operation["clone"], text, count=1)
+        # XML 断片内の PlantUML やコードにある \n などを解釈させない。
+        # see: https://docs.python.org/3/library/re.html#re.sub
+        file_updates[xml_path] = pattern.sub(
+            lambda _match: operation["clone"], text, count=1
+        )
 
         compound_pattern = index_compound_pattern(file_info["compound_id"])
         compound_matches = list(compound_pattern.finditer(index_updates))

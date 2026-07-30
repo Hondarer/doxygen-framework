@@ -163,11 +163,11 @@ process_markdown_file() {
             else
                 echo "  -> 警告: インクルードファイルが見つかりません: $include_file"
                 # 元の行をそのまま出力
-                echo "$line"
+                printf '%s\n' "$line"
             fi
         else
             # 通常の行をそのまま出力
-            echo "$line"
+            printf '%s\n' "$line"
         fi
     done < "$file" > "$include_temp"
 

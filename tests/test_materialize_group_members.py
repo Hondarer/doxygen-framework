@@ -180,6 +180,25 @@ class MaterializeGroupMembersTest(unittest.TestCase):
         self.assertEqual(skipped, 5)
         self.assertEqual(after, before)
 
+    def test_preserves_backslash_escapes_in_cloned_memberdef(self):
+        self.write_fixture()
+        group_path = self.xml_dir / "group__SAMPLE.xml"
+        group_xml = group_path.read_text(encoding="utf-8")
+        group_xml = group_xml.replace(
+            "<detaileddescription><para>sample_function detail</para></detaileddescription>",
+            r"""<detaileddescription><para><plantuml>
+rectangle "main\n(sample.c)" as n1
+</plantuml></para><programlisting><codeline><highlight class="normal">printf("value=%d\n", value);\t\\</highlight></codeline></programlisting></detaileddescription>""",
+        )
+        group_path.write_text(group_xml, encoding="utf-8")
+
+        materialize_group_members.materialize(self.xml_dir)
+
+        source_xml = (self.xml_dir / "sample_8c.xml").read_text(encoding="utf-8")
+        self.assertIn(r'rectangle "main\n(sample.c)" as n1', source_xml)
+        self.assertIn(r'printf("value=%d\n", value);\t\\', source_xml)
+        self.assertNotIn('rectangle "main\n(sample.c)" as n1', source_xml)
+
     def test_path_mismatch_fails_without_writing(self):
         self.write_fixture(source_name="src/other.c")
         source_path = self.xml_dir / "sample_8c.xml"
