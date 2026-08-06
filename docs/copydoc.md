@@ -17,7 +17,7 @@ Doxygen で関数のドキュメントを書く際、ほぼ同じ説明を持つ
 ある関数の説明を別の関数で再利用するには、`@copydoc` コマンドを使います。  
 片方の関数に完全な説明を書いておき、もう片方では `@copydoc` で参照するだけで済みます。
 
-```{.cpp caption="example.cpp"}
+```cpp
 /**
  * @brief データを処理する
  * @param data 入力データ
@@ -34,6 +34,8 @@ int processData(const char* data);
 int processData(const std::string& data);
 ```
 
+CodeBlock: example.cpp
+
 `@copydoc` の後ろには、コピー元の関数のシグネチャを指定します。オーバーロードがある場合は引数の型まで書くと、関数を正確に特定できます。
 
 部分的にコピーしたい場合は `@copybrief` (概要のみ) や `@copydetails` (詳細のみ) も使えますが、完全に同一な説明なら `@copydoc` が最も簡潔です。
@@ -42,7 +44,7 @@ int processData(const std::string& data);
 
 `@copydoc` の後に追加のコマンドを書くと、特定の項目だけを上書きできます。ベースの説明を再利用しつつ、関数固有の情報を追加したい場合に便利です。
 
-```{.cpp caption="example.cpp"}
+```cpp
 /**
  * @brief データを処理する
  * @param data 入力データ
@@ -62,6 +64,8 @@ int processData(const char* data, int flags);
  */
 int processData(const std::string& data, int flags);
 ```
+
+CodeBlock: example.cpp
 
 この例では、2 番目の関数は `@copydoc` でベースの説明をコピーしつつ、`@param data` の説明だけを独自のものに置き換え、さらに `@note` を追加しています。
 
