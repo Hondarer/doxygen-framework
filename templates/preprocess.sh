@@ -20,6 +20,18 @@ if [ ! -d "$XML_FOLDER" ]; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 無名名前空間の compound を XML から除去する。
+# Doxygen は EXTRACT_ANON_NSPACES = NO でも C++ の無名名前空間に対して
+# kind="namespace" の compounddef を出力し、ファイル スコープの無名名前空間では
+# <compoundname></compoundname> が空要素になる。Doxybook2 はこれを null 文字列として
+# 解釈し、std::string のコンストラクタが失敗して compound の読み込みを中断する。
+# 入れ子の無名名前空間はクラッシュしないが、親と同名の別 compound となるため
+# 名前空間一覧に重複エントリとリンク切れが生成される。
+# XML ファイルを削除するため、後続の XML ファイル検索より前に実行する必要がある。
+python3 "$SCRIPT_DIR/strip-anonymous-namespaces.py" "$XML_FOLDER"
+
 # XML ファイル検索
 XML_FILES=$(find "$XML_FOLDER" -type f \( -name "*.xml" -o -name "*.XML" \) 2>/dev/null)
 
@@ -31,8 +43,6 @@ fi
 # XML ファイル数をカウント
 XML_COUNT=$(echo "$XML_FILES" | wc -l)
 PROCESSED_COUNT=0
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Doxygen の注釈 simplesect を Doxybook2 が保持できる marker 付き par へ変換する。
 # 特に @important は Doxybook2 v1.6.1 の JSON に出ないため、XML 段階で退避する。

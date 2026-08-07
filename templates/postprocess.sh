@@ -1009,6 +1009,13 @@ if [ -d "$MARKDOWN_DIR/Namespaces" ]; then
     done
 fi
 
+# 個別ページを持たない親名前空間のエントリを目次に補完する。
+# 直前の空名前空間削除によって親のエントリ行が消えると、子のエントリ行だけが
+# 字下げされたまま取り残される。:: 修飾された名前から祖先を求め、
+# リンクのない見出しとして行を補い、階層構造を保つ。個別ページは生成しない。
+# アイコンは個別ページの有無に依らず名前空間の 📄 で統一する。
+python3 "$SCRIPT_DIR/complete-namespace-index.py" "$MARKDOWN_DIR" || exit 1
+
 # 空の Namespaces / Classes / Modules / Examples フォルダを index ごと削除する。
 # メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリの名前空間・クラス) は
 # 対応する index_*.md も中身が空になるため、両方とも削除する。
