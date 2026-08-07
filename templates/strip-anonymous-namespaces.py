@@ -166,10 +166,10 @@ def main() -> None:
     for xml_file in sorted(xml_dir.glob('*.xml')):
         removed_refs += remove_references_in_file(xml_file, refids)
 
-    print('  strip-anonymous-namespaces: compound {0} 件を除去 (XML ファイル {1} 件削除)'.format(
+    print('strip-anonymous-namespaces: compound {0} 件を除去 (XML ファイル {1} 件削除)'.format(
         len(refids), removed_files))
     if removed_refs > 0:
-        print('  strip-anonymous-namespaces: 残存参照 {0} 件を除去'.format(removed_refs))
+        print('strip-anonymous-namespaces: 残存参照 {0} 件を除去'.format(removed_refs))
 
     print('strip-anonymous-namespaces: 合計 {0} 件の無名名前空間を除去しました。'.format(
         len(refids)))
