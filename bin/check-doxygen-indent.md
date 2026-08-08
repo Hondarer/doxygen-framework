@@ -80,7 +80,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
   L42: /** (indent=4)
   期待される後続行のインデント: 5
     ✗ L43: indent=9 (expected=5)
-       '         *  @enum           com_util_shutdown_code_kind_t'
+       '         *  @enum           com_util_shutdown_code_kind'
     ...
 ```
 
