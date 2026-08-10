@@ -22,7 +22,7 @@ export CATEGORY
 export SUBCATEGORY
 export WORKSPACE_DIR
 
-# ガードファイル用の変数 (PID を含む一意なファイル名)
+# ガード ファイル用の変数 (PID を含む一意なファイル名)
 SKIP_MARKER_PID := $(shell echo $$$$)
 SKIP_MARKER := /tmp/.skip_markdown_generation.$(SKIP_MARKER_PID)
 export SKIP_MARKER
@@ -240,7 +240,7 @@ markdown-generation:
 	python3 templates/inject-cs-enums.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
     # グループ (@defgroup) を Files ドキュメントに挿入
 	python3 templates/inject-groups.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
-    # ポストプロセッシング
+    # ポスト プロセッシング
 	DOXYFW_TAGFILE=$(DOXYFW_XML_WORK_DIR)/doxyfw.tag templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
     # 正常に変換できたら xml は不要なため削除
 	rm -rf $(DOXYFW_XML_WORK_DIR)

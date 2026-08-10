@@ -91,7 +91,7 @@ doxybook2 出力の各ページ (Modules / Files / Classes / Namespaces / Exampl
 
 ### postprocess.sh の include 展開は 1 段のみ
 
-`templates/postprocess.sh` の `!include` 解決はリーフ前提の 1 段のみです。
+`templates/postprocess.sh` の `!include` 解決はリーフ前提の 1 段のみです。  
 include したファイル内にさらに `!include` があってもネストは解決されず、その後の dunder 変換 (`__` を `&#95;&#95;` にする処理) でファイル名が壊れ、リテラルの `!include` 行として最終出力に露出します。
 
 `inject-groups.py` のような注入スクリプトが挿入する内容に `!include` が含まれ得る場合は、postprocess の 1 段解決に頼らず、inject 段階でインライン展開するか、リーフであることを保証してください (既存例は `inject-groups.py` の `resolve_classes_includes()`)。

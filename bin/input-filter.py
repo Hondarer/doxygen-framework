@@ -17,11 +17,11 @@ with open(sys.argv[1], 'r', encoding='utf-8') as f:
     content = f.read()
 
 # ```plantuml と、それに対応する ``` を削除
-# Pages の Markdown でコードフェンスを利用すると、Doxygen の出力結果に
-# コードフェンスが残ってしまう。
-# PlantUML のコードフェンスだけを削除し、他のコードブロックは残す。
-# Markdown ファイルでは通常のコードフェンス記法を使えるため、エディタでプレビューできる。
-# 一方、Doxygen に渡される際にはコードフェンスが削除されるため、HTML 出力も正常に行える。
+# Pages の Markdown でコード フェンスを利用すると、Doxygen の出力結果に
+# コード フェンスが残ってしまう。
+# PlantUML のコード フェンスだけを削除し、他のコード ブロックは残す。
+# Markdown ファイルでは通常のコード フェンス記法を使えるため、エディターでプレビューできる。
+# 一方、Doxygen に渡される際にはコード フェンスが削除されるため、HTML 出力も正常に行える。
 pattern = r'```plantuml\n(.*?)\n```'
 content = re.sub(pattern, r'\1', content, flags=re.DOTALL)
 

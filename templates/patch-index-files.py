@@ -41,11 +41,11 @@ def patch_index_files(path: str) -> None:
         return '[' + m.group(1).rsplit('/', 1)[-1] + '](' + href + ')'
 
     # ディレクトリ表示名: 📁 path/to/dir → 📁 dir
-    # スラッシュを含まない名前はそのまま (ルートエントリ等)
+    # スラッシュを含まない名前はそのまま (ルート エントリ等)
     text = re.sub(r'📁 ([^\s\[<\r\n]+)', strip_dir, text)
 
     # ファイルリンク表示名: [path/to/file](Files/...) → [file](Files/...)
-    # index_files.md 内のファイルリンクは必ず Files/ で始まる
+    # index_files.md 内のファイル リンクは必ず Files/ で始まる
     text = re.sub(r'\[([^\]]+)\]\((Files/[^)]+)\)', strip_file, text)
 
     with open(path, 'wb') as f:

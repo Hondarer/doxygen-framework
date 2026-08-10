@@ -451,7 +451,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 "if (overviewLayoutRunning) setOverviewLayoutRunning(false);",
                 index_html,
             )
-            # inert 時はツールバー コンテナでなくボタンに pointer-events:none を当て、クリックが
+            # inert 時はツールバー コンテナーでなくボタンに pointer-events:none を当て、クリックが
             # 背後のグラフへ貫通して背景タップ (選択解除) を発火しないようにする。
             self.assertIn(
                 ".dep-graph-shell.controls-inert .dep-graph-toolbar button {",
@@ -613,7 +613,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("async function applyOverviewAnchorCentersToCurrentPositionsAsync(anchorCenters, token)", index_html)
             self.assertIn("function stabilizeOverviewCompoundCenters(targetPositions, anchorCenters)", index_html)
             self.assertIn("async function processOverviewChunks(items, token, callback)", index_html)
-            # クリック反映は 3 フェーズの同期オーケストレータに集約 (クラス分離・同期ヘルパーを伴う)。
+            # クリック反映は 3 フェーズの同期オーケストレーターに集約 (クラス分離・同期ヘルパーを伴う)。
             self.assertIn("function syncOverviewElementsCore(targetElements, opts, token)", index_html)
             self.assertIn("function anchorOverviewChildPositions(targetElements, anchorCenters)", index_html)
             self.assertIn("function overviewStateClasses(classes)", index_html)
@@ -686,7 +686,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("const clearingSelection = !suppressFade && previousHasSelection && !nextHasSelection;", index_html)
             self.assertIn("scheduleOverviewFadeClassCleanup();", index_html)
             self.assertIn("suppressFade: true", index_html)
-            # 背景右クリックメニューの呼び出し元関数/呼び出し先関数 表示深さ設定。選択関数の循環グループ全体は
+            # 背景右クリック メニューの呼び出し元関数/呼び出し先関数 表示深さ設定。選択関数の循環グループ全体は
             # 深さ設定に関わらず常に表示し、初期化で既定 (1, 1) に戻る。
             self.assertIn("let overviewCallerDepth = 1;", index_html)
             self.assertIn("let overviewCalleeDepth = 1;", index_html)
@@ -811,7 +811,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn("--dep-graph-muted-file-bg", index_html)
             self.assertIn("--dep-graph-muted-library-bg", index_html)
             self.assertIn("--dep-graph-muted-source-bg", index_html)
-            # ダークテーマの mute 領域色はマップ背景 (#1e1e1e) と各ベース色の 90:10 混色。
+            # ダーク テーマの mute 領域色はマップ背景 (#1e1e1e) と各ベース色の 90:10 混色。
             self.assertIn("--dep-graph-muted-library-bg: #1f1f22;", index_html)
             self.assertIn("--dep-graph-muted-library-border: #2a3134;", index_html)
             self.assertIn("--dep-graph-muted-source-bg: #211f22;", index_html)
@@ -1819,7 +1819,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
 
     def test_target_git_info(self):
         # 対象欄への Git 情報付加を検証する。source_dir (Doxyfile.part の所在) が Git 管理下なら
-        # 「対象: <カテゴリー> <ブランチ>(<短縮ハッシュ>)」、未コミットの追加・変更・削除が
+        # 「対象: <カテゴリ> <ブランチ> (<短縮ハッシュ>)」、未コミットの追加・変更・削除が
         # あれば「+」付き、Git 管理下でなければ Git 情報は付かない。
         def run_git(repo, *args):
             return subprocess.run(
@@ -2531,7 +2531,7 @@ class OverviewInteractionTest(unittest.TestCase):
         # chain.c: c_0 -> c_1 -> c_2 -> c_3 -> c_4 の呼び出し連鎖 (c_2 は cycle.c の x_1 も呼ぶ)。
         # cycle.c: x_1 <-> x_2 の相互呼び出し (循環グループ)。
         # c_0 -> c_3 は「ルート外」エッジ (両端は表示されうるが、選択の展開経路には含まれない)。
-        # camel.c: 孤立したキャメルケース関数 myCamelFn (page リンクの小文字アンカー検証用。
+        # camel.c: 孤立したキャメル ケース関数 myCamelFn (page リンクの小文字アンカー検証用。
         # どの関数からも参照されないため、深さ設定テストの表示集合には影響しない)。
         xml_dir = temp_dir / "xml"
         output_dir = temp_dir / "report"
@@ -2654,7 +2654,7 @@ class OverviewInteractionTest(unittest.TestCase):
         return json.loads(line[len("RESULT "):])
 
     def test_overview_caller_callee_depth_settings(self):
-        # 背景右クリックメニューの呼び出し元/先 表示深さ設定 (非表示/1 つ先/すべて) を検証する。
+        # 背景右クリック メニューの呼び出し元/先 表示深さ設定 (非表示/1 つ先/すべて) を検証する。
         # 選択関数の循環グループ全体は深さ設定に関わらず常に表示され、初期化で設定は
         # 既定 (caller=1, callee=1) に戻る。
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -2742,7 +2742,7 @@ class OverviewInteractionTest(unittest.TestCase):
                 "../../../ja/html/myapp/doxybook2_internal/Files/src/chain.c.html#c_2",
                 msg=str(data),
             )
-            # キャメルケース関数のアンカーは Pandoc auto identifier により小文字化される。
+            # キャメル ケース関数のアンカーは Pandoc auto identifier により小文字化される。
             self.assertEqual(
                 data["hrefCamel"],
                 "../../../ja/html/myapp/doxybook2_internal/Files/src/camel.c.html#mycamelfn",
@@ -3017,7 +3017,7 @@ class OverviewInteractionTest(unittest.TestCase):
         # 1. cola 窓の押下: cytoscape-cola がファイル grab を webcola へ伝え、全 leaf が fixed に
         #    なって降下計算が誤収束し、cola が早期終了して中途半端な配置が確定する。
         # 2. アニメ窓の押下: 純タップの free が userMoved を誤記録し live アンカー経路へ入り、
-        #    静止 grab を錨とした帰還ループでクラスタが漂流し重心がファイルから離れる。
+        #    静止 grab を錨とした帰還ループでクラスターが漂流し重心がファイルから離れる。
         with tempfile.TemporaryDirectory() as temp_dir_text:
             index_html = self._generate_large_layout_report(Path(temp_dir_text))
             data = self._run_file_reclick_probe(index_html, "src/big_file.c")
@@ -3046,7 +3046,7 @@ class OverviewInteractionTest(unittest.TestCase):
                 self.assertLessEqual(scenario["childCenterToFile"], 80, msg=key + ": " + str(scenario))
 
             # seed 窓でファイルをドラッグ移動し mousedown を維持したまま cola 完了を跨ぐ。
-            # 修正前は完了時にクラスタ (と子から導出されるファイル位置) がシミュレーション
+            # 修正前は完了時にクラスター (と子から導出されるファイル位置) がシミュレーション
             # 座標系へ引き戻され、カーソル位置から数百 px 飛んでいた (ベースライン実測 927px)。
             drag_hold = data["dragHoldThroughCola"]
             self.assertTrue(drag_hold["seedCaught"], msg=str(drag_hold))
@@ -3660,13 +3660,13 @@ class OverviewInteractionTest(unittest.TestCase):
                 json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
             )
 
-            # --- 再表示時ちらつき防止: ミュート対象は生成直後 (Phase A 断面) から既にミュート ---
+            # --- 再表示時ちらつき防止: ミュート対象は生成直後 (Phase A 断面) からすでにミュート ---
             # 修正前は新規追加ノードが構造クラスのみ (通常表示) で生成され、ミュートが Phase C へ
             # 遅延していたため、再表示直後の 1 フレーム素の見た目が露出した。
             reveal_no_flash = data["revealMutedNoFlash"]
             self.assertEqual(reveal_no_flash["sample"]["hiddenBefore"], ["src/file_c.c"])
             self.assertTrue(reveal_no_flash["sample"]["fileCExists"])
-            # 再表示同期 (Phase A) 完了直後のフレーム待機前断面で、既にミュート済みであること。
+            # 再表示同期 (Phase A) 完了直後のフレーム待機前断面で、すでにミュート済みであること。
             self.assertTrue(reveal_no_flash["sample"]["immediateMuted"])
             # 選択状態 (file_a) は変わらない。
             self.assertTrue(reveal_no_flash["sample"]["selectedStillA"])

@@ -14,7 +14,7 @@ fi
 
 XML_FOLDER="$1"
 
-# フォルダ存在チェック
+# フォルダー存在チェック
 if [ ! -d "$XML_FOLDER" ]; then
     echo "エラー: 指定されたフォルダが見つかりません: $XML_FOLDER"
     exit 1
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Doxygen は EXTRACT_ANON_NSPACES = NO でも C++ の無名名前空間に対して
 # kind="namespace" の compounddef を出力し、ファイル スコープの無名名前空間では
 # <compoundname></compoundname> が空要素になる。Doxybook2 はこれを null 文字列として
-# 解釈し、std::string のコンストラクタが失敗して compound の読み込みを中断する。
+# 解釈し、std::string のコンストラクターが失敗して compound の読み込みを中断する。
 # 入れ子の無名名前空間はクラッシュしないが、親と同名の別 compound となるため
 # 名前空間一覧に重複エントリとリンク切れが生成される。
 # XML ファイルを削除するため、後続の XML ファイル検索より前に実行する必要がある。
@@ -51,7 +51,7 @@ python3 "$SCRIPT_DIR/mark-admonitions.py" "$XML_FOLDER"
 # 無名 enum の空 <name /> を placeholder に置換する。
 # Doxygen は C の無名 enum を XML に出力する際 <memberdef kind="enum"> 直下に
 # <name /> を生成する。Doxybook2 はこれを null 文字列として解釈し、
-# std::string のコンストラクタが失敗してクラッシュする。
+# std::string のコンストラクターが失敗してクラッシュする。
 # このクラッシュが発生すると、同一ディレクトリの後続ファイルすべてが
 # ディレクトリ パス情報を失い Files/ 直下にフラットに出力される。
 python3 "$SCRIPT_DIR/fix-anonymous-enums.py" "$XML_FOLDER"
@@ -67,10 +67,10 @@ while IFS= read -r xml_file; do
         -e 's|</parblock>||g' \
         "$xml_file" | \
     # PlantUML 変換
-    # <plantuml ...> と </plantuml> をコードフェンス + @startuml / @enduml に変換する。
+    # <plantuml ...> と </plantuml> をコード フェンス + @startuml / @enduml に変換する。
     sed -e 's|\s*<plantuml\([^>]*\)>|\n\n```plantuml\n@startuml\n|g' \
         -e 's|</plantuml>|\n@enduml\n```|g' | \
-    # パラメータ direction 変換
+    # パラメーター direction 変換
     # doxybook2 は direction 属性を独自に処理しないため、テキストとして埋め込む。
     # direction 属性を [in]/[out]/[in,out] テキストに変換し「名前 [方向]」形式で埋め込む。
     sed -e 's|<parametername direction="in">\([^<]*\)</parametername>|<parametername>\1 [in]</parametername>|g' \
@@ -80,11 +80,11 @@ while IFS= read -r xml_file; do
         -e 's|<parametername direction="inout">\([^<]*\)</parametername>|<parametername>\1 [in,out]</parametername>|g' | \
     # linebreak 変換 (<linebreak/> を !linebreak! に変換、postprocess で最終的に改行に置換)
     sed ':a;N;$!ba;s|<linebreak/>\n|!linebreak!|g' | \
-    # ダブルアンダースコア保護
+    # ダブル アンダースコア保護
     # Doxygen は __identifier__ を Markdown 強調として解釈し <bold>identifier</bold> に変換する。
     # doxybook2 はこれをさらに **identifier** (Markdown bold) に変換するため、
     # __attribute__ が **attribute** に化けてしまう。
-    # XML 段階で <bold>C識別子</bold> を !dunder!識別子!dunder! に変換して保護し、
+    # XML 段階で <bold>C 識別子</bold> を !dunder!識別子!dunder! に変換して保護し、
     # postprocess で __ に戻す。
     sed 's|<bold>\([a-zA-Z_][a-zA-Z0-9_]*\)</bold>|!dunder!\1!dunder!|g' | \
     # <name>/<title> タグ内の __ を !dunder! に変換
@@ -95,9 +95,9 @@ while IFS= read -r xml_file; do
     sed ':loop; s|<name>\([^<]*\)__\([^<]*\)</name>|<name>\1!dunder!\2</name>|; t loop' | \
     sed ':loop; s|<title>\([^<]*\)__\([^<]*\)</title>|<title>\1!dunder!\2</title>|; t loop' | \
     # セクション見出しレベル変換
-    # doxybook2 は <sect1> を Markdown の # (レベル1) に変換するが、
-    # ファイルドキュメントの構造上 ##### (レベル5) が正しい。
-    # doxybook2 はセクションレベルのオフセット機能を持たないため、
+    # doxybook2 は <sect1> を Markdown の # (レベル 1) に変換するが、
+    # ファイル ドキュメントの構造上 ##### (レベル 5) が正しい。
+    # doxybook2 はセクション レベルのオフセット機能を持たないため、
     # XML 段階で sect1→sect5, sect2→sect6 に変換して対応する。
     sed -e 's|<sect1|<sect5|g' \
         -e 's|</sect1>|</sect5>|g' \

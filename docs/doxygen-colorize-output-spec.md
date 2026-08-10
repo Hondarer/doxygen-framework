@@ -2,7 +2,7 @@
 
 ## 概要
 
-`doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラーコードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルター スクリプトです。
+`doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラー コードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルター スクリプトです。
 
 ## ファイル パス
 
@@ -20,7 +20,7 @@ bin/doxygen-colorize-output.sh
 
 ### 着色ルール
 
-| メッセージ タイプ | 検出パターン | ANSI カラーコード | 表示色 |
+| メッセージ タイプ | 検出パターン | ANSI カラー コード | 表示色 |
 |------------------|--------------|-------------------|--------|
 | エラー | ` error: ` | `\033[0;31m` | 🔴 赤 |
 | ワーニング | ` warning: ` | `\033[0;33m` | 🟡 黄 |
@@ -28,7 +28,7 @@ bin/doxygen-colorize-output.sh
 
 ## 実装詳細
 
-### ANSI カラーコード定義
+### ANSI カラー コード定義
 
 ```bash
 RED='\033[0;31m'
@@ -119,19 +119,19 @@ Normal output line
 
 (ターミナルでは以下のように表示されます)
 
-<span style="color: #ffaa00">/path/to/file.c:42: warning: undocumented parameter 'foo'</span>  
-<span style="color: #ff0000">/path/to/file.c:100: error: invalid syntax</span>  
+<span style="color: #ffaa00">/path/to/file.c:42: warning: undocumented parameter 'foo'</span>
+<span style="color: #ff0000">/path/to/file.c:100: error: invalid syntax</span>
 Normal output line
 
 ## 制限事項
 
-### ANSI カラーコード非対応環境
+### ANSI カラー コード非対応環境
 
-Windows コマンド プロンプトなど、ANSI カラーコードに対応していないターミナルでは、エスケープ シーケンスがそのまま表示される可能性があります。
+Windows コマンド プロンプトなど、ANSI カラー コードに対応していないターミナルでは、エスケープ シーケンスがそのまま表示される可能性があります。
 
 ### ログ ファイルへの出力
 
-ANSI カラーコードを含む出力をファイルにリダイレクトすると、エスケープ シーケンスがそのまま記録されます。
+ANSI カラー コードを含む出力をファイルにリダイレクトすると、エスケープ シーケンスがそのまま記録されます。
 
 ログ ファイルに保存する場合は、以下のいずれかの方法を推奨します。
 

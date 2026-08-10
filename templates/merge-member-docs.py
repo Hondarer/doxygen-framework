@@ -196,7 +196,7 @@ def main():
             new_block = set_inner(new_block, tag, inner)
 
         if new_block == defn["block"]:
-            # 既に同一 (冪等)
+            # すでに同一 (冪等)
             continue
 
         edits.setdefault(defn["path"], []).append((defn["block"], new_block))

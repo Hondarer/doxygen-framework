@@ -8,7 +8,7 @@ Doxybook2 の出力形式と着色パターンについて調査を実施しま�
 
 ### Doxybook2 の着色機能
 
-Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラーコードによる着色が有効になっています。
+Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラー コードによる着色が有効になっています。
 
 spdlog は 2022 年頃に Doxybook2 に統合され、以前のカスタム Log.hpp/cpp ファイルを置き換えています。
 
@@ -30,9 +30,9 @@ spdlog のデフォルト出力形式は以下の通りです。
 
 ### spdlog のデフォルト着色
 
-spdlog の `ansicolor_sink` は、以下のデフォルト カラーマッピングを使用します。
+spdlog の `ansicolor_sink` は、以下のデフォルト カラー マッピングを使用します。
 
-| ログ レベル | ANSI カラーコード | 表示色 | 備考 |
+| ログ レベル | ANSI カラー コード | 表示色 | 備考 |
 |------------|-------------------|--------|------|
 | `[trace]` | `\033[37m` | 白 | 通常の太さ |
 | `[debug]` | `\033[36m` | シアン | 通常の太さ |

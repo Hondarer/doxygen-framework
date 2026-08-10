@@ -1,8 +1,8 @@
 #!/bin/bash
-# Doxygen の通常出力を整形するフィルタースクリプト
+# Doxygen の通常出力を整形するフィルター スクリプト
 # warning は WARN_LOGFILE 側で別表示するため、ここでは通常出力と error のみを扱う
 
-# ANSI カラーコード
+# ANSI カラー コード
 RED='\033[0;31m'
 RESET='\033[0m'
 

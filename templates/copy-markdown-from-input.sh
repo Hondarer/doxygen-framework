@@ -44,7 +44,7 @@ extract_input_from_doxyfile() {
             in_input = 1
             # = 以降を取得
             sub(/^INPUT[[:space:]]*=[[:space:]]*/, "")
-            # 前の値をクリア（最後の INPUT を使用）
+            # 前の値をクリア (最後の INPUT を使用)
             value = ""
         }
 
@@ -68,7 +68,7 @@ extract_input_from_doxyfile() {
                     if (value) value = value " " $0
                     else value = $0
                 }
-                # 最後の INPUT を保存（まだ exit しない）
+                # 最後の INPUT を保存 (まだ exit しない)
                 last_value = value
                 in_input = 0
                 value = ""
@@ -122,7 +122,7 @@ extract_gitignore_patterns() {
     # シンプルなディレクトリ名のみを抽出
     # - コメント (# で始まる行) をスキップ
     # - 空行をスキップ
-    # - / や * を含むパターンはスキップ（シンプルなディレクトリ名のみ）
+    # - / や * を含むパターンはスキップ (シンプルなディレクトリ名のみ)
     # - ! で始まる否定パターンはスキップ
     grep -v '^#' "$gitignore_file" | \
     grep -v '^[[:space:]]*$' | \
@@ -146,7 +146,7 @@ copy_referenced_images() {
     sed 's/.*(\(.*\))/\1/' | \
     grep -Ev '^https?://' | \
     while IFS= read -r img_ref; do
-        # クエリパラメータ・アンカーを除去
+        # クエリ パラメータ・アンカーを除去
         local img_path="${img_ref%%[?#]*}"
         [ -z "$img_path" ] && continue
 
@@ -163,7 +163,7 @@ copy_referenced_images() {
 # Markdown ファイルとディレクトリ構造をコピー
 copy_markdown_files() {
     local base_dir="$1"       # Doxygen 実行ディレクトリ
-    local input_dirs="$2"     # INPUT ディレクトリリスト (空白区切り)
+    local input_dirs="$2"     # INPUT ディレクトリ リスト (空白区切り)
     local dest_dir="$3"       # コピー先ディレクトリ
 
     # コピー先をクリーンアップして作成
@@ -247,7 +247,7 @@ copy_markdown_files() {
                 done
             fi
 
-            # 次に .md ファイルをコピー（.gitignore パターンは除外）
+            # 次に .md ファイルをコピー (.gitignore パターンは除外)
             local find_cmd
             if [ -n "$prune_args" ]; then
                 find_cmd="find \"$src_path\" $prune_args -type f -name \"*.md\" -print"
@@ -382,9 +382,9 @@ author: doxygen and doxybook2
 
 EOF
 
-    # Pages ディレクトリ内のディレクトリとファイルをリストアップ（空フォルダも含む）
+    # Pages ディレクトリ内のディレクトリとファイルをリストアップ (空フォルダーも含む)
     if [ -d "$PAGES_DIR" ]; then
-        # ファイルリストを一時ファイルに保存
+        # ファイル リストを一時ファイルに保存
         TEMP_FILE=$(mktemp)
 
         # Markdown ファイルを検索してソート
@@ -394,14 +394,14 @@ EOF
             echo "$rel_path" >> "$TEMP_FILE"
         done
 
-        # インデックスファイルの生成
+        # インデックス ファイルの生成
         if [ -s "$TEMP_FILE" ]; then
             # 出力済みエントリを追跡する連想配列
             declare -A printed_dirs
 
             # ディレクトリを再帰的に処理する関数
             # $1: PAGES_DIR からの相対パス (ルートは空文字列)
-            # $2: 現在の深さ (インデントレベル)
+            # $2: 現在の深さ (インデント レベル)
             # 各レベルで: 1. サブディレクトリ (昇順) → 2. 非 README ファイル (昇順) の順に出力
             process_directory() {
                 local dir_rel="$1"
@@ -421,7 +421,7 @@ EOF
                     parent_dir="$PAGES_DIR/$dir_rel"
                 fi
 
-                # 1. サブディレクトリを先に処理 (フォルダをファイルより前に出力)
+                # 1. サブディレクトリを先に処理 (フォルダーをファイルより前に出力)
                 while IFS= read -r subdir; do
                     local subdir_name
                     subdir_name=$(basename "$subdir")
@@ -472,7 +472,7 @@ EOF
                 done < <(find "$parent_dir" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
 
                 # 2. このディレクトリ直下の非 README .md ファイルを出力
-                #    サブディレクトリの後に出力することでフォルダ後ファイルの順序を保証する
+                #    サブディレクトリの後に出力することでフォルダー後ファイルの順序を保証する
                 #    find | LC_ALL=C sort によりファイル名昇順で挿入する
                 while IFS= read -r md_file; do
                     local file_name
@@ -485,7 +485,7 @@ EOF
                         file_rel="$dir_rel/$file_name"
                     fi
 
-                    # 出力済みはスキップ (ディレクトリリンクとして使用済みの README.md もここで除外される)
+                    # 出力済みはスキップ (ディレクトリ リンクとして使用済みの README.md もここで除外される)
                     if [ -n "${printed_dirs[$file_rel]}" ]; then continue; fi
 
                     local description
@@ -513,7 +513,7 @@ EOF
                 done < <(find "$parent_dir" -mindepth 1 -maxdepth 1 -type f -name "*.md" | LC_ALL=C sort)
             }
 
-            # ルートディレクトリから再帰的に処理
+            # ルート ディレクトリから再帰的に処理
             process_directory "" 0
         fi
 

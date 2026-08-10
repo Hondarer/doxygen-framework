@@ -6,7 +6,7 @@ inject-groups.py - Files ドキュメントへのグループセクション挿�
 
 Doxygen XML を解析してグループ (@defgroup) を検出し、
 グループメンバーの location から対応するソースファイルを特定して、
-Files/*.md に ## グループタイトル セクションと !include ディレクティブを挿入する。
+Files/*.md に ## グループ タイトル セクションと !include ディレクティブを挿入する。
 
 各 Files/*.md への include では、そのファイルで定義されたメンバーのみを含む
 フィルタ済み中間 MD (Modules/perfile__*.md) を生成して参照する。
@@ -261,7 +261,7 @@ def parse_group_md_sections(md_path):
     i = 0
     n = len(raw_lines)
 
-    # YAML フロントマターをスキップ
+    # YAML フロント マターをスキップ
     if i < n and raw_lines[i].strip() == "---":
         i += 1
         while i < n and raw_lines[i].strip() != "---":
@@ -352,14 +352,14 @@ def _strip_classes_md_header(md_path):
     i = 0
     n = len(raw_lines)
 
-    # YAML フロントマターをスキップ
+    # YAML フロント マターをスキップ
     if i < n and raw_lines[i].strip() == "---":
         i += 1
         while i < n and raw_lines[i].strip() != "---":
             i += 1
         i += 1  # closing ---
 
-    # フロントマター後、本文開始まで 空行 / HTML コメント / H1 をスキップ
+    # フロント マター後、本文開始まで 空行 / HTML コメント / H1 をスキップ
     while i < n:
         if raw_lines[i] == "":
             i += 1
@@ -546,7 +546,7 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
 
     ordered_members の各メンバーについて、対象 md に見出し行 (### または ####) が
     存在するかを判定し、欠落メンバーのみを対象 md の末尾に
-    ## グループタイトル セクションとして追記する。
+    ## グループ タイトル セクションとして追記する。
 
     embed=False の場合はフィルタ済み中間 MD
     (Modules/perfile__<group_id>__<対象 md の stem>.md) を生成して !include で
@@ -706,7 +706,7 @@ def inject_into_class_files_md(docs_dir, class_group_members, group_titles):
     グループへ移動したクラス メンバーをクラス ページへ補完する。
 
     欠落メンバーのみを Classes/*.md の末尾に
-    ## グループタイトル セクションとして追記する。
+    ## グループ タイトル セクションとして追記する。
 
     Classes/*.md は Files/*.md や Namespaces/*.md から !include される側のため、
     postprocess.sh はソート順 (Classes が Files / Namespaces より先) で
@@ -745,7 +745,7 @@ def inject_into_class_files_md(docs_dir, class_group_members, group_titles):
 def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_data,
                          class_member_names, classes_dir=None):
     """
-    Files/*.md の末尾に ## グループタイトル セクションと !include ディレクティブを追記する。
+    Files/*.md の末尾に ## グループ タイトル セクションと !include ディレクティブを追記する。
 
     各グループについて、そのファイルで定義されたメンバーのみを含む
     フィルタ済み中間 MD (perfile__<group_id>__<files_stem>.md) を
@@ -780,8 +780,8 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
     for (group_id, title, _) in groups:
         # このファイルに属するメンバー名集合を取得
         _, file_data = group_data[group_id]
-        # files_md_path のソースベースネームを特定するため file_data のキーを逆引き
-        # (groups の (group_id, title, min_line) はソースベースネーム別に組み立て済み)
+        # files_md_path のソース ベース ネームを特定するため file_data のキーを逆引き
+        # (groups の (group_id, title, min_line) はソース ベース ネーム別に組み立て済み)
         member_names = None
         for src_basename, (names_set, _) in file_data.items():
             if source_basename_to_md_name(src_basename) == files_md_path.name:
@@ -805,7 +805,7 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
         sections = parse_group_md_sections(group_md_path)
         filtered_content = generate_filtered_md(title, sections, member_names, classes_dir)
 
-        # フィルタ済み中間 MD を Modules/ に書き出す
+        # フィルター済み中間 MD を Modules/ に書き出す
         filtered_name = "perfile__{}__{}.md".format(group_id, files_stem)
         filtered_path = modules_dir / filtered_name
         with open(str(filtered_path), "w", encoding="utf-8", newline="\n") as f:
@@ -964,7 +964,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
     root group の Modules ページに子孫グループの内容を挿入する。
 
     Files 注入の perfile__ パターンと同様に perchild__*.md 中間ファイルを生成し、
-    親グループ MD に ## 子グループタイトル セクションと !include ディレクティブを追記する。
+    親グループ MD に ## 子グループ タイトル セクションと !include ディレクティブを追記する。
     postprocess.sh が !include を heading_offset=1 で展開した後、
     perchild__*.md を削除する。
 
@@ -1053,7 +1053,7 @@ def main():
 
     print("[inject-groups] xml={}  docs={}".format(xml_dir, docs_dir))
 
-    # グループデータ収集:
+    # グループ データ収集:
     #   group_data:     {group_id: (title, {decl_basename: (names_set, min_line)})}
     #   hierarchy:      {parent_id: [(child_id, child_title), ...]}
     #   member_langs:   {group_id: {name: language}}
@@ -1084,7 +1084,7 @@ def main():
                 class_member_names[gid] = set()
             class_member_names[gid].add(name)
 
-    # ファイルごとのグループリスト構築: {source_basename: [(group_id, title, min_line), ...]}
+    # ファイルごとのグループ リスト構築: {source_basename: [(group_id, title, min_line), ...]}
     file_groups = {}
     for group_id, (title, file_data) in group_data.items():
         for basename, (_, min_line) in file_data.items():

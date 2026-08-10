@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-inject-cs-enums.py - C# ファイルドキュメントへの enum セクション挿入
+inject-cs-enums.py - C# ファイル ドキュメントへの enum セクション挿入
 
 Doxygen XML を解析して C# の enum を検出し、
 対応する Files/*_8cs.md に ## 型 セクションと !include ディレクティブを挿入する。
@@ -75,7 +75,7 @@ def collect_enums(xml_dir):
                     if memberdef.get("kind") != "enum":
                         continue
 
-                    # ソースファイルのパス
+                    # ソース ファイルのパス
                     location = memberdef.find("location")
                     if location is None:
                         continue
@@ -149,7 +149,7 @@ def generate_enum_md(enum_info):
 
     lines = []
 
-    # YAML フロントマター
+    # YAML フロント マター
     lines.append("---")
     if brief:
         safe_brief = brief.replace('"', '\\"')

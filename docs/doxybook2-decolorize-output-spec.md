@@ -2,13 +2,13 @@
 
 ## 概要
 
-`doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラーコードを除去するフィルター スクリプトです。`[info]` ログを完全に脱色し、`[warning]` / `[error]` / `[critical]` の太字を除去します。
+`doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラー コードを除去するフィルター スクリプトです。`[info]` ログを完全に脱色し、`[warning]` / `[error]` / `[critical]` の太字を除去します。
 
 ## 背景と目的
 
 ### 問題点
 
-Doxybook2 は spdlog ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラーコードによる着色が有効になっています。実行時、以下の問題が発生します。
+Doxybook2 は spdlog ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラー コードによる着色が有効になっています。実行時、以下の問題が発生します。
 
 - `[info]` レベルのログが緑色で大量に出力され、視認性が低下する
 - Doxygen とは逆に、着色が過剰である
@@ -36,7 +36,7 @@ bin/doxybook2-decolorize-output.sh
 
 ## 機能
 
-標準入力から受け取った各行を解析し、ログ レベルに応じて ANSI カラーコードを除去または調整します。
+標準入力から受け取った各行を解析し、ログ レベルに応じて ANSI カラー コードを除去または調整します。
 
 ### 処理ルール
 
@@ -199,21 +199,21 @@ exit $DOXYBOOK2_EXIT;
 [2025-11-26 10:30:15.123] [info] Processing file calculator.h
 ```
 
-[2025-11-26 10:30:15.124] <span style="color: #ffaa00">[warning]</span> Missing brief description
-[2025-11-26 10:30:15.125] <span style="color: #ff0000">[error]</span> Failed to parse member
+[2025-11-26 10:30:15.124] <span style="color: #ffaa00">[warning]</span> Missing brief description  
+[2025-11-26 10:30:15.125] <span style="color: #ff0000">[error]</span> Failed to parse member  
 [2025-11-26 10:30:15.126] <span style="color: #ff0000">[critical]</span> Fatal error occurred
 
 (`[info]` は着色なし、`[warning]` 単語は通常の太さの黄色、`[error]` と `[critical]` 単語は通常の太さの赤色で表示)
 
 ## 制限事項
 
-### ANSI カラーコード非対応環境
+### ANSI カラー コード非対応環境
 
-元々 ANSI カラーコードに対応していないターミナルでは、Doxybook2 自体が着色を出力しないため、本スクリプトの効果はありません。
+元々 ANSI カラー コードに対応していないターミナルでは、Doxybook2 自体が着色を出力しないため、本スクリプトの効果はありません。
 
 ### ログ ファイルへの出力
 
-ANSI カラーコードを含む出力をファイルにリダイレクトする場合、本スクリプトを適用することで、ログ ファイルに不要なエスケープ シーケンスが含まれることを防げます。
+ANSI カラー コードを含む出力をファイルにリダイレクトする場合、本スクリプトを適用することで、ログ ファイルに不要なエスケープ シーケンスが含まれることを防げます。
 
 ```bash
 # 推奨: フィルターを適用してログ ファイルに保存

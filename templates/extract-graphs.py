@@ -29,9 +29,9 @@ import re
 # Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
 DOT_GRAPH_MAX_NODES = 50
 
-# インクルード依存グラフ・被インクルード関係グラフのノードラベル表示モード
+# インクルード依存グラフ・被インクルード関係グラフのノード ラベル表示モード
 # True : グラフ内で最短一意になる後方パスで表示
-# False: フルパスをそのまま表示
+# False: 完全なパスをそのまま表示
 INC_GRAPH_LABEL_BASENAME_ONLY = True
 
 # グラフ種別ごとの詳細版のみ表示設定
@@ -69,7 +69,7 @@ def parse_graph_nodes(xml_text, graph_tag):
     """
     results = []
 
-    # グラフブロックを抽出
+    # グラフ ブロックを抽出
     pattern = re.compile(
         rf'<{graph_tag}>(.*?)</{graph_tag}>',
         re.DOTALL
@@ -981,13 +981,13 @@ def inject_compound_graphs(xml_text):
 
             # インクルード依存グラフ
             # reverse_edges=True により以下を実現する。
-            # - エッジを dst --> src と出力し「依存ヘッダ → 対象」の矢印方向にする
+            # - エッジを dst --> src と出力し「依存ヘッダー → 対象」の矢印方向にする
             # - 対象が PlantUML レイアウトの末尾 (下) に配置される
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
-                # 親ファイルがヘッダ以外 (.c, .cc, .cpp 等) の場合は自身ノードも含める
-                # (.h の場合は .h フィルタで自然に含まれるため self_id 指定不要)
+                # 親ファイルがヘッダー以外 (.c, .cc, .cpp 等) の場合は自身ノードも含める
+                # (.h の場合は .h フィルターで自然に含まれるため self_id 指定不要)
                 inc_self_id = self_id if not display_name.lower().endswith('.h') else None
                 nodes, edges = filter_header_only_graph(nodes, edges, self_id=inc_self_id)
                 display_nodes = build_file_graph_display_nodes(nodes)
@@ -1301,7 +1301,7 @@ def main():
     # (コールグラフ/呼び出し元グラフを関数のみにするため)
     function_ids = collect_function_ids(xml_dir)
 
-    # compound id → ファイル パスマップを収集
+    # compound id → ファイル パス マップを収集
     # (グラフ内で最短一意のファイル表記を構成するため)
     compound_file_map = collect_compound_file_map(xml_dir)
 
@@ -1316,7 +1316,7 @@ def main():
 
     for xml_file in xml_files:
         basename = os.path.basename(xml_file)
-        # index.xml 等のインデックスファイルはスキップ
+        # index.xml 等のインデックス ファイルはスキップ
         if basename.startswith('index') or basename == 'combine.xslt':
             skipped_count += 1
             continue

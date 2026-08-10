@@ -940,7 +940,7 @@ def call_area(file_path: str) -> str:
 
 
 # Doxygen が制御構文を phantom memberdef として生成するとき、name に C キーワードが設定される。
-# bodyfile はソースファイルを指すため body_file == "" チェックでは除外できない。
+# bodyfile はソース ファイルを指すため body_file == "" チェックでは除外できない。
 _C_KEYWORDS: frozenset = frozenset({
     "if", "else", "for", "while", "do", "switch", "case", "default",
     "break", "continue", "return", "goto",

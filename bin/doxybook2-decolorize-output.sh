@@ -1,5 +1,5 @@
 #!/bin/bash
-# Doxybook2 出力から過剰な着色を除去するフィルタースクリプト
+# Doxybook2 出力から過剰な着色を除去するフィルター スクリプト
 # [info] を完全脱色、[warning] / [error] / [critical] の太字を除去
 
 # 色をリセット
@@ -9,7 +9,7 @@ printf '\033[0m'
 while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     if [[ "$line" == *"[info]"* ]]; then
-        # [info] 行から全ての ANSI エスケープコードを削除
+        # [info] 行からすべての ANSI エスケープ コードを削除
         echo "$line" | sed 's/\x1b\[[0-9;]*m//g'
     elif [[ "$line" == *"[critical]"* ]]; then
         # [critical] の太字と背景色を除去し、通常の赤文字に変換

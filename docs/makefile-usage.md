@@ -11,7 +11,7 @@ cd framework/doxyfw
 make
 ```
 
-別のワークスペースから呼び出す場合は、呼び出し元で `DOXYFW_HOME` に doxyfw の配置先を指定します。
+別のワークスペースから呼び出す場合は、呼び出し元で `DOXYFW_HOME` に doxyfw の配置先を指定します。  
 doxyfw の makefile は `WORKSPACE_DIR` を workspace 側の基準ディレクトリとして使います。通常は呼び出し元 makefile が設定するため、手動指定は不要です。
 
 このコマンドは以下の処理を順次実行します。
@@ -29,8 +29,8 @@ cd framework/doxyfw
 make clean
 ```
 
-生成されたドキュメント (`pages/doxygen`、`docs/doxybook2`) を削除します。
-`CATEGORY` 指定時に生成された Markdown は、既定では `app/<CATEGORY>/docs/doxybook2` から削除されます。
+生成されたドキュメント (`pages/doxygen`、`docs/doxybook2`) を削除します。  
+`CATEGORY` 指定時に生成された Markdown は、既定では `app/<CATEGORY>/docs/doxybook2` から削除されます。  
 `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` を指定している場合は、指定したディレクトリが削除対象になります。
 
 ## CATEGORY オプション
@@ -191,7 +191,7 @@ INPUT                  = app/calc/test/src
 
 Doxygen に未知タグ警告を出させないため、この設定は通常の Doxygen タグではなくコメントとして記述します。
 
-値を空にした場合は未指定として扱われ、既定値を使用します。
+値を空にした場合は未指定として扱われ、既定値を使用します。  
 値を指定する場合はディレクトリ名 1 要素だけです。絶対パス、`.`、`..`、`/`、`\` を含む値はエラーになります。
 
 カスタム名を使用する app では、`docs/README.md` 内の Doxybook2 へのリンクと `\toc exclude` の対象も同じディレクトリ名に更新してください。
@@ -218,8 +218,8 @@ CATEGORY が指定された場合、makefile は以下の処理を自動的に�
 
 #### XML 中間ファイル
 
-XML 中間ファイルは `/tmp/doxyfw-tmp/{CATEGORY_ID}/run.XXXXXX/xml/` に作成します。
-`CATEGORY` 未指定時の `{CATEGORY_ID}` は `root` です。
+XML 中間ファイルは `/tmp/doxyfw-tmp/{CATEGORY_ID}/run.XXXXXX/xml/` に作成します。  
+`CATEGORY` 未指定時の `{CATEGORY_ID}` は `root` です。  
 Doxygen 実行ごとに `mktemp` で実行単位のディレクトリを作成するため、異なる app の `make doxy` が同時に実行されても XML 中間ファイルは共有されません。
 
 前処理前の XML を保存したい場合は、該当 run ディレクトリを削除する前に個別に退避してください。

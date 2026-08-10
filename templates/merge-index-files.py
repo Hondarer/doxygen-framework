@@ -21,7 +21,7 @@ class Node:
 
 def parse_line(line: str) -> Optional[Tuple[int, str, str, str, str]]:
     """Markdown行を解析して (インデント, アイコン, 名前, リンク, 説明) を返す"""
-    # インデントを計算（4スペース = 1レベル）
+    # インデントを計算 (4 スペース = 1 レベル)
     stripped = line.lstrip()
     # * / - / + のいずれかのマーカーで始まる行を対象とする
     if not stripped or stripped[0] not in ('*', '-', '+'):
@@ -76,7 +76,7 @@ def build_tree(lines: List[str]) -> List[Node]:
         indent, icon, name, link, description = parsed
         node = Node(name, indent, icon, link, description)
 
-        # スタックを現在のインデントレベルに調整
+        # スタックを現在のインデント レベルに調整
         while stack and stack[-1].indent >= indent:
             stack.pop()
 
@@ -95,12 +95,12 @@ def build_tree(lines: List[str]) -> List[Node]:
 def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
     """2つのツリーをマージ（ページ版を優先）"""
     def merge_nodes(pages_nodes: List[Node], files_nodes: List[Node]) -> List[Node]:
-        # ページノードをベースにする
+        # ページ ノードをベースにする
         result: List[Node] = []
         pages_dict: Dict[str, Node] = {node.name: node for node in pages_nodes}
         files_dict: Dict[str, Node] = {node.name: node for node in files_nodes}
 
-        # 両辞書のキーの和集合を取得（末尾でソートするため挿入順は不問）
+        # 両辞書のキーの和集合を取得 (末尾でソートするため挿入順は不問)
         all_names = list(pages_dict.keys() | files_dict.keys())
 
         for name in all_names:
@@ -120,7 +120,7 @@ def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
                 merged_node.children = merge_nodes(pages_node.children, files_node.children)
                 result.append(merged_node)
             elif pages_node:
-                # ページ版のみ: そのまま使用（ファイルツリーから子を追加）
+                # ページ版のみ: そのまま使用 (ファイル ツリーから子を追加)
                 merged_node = Node(
                     pages_node.name,
                     pages_node.indent,
@@ -128,7 +128,7 @@ def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
                     pages_node.link,
                     pages_node.description
                 )
-                # ファイルツリーから対応するディレクトリを探す
+                # ファイル ツリーから対応するディレクトリを探す
                 files_match = files_dict.get(name)
                 if files_match and not pages_node.is_file:
                     # 子ノードをマージ
@@ -137,10 +137,10 @@ def merge_trees(pages_tree: List[Node], files_tree: List[Node]) -> List[Node]:
                     merged_node.children = pages_node.children
                 result.append(merged_node)
             elif files_node:
-                # ファイル版のみ: 追加（特にファイルエントリ）
+                # ファイル版のみ: 追加 (特にファイル エントリ)
                 result.append(files_node)
 
-        # フォルダ優先・名前順でソート
+        # フォルダー優先・名前順でソート
         result.sort(key=lambda n: (n.is_file, n.name))
         return result
 
@@ -185,7 +185,7 @@ def merge_index_files(files_path: str, pages_path: str, output_path: str):
     with open(pages_path, 'r', encoding='utf-8') as f:
         pages_lines = f.readlines()
 
-    # ヘッダー部分 (YAML フロントマターと見出しまで) を index_files.md 側から抽出
+    # ヘッダー部分 (YAML フロント マターと見出しまで) を index_files.md 側から抽出
     header_lines = []
     files_content_start_idx = 0
     for i, line in enumerate(files_lines):

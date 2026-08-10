@@ -53,7 +53,7 @@ extract_project_name_from_doxyfile() {
     ' "$doxyfile"
 }
 
-# Markdown ファイルのポストプロセッシング関数
+# Markdown ファイルのポスト プロセッシング関数
 process_markdown_file() {
     local file="$1"
     local temp_file
@@ -73,7 +73,7 @@ process_markdown_file() {
             local include_path
             local include_heading_offset=0
 
-            # 相対パスとして解決 (markdownディレクトリを基準)
+            # 相対パスとして解決 (markdown ディレクトリを基準)
             if [[ "$include_file" == /* ]]; then
                 # 絶対パス
                 include_path="$include_file"
@@ -82,7 +82,7 @@ process_markdown_file() {
                 include_path="$MARKDOWN_DIR/$include_file"
             fi
 
-            # インクルードファイルの存在チェック
+            # インクルード ファイルの存在チェック
             if [ -f "$include_path" ]; then
                 # Classes/ のページをインクルードする場合、
                 # Files/ でも Namespaces/ でも見出し階層は同じ構造のため、
@@ -93,15 +93,15 @@ process_markdown_file() {
                     include_heading_offset=2
                 fi
                 # Modules/ のページをインクルードする場合、
-                # 埋め込み先の ## グループタイトル (H2) 配下に揃えるため
+                # 埋め込み先の ## グループ タイトル (H2) 配下に揃えるため
                 # 1 段下げる (H2 → H3、H3 → H4 など)。
                 # ※ Modules 側ファイルそのものは変更しない。
                 if [[ "$include_file" == Modules/*.md ]]; then
                     include_heading_offset=1
                 fi
                 #echo "  -> インクルード: $include_file"
-                # YAML フロントマター、HTML コメント行、H1 見出しを除いてファイル内容を出力
-                # (インクルード先はファイルルート Markdown のため、埋め込み時にヘッダー部分を除去する)
+                # YAML フロント マター、HTML コメント行、H1 見出しを除いてファイル内容を出力
+                # (インクルード先はファイル ルート Markdown のため、埋め込み時にヘッダー部分を除去する)
                 awk '
                 BEGIN { in_frontmatter = 0; frontmatter_done = 0; h1_removed = 0 }
                 NR==1 && /^---[[:space:]]*$/ { in_frontmatter = 1; next }
@@ -171,8 +171,8 @@ process_markdown_file() {
         fi
     done < "$file" > "$include_temp"
 
-    # YAML フロントマター処理
-    # - YAML フロントマター内の空行を除去
+    # YAML フロント マター処理
+    # - YAML フロント マター内の空行を除去
     # - summary が複数行に分割された場合は 1 行へ正規化
     awk '
     BEGIN {
@@ -181,7 +181,7 @@ process_markdown_file() {
         line_count = 0
     }
 
-    # 最初の行が --- で始まる場合、フロントマターの開始
+    # 最初の行が --- で始まる場合、フロント マターの開始
     line_count == 0 && /^---[[:space:]]*$/ {
         frontmatter_started = 1
         in_frontmatter = 1
@@ -190,7 +190,7 @@ process_markdown_file() {
         next
     }
 
-    # フロントマター内で --- が見つかった場合、フロントマターの終了
+    # フロント マター内で --- が見つかった場合、フロント マターの終了
     in_frontmatter && /^---[[:space:]]*$/ {
         in_frontmatter = 0
         print $0
@@ -198,7 +198,7 @@ process_markdown_file() {
         next
     }
 
-    # フロントマター内の処理
+    # フロント マター内の処理
     in_frontmatter {
         # 空行または空白のみの行をスキップ
         if (/^[[:space:]]*$/) {
@@ -211,7 +211,7 @@ process_markdown_file() {
         next
     }
 
-    # フロントマター外の処理 (通常の行)
+    # フロント マター外の処理 (通常の行)
     {
         print $0
         line_count++
@@ -299,25 +299,25 @@ process_markdown_file() {
 
     # short-title のパス値をバレなファイル名に正規化
     # doxybook2 テンプレートの {{name}} が File ページ向けに相対パスを返すため、
-    # postprocess 側でフロントマター内の short-title 値を basename 化する。
+    # postprocess 側でフロント マター内の short-title 値を basename 化する。
     # 例: short-title: "libsrc/CalcLib/CalcException.cs"
     #   → short-title: "CalcException.cs"
     # パスを含まない値 (ルート直下のファイルなど) はそのまま維持する。
     sed 's|^\(short-title: "\).\+/\([^/]*\)"\([[:space:]]*\)$|\1\2"\3|' | \
 
     # 行末空白除去と !linebreak! 処理
-    # - sedを使用して行末の空白文字を削除し、
+    # - sed を使用して行末の空白文字を削除し、
     # - !linebreak! を空白 2 つ + 改行に変換
     # - 表内 (| で始まる) の !linebreak! は <br/> に変換
     sed 's/[[:space:]]*$//' | \
     sed '/^|/ s/[[:space:]]*\!linebreak\![[:space:]]*/<br \/>/g' | \
     sed '/^[^|]/ s/[[:space:]]*\!linebreak\![[:space:]]*/  \n/g' | \
-    # コードフェンス・LaTeX ブロック数式前の改行不足対策
+    # コード フェンス・LaTeX ブロック数式前の改行不足対策
     # Doxybook2 が以下のケースでテキストと数式/コードを同一行に連結する問題を修正する。
     #
-    # (1) コードフェンス: テキストに続いて ```lang が同一行にある場合、間に空行を挿入。
-    #     ※ !dunder! 変換より先に実行しないと、テキスト+コードフェンスが同一行のまま
-    #       !dunder! 変換の split 処理に渡されてコードフェンスが破壊されるため、
+    # (1) コード フェンス: テキストに続いて ```lang が同一行にある場合、間に空行を挿入。
+    #     ※ !dunder! 変換より先に実行しないと、テキスト+コード フェンスが同一行のまま
+    #       !dunder! 変換の split 処理に渡されてコード フェンスが破壊されるため、
     #       この awk を先に配置する。
     #
     # (2) LaTeX ブロック数式 \[: テキストに続いて \[ が同一行にある場合、
@@ -360,11 +360,11 @@ process_markdown_file() {
     { print }
     ' | \
     # __DETAILS_ONLY__ マーカー付き見出しブロックを詳細タグで囲む
-    # extract-graphs.py が details_only=True のグラフタイトルに付与した
+    # extract-graphs.py が details_only=True のグラフ タイトルに付与した
     # "__DETAILS_ONLY__" プレフィックスを検出し、その見出しと plantuml
-    # コードフェンスを <!--details:--> / <!--:details--> で囲む。
+    # コード フェンスを <!--details:--> / <!--:details--> で囲む。
     # details.tmpl の単位項目タイトル marker は通常は **タイトル** に変換し、
-    # DOXYFW_DETAILS_ONLY を持つグラフタイトルだけは詳細タグ付き見出しに戻す。
+    # DOXYFW_DETAILS_ONLY を持つグラフ タイトルだけは詳細タグ付き見出しに戻す。
     awk '
     BEGIN { details_open = 0; in_fence = 0 }
     /^#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
@@ -422,15 +422,15 @@ process_markdown_file() {
     { print }
     ' | \
     # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
-    # コードブロックの種別に応じて変換先を切り替える。
-    # - PlantUML コードブロック内: !dunder! と __ の両方を ~_~_ に変換
-    #   PlantUML では __ がアンダーライン記法として解釈されるため、
-    #   ~ (エスケープ文字) で1文字ずつエスケープする。
-    # - 通常コードブロック内 (cpp など): !dunder! を __ に復元
-    # - コードブロック外:
+    # コード ブロックの種別に応じて変換先を切り替える。
+    # - PlantUML コード ブロック内: !dunder! と __ の両方を ~_~_ に変換
+    #   PlantUML では __ がアンダー ライン記法として解釈されるため、
+    #   ~ (エスケープ文字) で 1 文字ずつエスケープする。
+    # - 通常コード ブロック内 (cpp など): !dunder! を __ に復元
+    # - コード ブロック外:
     #   - Markdown リンク URL ](url) 内: !dunder! を __ に復元 (URL 中の __ はエスケープしない)
-    #   - インラインコード (`...`) 内: !dunder! を __ に復元 (エスケープ不要)
-    #   - 上記以外のインラインコード外: !dunder! を &#95;&#95; にエスケープ (Markdown 強調記法を防ぐ)
+    #   - インライン コード (`...`) 内: !dunder! を __ に復元 (エスケープ不要)
+    #   - 上記以外のインライン コード外: !dunder! を &#95;&#95; にエスケープ (Markdown 強調記法を防ぐ)
     #     テキストに直接 __ が残る場合も同様にエスケープする。
     #   awk の gsub では & がマッチ全体を表すため &#95; は \&#95; と記述する。
     awk '
@@ -450,14 +450,14 @@ process_markdown_file() {
     in_code_block && is_plantuml { gsub(/!dunder!/, "~_~_"); gsub(/__/, "~_~_") }
     in_code_block && !is_plantuml { gsub(/!dunder!/, "__") }
     !in_code_block {
-        # バッククォートで分割し、インラインコード内外を区別して処理する
+        # バッククォートで分割し、インライン コード内外を区別して処理する
         # split はバッククォートを区切りとして除去するため、偶数インデックスが
-        # インラインコード内 (バッククォアペアの間)、奇数が外側テキストとなる
+        # インライン コード内 (バッククォート ペアの間)、奇数が外側テキストとなる
         n = split($0, parts, /`/)
         result = ""
         for (i = 1; i <= n; i++) {
             if (i % 2 == 1) {
-                # インラインコード外: __ を &#95;&#95; にエスケープ
+                # インライン コード外: __ を &#95;&#95; にエスケープ
                 # ただし Markdown リンクの URL 部分 ](url) 内では __ を保持する
                 text = parts[i]
                 seg = ""
@@ -475,7 +475,7 @@ process_markdown_file() {
                 }
                 result = result seg
             } else {
-                # インラインコード内: !dunder! を __ に復元するだけ
+                # インライン コード内: !dunder! を __ に復元するだけ
                 part = parts[i]
                 gsub(/!dunder!/, "__", part)
                 result = result "`" part "`"
@@ -487,26 +487,26 @@ process_markdown_file() {
     { print }
     ' | \
 
-    # コードフェンス内のポインタ型スペース除去
-    # Doxygen の XML には型とポインタのスペースが複数の形で出現するため、それぞれ正規化する。
-    #   パス0: "型(* 変数名)" → "型 (*変数名)"
+    # コード フェンス内のポインター型スペース除去
+    # Doxygen の XML には型とポインターのスペースが複数の形で出現するため、それぞれ正規化する。
+    #   パス 0: "型(* 変数名)" → "型 (*変数名)"
     #          Doxygen が <definition> に "typedef int(* func_t)" のように出力するケース。
-    #   パス1: "型*+ 変数名" → "型 *+変数名"
+    #   パス 1: "型*+ 変数名" → "型 *+変数名"
     #          Doxygen が <definition> に "typedef void* TYPEDEF_VOID" や
     #          "typedef void** TYPEDEF_VOID_PP" のように出力するケース。
-    #          ※ [a-zA-Z_0-9] に限定することで "(* name)" のような関数ポインタ構文を除外する。
-    #   パス2: "型 * 変数名" → "型 *変数名"
+    #          ※ [a-zA-Z_0-9] に限定することで "(* name)" のような関数ポインター構文を除外する。
+    #   パス 2: "型 * 変数名" → "型 *変数名"
     #          Doxygen が型 ("int *") と変数名 ("b") を別々に XML 出力し
     #          Doxybook2 テンプレートで "int * b" のように結合されるケース。
-    # コードフェンス内のみに適用し、文字列リテラル ("...") 内はスキップする。
+    # コード フェンス内のみに適用し、文字列リテラル ("...") 内はスキップする。
     # ※ inja の文字列末尾チェック手段がないためテンプレート側では対処不可。
     #   (at() は文字列に使用不可、split() は末尾空トークンを除去する)
     awk '
-    # 変換対象の文字列 s にポインタスペース正規化を適用して返す。
+    # 変換対象の文字列 s にポインター スペース正規化を適用して返す。
     # 文字列リテラル内 ("...") は変換しない前提で、s はリテラル外の断片を受け取る。
     function fix_ptr(s,    result, n_stars) {
         result = ""
-        # パス0: "型(* 変数名)" → "型 (*変数名)" (関数ポインタ typedef の括弧前スペース正規化)
+        # パス 0: "型(* 変数名)" → "型 (*変数名)" (関数ポインター typedef の括弧前スペース正規化)
         # [^ ] で括弧前がすでにスペースの場合はスキップし、二重スペースを防ぐ。
         while (match(s, /[^ ]\(\* [a-zA-Z_]/)) {
             result = result substr(s, 1, RSTART) " (*" substr(s, RSTART + 4, 1)
@@ -514,8 +514,8 @@ process_markdown_file() {
         }
         s = result s
         result = ""
-        # パス1: "型*+ 変数名" → "型 *+変数名" (アスタリスクが型に密着し後ろにスペースのケース)
-        # \*+ でシングル/ダブルポインタ両方に対応する。
+        # パス 1: "型*+ 変数名" → "型 *+変数名" (アスタリスクが型に密着し後ろにスペースのケース)
+        # \*+ でシングル/ダブル ポインター両方に対応する。
         while (match(s, /[a-zA-Z_0-9]\*+ [a-zA-Z_]/)) {
             n_stars = RLENGTH - 3
             result = result substr(s, 1, RSTART) " " substr(s, RSTART + 1, n_stars) substr(s, RSTART + n_stars + 2, 1)
@@ -523,7 +523,7 @@ process_markdown_file() {
         }
         s = result s
         result = ""
-        # パス2: "型 * 変数名" → "型 *変数名" (型とアスタリスクの間にスペースのケース)
+        # パス 2: "型 * 変数名" → "型 *変数名" (型とアスタリスクの間にスペースのケース)
         while (match(s, /\* [a-zA-Z_]/)) {
             result = result substr(s, 1, RSTART) substr(s, RSTART + 2, 1)
             s = substr(s, RSTART + RLENGTH)
@@ -535,7 +535,7 @@ process_markdown_file() {
         print; next
     }
     in_code_block {
-        # ダブルクォートで分割し、リテラル外 (奇数インデックス) のみ fix_ptr を適用する。
+        # ダブル クォートで分割し、リテラル外 (奇数インデックス) のみ fix_ptr を適用する。
         n = split($0, parts, "\"")
         line = ""
         for (i = 1; i <= n; i++) {
@@ -550,8 +550,8 @@ process_markdown_file() {
 
     # 連続空行統合
     # - 空白文字のみの行 (空行含む) を空行として扱う
-    # - 連続する空行を1つの空行に置換
-    # - 文末の複数の空行も1つの空行に置換
+    # - 連続する空行を 1 つの空行に置換
+    # - 文末の複数の空行も 1 つの空行に置換
     awk '
     BEGIN { blank_count = 0 }
 
@@ -567,7 +567,7 @@ process_markdown_file() {
 
     # 非空行の場合
     {
-        # 前に空行があった場合、1つだけ出力
+        # 前に空行があった場合、1 つだけ出力
         if (blank_count > 0) {
             print blank_line
             blank_count = 0
@@ -580,11 +580,11 @@ process_markdown_file() {
     # Parameters セクション内の箇条書きネスト修正
     # Doxybook2 は @param の説明テキスト中の箇条書き (@param a 説明\n- 子項目) を
     # param.text に含めるが、インデントなしで展開するため、
-    # パラメータのサブアイテムが最上位リストと同列になってしまう。
-    # details.tmpl で付与した !paramitem! マーカーでパラメータ行を識別し、
-    # マーカーのない * 行に 2 スペースインデントを追加して
-    # 直前のパラメータ行の子リストとして正しくネストする。
-    # また、パラメータ行とサブ箇条書きの間の空行は Markdown 上は問題ないが、
+    # パラメーターのサブアイテムが最上位リストと同列になってしまう。
+    # details.tmpl で付与した !paramitem! マーカーでパラメーター行を識別し、
+    # マーカーのない * 行に 2 スペース インデントを追加して
+    # 直前のパラメーター行の子リストとして正しくネストする。
+    # また、パラメーター行とサブ箇条書きの間の空行は Markdown 上は問題ないが、
     # レンダリングの一貫性のためにここで除去する。
     awk '
     BEGIN { in_params_section = 0; in_param_item = 0; pending_blank = 0 }
@@ -684,9 +684,9 @@ process_markdown_file() {
     }
     ' | \
 
-    # 見出し行のインラインコード（バッククォート）除去
+    # 見出し行のインライン コード (バッククォート) 除去
     # # で始まる見出し行から `text` → text の変換を行う。
-    # コードブロック内の見出し行は変換しない。
+    # コード ブロック内の見出し行は変換しない。
     awk '
     BEGIN { in_code_block = 0 }
     /^[[:space:]]*```/ { in_code_block = !in_code_block; print; next }
@@ -748,9 +748,9 @@ process_markdown_file() {
     # 箇条書きマーカーを * / + / - から - に統一し、
     # ネスト 1 段あたりのインデントを 4 スペースに統一する。
     # 論理ネスト深さはスタックで生インデントを追跡して計算する。
-    # コードフェンス内、テーブル行、番号付きリストは対象外。
+    # コード フェンス内、テーブル行、番号付きリストは対象外。
     # 見出し行 (# ...) と単位項目タイトル marker でスタックをリセットし、
-    # 次リストブロックのベースを確定する。marker は alert 変換後に **タイトル** へ変換する。
+    # 次リスト ブロックのベースを確定する。marker は alert 変換後に **タイトル** へ変換する。
     awk '
     BEGIN {
         in_code_block = 0
@@ -841,16 +841,16 @@ process_markdown_file() {
 # 不要ファイルの削除
 # 現段階で対象としていない Markdown を削除する
 #
-# - ディレクトリページ
-# - ページインデックス
+# - ディレクトリ ページ
+# - ページ インデックス
 # - Pages
-# - インデックスページ
+# - インデックス ページ
 rm -rf "$MARKDOWN_DIR"/Files/dir_*.md \
        "$MARKDOWN_DIR"/index_pages.md \
        "$MARKDOWN_DIR"/Pages \
        "$MARKDOWN_DIR"/indexpage.md
 
-# .mdファイルを配列に収集
+# .md ファイルを配列に収集
 # ※ Enums/ はこの時点でまだ削除しない (!include 処理で参照するため)
 # ※ !include されるファイル (Classes/、Modules/perfile__* 等) は自身に !include を
 #    含まないリーフであることが前提。ネストした !include は解決されない。
@@ -871,7 +871,7 @@ done
 python3 "$SCRIPT_DIR/convert-admonitions.py" "$MARKDOWN_DIR" || exit 1
 
 # details.tmpl の par ループが各項目末尾に出力する <!--par-end--> マーカー行を除去する。
-# このマーカーは convert-admonitions.py で alert ブロッククォートの終端判定に使うもので、
+# このマーカーは convert-admonitions.py で alert ブロック クォートの終端判定に使うもので、
 # admonition でない通常の \par 項目では未消費のまま残るため、ここで一律に除去する。
 # 前後が空行の場合は連続空行を 1 行に詰めて出力する。
 find "$MARKDOWN_DIR" -name "*.md" -type f | while IFS= read -r file; do
@@ -921,7 +921,7 @@ find "$MARKDOWN_DIR" -name "*.md" -type f | while IFS= read -r file; do
     ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 done
 
-# Files/ を実フォルダ構造へ再編
+# Files/ を実フォルダー構造へ再編
 # (process_markdown_file ループ後に実施: !include 展開済みが前提)
 python3 "$SCRIPT_DIR/restructure-files.py" "$MARKDOWN_DIR" || exit 1
 
@@ -931,7 +931,7 @@ mapfile -t md_files < <(find "$MARKDOWN_DIR" -name "*.md" -type f)
 
 # サブディレクトリ内 Markdown のファイル間リンクを削除
 # Doxybook2 はクロスリファレンスを [text](Files/xxx.md#anchor) 形式で出力するが、
-# サブフォルダ間の相対パスが正しくないため、テキストのみ残してリンクを除去する。
+# サブフォルダー間の相対パスが正しくないため、テキストのみ残してリンクを除去する。
 # 画像リンク ![text](url) は除外する。
 # コードブロック内の [text](url) は変換しない。
 # awk は後方参照が使えないため、ループで [text](url) → text に変換する。
@@ -956,7 +956,7 @@ for file in "${md_files[@]}"; do
                         # 画像リンク: そのまま保持
                         result = result before matched
                     } else {
-                        # テキストリンク: テキストのみ抽出
+                        # テキスト リンク: テキストのみ抽出
                         paren_pos = index(matched, "](")
                         text = substr(matched, 2, paren_pos - 2)
                         result = result before text
@@ -976,15 +976,15 @@ done
 find "$MARKDOWN_DIR" -name "Enums" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # perfile__*.md / perchild__*.md (inject-groups.py が生成した !include 用中間ファイル) を削除
-# Modules/group__*.md スタンドアロンページは保持し、perfile__* / perchild__* のみ削除する
+# Modules/group__*.md スタンドアロン ページは保持し、perfile__* / perchild__* のみ削除する
 find "$MARKDOWN_DIR" -path "*/Modules/perfile__*.md" -type f -delete 2>/dev/null || true
 find "$MARKDOWN_DIR" -path "*/Modules/perchild__*.md" -type f -delete 2>/dev/null || true
 
 # 内容が空の Namespaces/*.md を削除し、index_namespaces.md の該当エントリ行も除去する。
-# 空 = フロントマター + 自動生成コメント + H1 見出しのみで本文がない名前空間
+# 空 = フロント マター + 自動生成コメント + H1 見出しのみで本文がない名前空間
 # (例: C# が参照するのみで本プロジェクトに文書化メンバーを持たない System::IO 等)。
-# この処理を空フォルダ削除ループの前に実行することで、全エントリが空の場合に
-# 既存ループがフォルダ + index ごと自動的に削除する動作と整合する。
+# この処理を空フォルダー削除ループの前に実行することで、全エントリが空の場合に
+# 既存ループがフォルダー + index ごと自動的に削除する動作と整合する。
 if [ -d "$MARKDOWN_DIR/Namespaces" ]; then
     NS_INDEX="$MARKDOWN_DIR/index_namespaces.md"
     find "$MARKDOWN_DIR/Namespaces" -name 'namespace*.md' -type f | while IFS= read -r ns_file; do
@@ -1016,11 +1016,11 @@ fi
 # アイコンは個別ページの有無に依らず名前空間の 📄 で統一する。
 python3 "$SCRIPT_DIR/complete-namespace-index.py" "$MARKDOWN_DIR" || exit 1
 
-# 空の Namespaces / Classes / Modules / Examples フォルダを index ごと削除する。
-# メンバー md を 1 つも含まないフォルダ (例: C のみのカテゴリの名前空間・クラス) は
+# 空の Namespaces / Classes / Modules / Examples フォルダーを index ごと削除する。
+# メンバー md を 1 つも含まないフォルダー (例: C のみのカテゴリの名前空間・クラス) は
 # 対応する index_*.md も中身が空になるため、両方とも削除する。
 # Files は常に内容を持つ想定のため対象外。
-# ※ フォルダ名と index 名の対応は一様でない (Modules ↔ index_groups.md)。
+# ※ フォルダー名と index 名の対応は一様でない (Modules ↔ index_groups.md)。
 # ※ この処理は Enums/・perfile__*・perchild__* の中間ファイルをすべて削除した後に
 #   実行することで、Modules/ に残るのが正規の group__*.md のみとなり正しく判定できる。
 for pair in "Namespaces:index_namespaces.md" \
@@ -1039,12 +1039,12 @@ for pair in "Namespaces:index_namespaces.md" \
 done
 
 if [ -f "$MARKDOWN_DIR/index_pages.md" ]; then
-    # 各フォルダに配置する README.md のタイトルには、相対パスを記載するルールにする。
+    # 各フォルダーに配置する README.md のタイトルには、相対パスを記載するルールにする。
     sed -i -e 's/\(\*\* *file \[\)[^/]*\/\([^]]*\]\)/\1\2/g' \
            -e 's/\(\.md\)#[^)]*/\1/g' \
            -e '/(Pages\/)/d' \
            "$MARKDOWN_DIR/index_pages.md"
-#    # ファイルパスを抽出してタイトルに付与
+#    # ファイル パスを抽出してタイトルに付与
 #    # 例: * page [markdown のサンプル](Pages/md_src_README.md#page-md-src-readme)
 #    #  → * page [src/README.md (markdown のサンプル)](Pages/md_src_README.md)
 #    # (Pages/) を含む行は削除
@@ -1069,7 +1069,7 @@ fi
 # (Pages/ ステージングと index_pages.md 生成を行う)
 "$SCRIPT_DIR/copy-markdown-from-input.sh" "$MARKDOWN_DIR" || exit 1
 
-# ファイルインデックスのパッチ
+# ファイル インデックスのパッチ
 # Doxybook2 が出力するディレクトリ名・ファイル名は Doxygen INPUT ルートからの相対パス形式。
 # 例: calc/include, calc/src/add/add.c
 # merge-index-files.py でのマージ時に index_pages.md のローカル名と対応付けるため、
@@ -1135,7 +1135,7 @@ python3 "$SCRIPT_DIR/inject-doxygen-url.py" "$MARKDOWN_DIR" "$DOXYFW_TAGFILE" "$
 # 同一画像を複数 md が参照する場合の考慮は Doxybook2 の制約として不要。
 # mv で移動することで root images/ が空になり、処理後の削除を保証する。
 #
-# Pages 由来 md の画像は copy_referenced_images + Pages 統合で既に隣接 images/ に
+# Pages 由来 md の画像は copy_referenced_images + Pages 統合ですでに隣接 images/ に
 # 配置済みの場合がある。移動先に既存なら root 側を削除して root を確実に空にする。
 
 DOXYBOOK2_IMAGES_DIR="$MARKDOWN_DIR/images"
@@ -1149,7 +1149,7 @@ if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
             local_images_dir="$file_dir/images"
 
             # 参照画像の basename を収集し、Doxybook2 ルート images/ から各 md の隣接へ移動
-            # 既に隣接 images/ に配置済みなら root 側を削除して root を確実に空にする
+            # すでに隣接 images/ に配置済みなら root 側を削除して root を確実に空にする
             while IFS= read -r img_name; do
                 [ -z "$img_name" ] && continue
                 if [ -f "$DOXYBOOK2_IMAGES_DIR/$img_name" ]; then
@@ -1158,7 +1158,7 @@ if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
                         mv "$DOXYBOOK2_IMAGES_DIR/$img_name" "$local_images_dir/$img_name"
                         echo "  Moved image: $img_name -> ${rel_path%/*}/images/"
                     else
-                        # 配置済み (Pages 統合で既に存在) → root 側を削除して root を空にする
+                        # 配置済み (Pages 統合ですでに存在) → root 側を削除して root を空にする
                         rm "$DOXYBOOK2_IMAGES_DIR/$img_name"
                         echo "  Removed from root (already placed): $img_name"
                     fi
@@ -1172,7 +1172,7 @@ if [ -d "$DOXYBOOK2_IMAGES_DIR" ]; then
             # 画像パスを images/<name> に正規化 (ディレクトリ部分を除去) し、
             # キャプション補正 (![filename](url)caption → ![caption](url)) も適用。
             # - ディレクトリ部分を strip して images/{basename} に統一
-            # - Doxybook2 は @image html のキャプションを ) 直後にスペースなしで連結する
+            # - Doxybook2 は @image html のキャプションを) 直後にスペースなしで連結する
             sed -i -E \
                 -e 's/!\[([^]]*)\]\(([^/)]*\/)*([^/)?# ]+)\)/![\1](images\/\3)/g' \
                 -e 's/!\[[^]]*\]\(([^)]+)\)([^ ].*)/![\2](\1)/g' \
@@ -1199,11 +1199,11 @@ else
     DOXYFW_PROJECT_NAME=$(extract_project_name_from_doxyfile "$FRAMEWORK_DIR/Doxyfile")
 fi
 
-# mainpage README (Files/README.md) を出力フォルダ直下へ移動する。
+# mainpage README (Files/README.md) を出力フォルダー直下へ移動する。
 # README は元々 Files/ 直下にあり相対リンクは Files/ 基準で解決されていたため、
 # ルートへ移動後も同じ先を指すよう、Files/ 内の実ファイルを指す相対リンクには
 # Files/ を前置する (テキスト リンク・画像リンク両方が対象)。
-# URL・絶対パス・アンカーのみ・既に Files/ で始まるものは対象外。
+# URL・絶対パス・アンカーのみ・すでに Files/ で始まるものは対象外。
 README_SRC="$MARKDOWN_DIR/Files/README.md"
 if [ -f "$README_SRC" ]; then
     while IFS= read -r target; do
@@ -1234,16 +1234,16 @@ if [ -f "$README_SRC" ]; then
 fi
 
 # ファイル一覧 (index_files.md) からホーム README のエントリ行を削除する。
-# ホームは出力フォルダ直下に配置するため、一覧に重複して載せない。
+# ホームは出力フォルダー直下に配置するため、一覧に重複して載せない。
 # mainpage は必ず "Files/README.md"。サブディレクトリ README は
 # "Files/src/README.md" 等のため、この厳密一致では誤って消えない。
 if [ -f "$MARKDOWN_DIR/index_files.md" ]; then
     sed -i '/\](Files\/README\.md)/d' "$MARKDOWN_DIR/index_files.md"
 fi
 
-# フォルダ目次 README.md のフロントマターから不要キーを除去する
-# - page-break-before-heading: true は全ページに付与されるが、フォルダ目次では不要
-# - toc: true は Classes/Namespaces インデックスに付与されるが、フォルダ目次では不要
+# フォルダー目次 README.md のフロント マターから不要キーを除去する
+# - page-break-before-heading: true は全ページに付与されるが、フォルダー目次では不要
+# - toc: true は Classes/Namespaces インデックスに付与されるが、フォルダー目次では不要
 strip_folder_index_frontmatter() {
     local readme="$1"
     [ -f "$readme" ] || return 0
@@ -1252,11 +1252,11 @@ strip_folder_index_frontmatter() {
            "$readme"
 }
 
-# 各 index 一覧を対応フォルダの README.md (フォルダの目次) へ移動する。
-# フォルダ内ページを指すリンクはフォルダ基準へ変換するため先頭の "<フォルダ>/" を除去する
+# 各 index 一覧を対応フォルダーの README.md (フォルダーの目次) へ移動する。
+# フォルダー内ページを指すリンクはフォルダー基準へ変換するため先頭の "<フォルダー>/" を除去する
 # (例: ](Files/include/calc.h.md) -> ](include/calc.h.md))。
 # ※ 空の Namespaces/Classes/Modules/Examples は前段で index ごと削除済みのため、
-#   ここで存在する index は非空フォルダのものに限られる。
+#   ここで存在する index は非空フォルダーのものに限られる。
 move_index_to_folder_readme() {
     local index_name="$1" folder="$2"
     local index_path="$MARKDOWN_DIR/$index_name"
@@ -1272,8 +1272,8 @@ move_index_to_folder_readme "index_groups.md"     "Modules"
 move_index_to_folder_readme "index_namespaces.md" "Namespaces"
 move_index_to_folder_readme "index_examples.md"   "Examples"
 
-# index_classes.md は名前空間でグルーピングされ Namespaces/ へのフォルダ外リンクを
-# 親行に含む。名前空間は Namespaces/README.md に一覧があるためグルーピング行を削除し、
+# index_classes.md は名前空間でグルー ピングされ Namespaces/ へのフォルダー外リンクを
+# 親行に含む。名前空間は Namespaces/README.md に一覧があるためグルー ピング行を削除し、
 # 残るクラス項目をフラット化したうえで Classes/ 接頭辞を除去して Classes/README.md とする。
 CLASSES_INDEX="$MARKDOWN_DIR/index_classes.md"
 if [ -f "$CLASSES_INDEX" ]; then

@@ -358,8 +358,8 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
 doxyfw は Doxybook2 変換前に `templates/merge-member-docs.py` を実行し、統合済みの宣言側 memberdef の説明を定義側 memberdef へ同期します。  
 これにより、ヘッダーとソースの両 Files ページへ宣言側と定義側の説明がそろって出力されます。
 
-グループへ移動したメンバーは、`templates/materialize-group-members.py` が group XML の memberdef を定義元のソース ファイル XML へ複製します。
-対象は関数に限定せず、定数、マクロ、変数、列挙型、型定義などの memberdef 全般です。
+グループへ移動したメンバーは、`templates/materialize-group-members.py` が group XML の memberdef を定義元のソース ファイル XML へ複製します。  
+対象は関数に限定せず、定数、マクロ、変数、列挙型、型定義などの memberdef 全般です。  
 複製後のメンバーは、ソースの Files ページにある通常の種類別セクションへ出力されます。
 
 ヘッダーのみを入力とするビルド (public) では、ソースを処理しないため、ヘッダーの Files ページには宣言側の説明だけが出力されます。
@@ -445,11 +445,11 @@ int main(int argc, char *argv[]);
 
 コード ブロックを表します。言語を指定することで、適切なシンタックス ハイライトが適用されます。
 
-オプションの `{<language>}` パラメーターには、言語名 (c, cpp, python, java など) を指定できます。省略した場合は、コンテキストから言語が推測されます。
-プレーン テキストを記載する場合は、`@code{.unparsed}` を使用します。
+オプションの `{<language>}` パラメーターには、言語名 (c, cpp, python, java など) を指定できます。省略した場合は、コンテキストから言語が推測されます。  
+プレーン テキストを記載する場合は、`@code{.unparsed}` を使用します。  
 `.unparsed` は構文ハイライトせず、Doxygen コマンドを解釈させずに内容をそのまま見せたい場合に適しています。
 
-`@code` と `@endcode` の行は、コード本体の各行と同様に、行頭の `*` を付けません。
+`@code` と `@endcode` の行は、コード本体の各行と同様に、行頭の `*` を付けません。  
 `@code`、コード本体、`@endcode` は同じ 4 の倍数カラムから開始します。
 
 以下に例を示します。
@@ -546,10 +546,10 @@ void plain_text(void);
 
 ## Markdown 形式のコード ブロック
 
-Doxygen は Markdown 形式の fenced code block もサポートしています。
-Doxygen コメント内で Markdown 形式の fenced code block を使う場合は、バッククォート 3 つではなく `~~~` を使用します。
-[Doxygen の Markdown マニュアル](https://www.doxygen.nl/manual/markdown.html#md_fenced) では `~~~` の形式が fenced code block の基本例として示されており、言語指定付きの C コードは `~~~{.c}` と記載できます。
-バッククォート 3 つの形式も Doxygen で解釈できますが、この repo の Doxygen コメントでは推奨しません。
+Doxygen は Markdown 形式の fenced code block もサポートしています。  
+Doxygen コメント内で Markdown 形式の fenced code block を使う場合は、バッククォート 3 つではなく `~~~` を使用します。  
+[Doxygen の Markdown マニュアル](https://www.doxygen.nl/manual/markdown.html#md_fenced) では `~~~` の形式が fenced code block の基本例として示されており、言語指定付きの C コードは `~~~{.c}` と記載できます。  
+バッククォート 3 つの形式も Doxygen で解釈できますが、この repo の Doxygen コメントでは推奨しません。  
 プレーン テキストを記載する場合は、Markdown 形式ではなく `@code{.unparsed}` を使用します。
 
 > [!NOTE]
@@ -652,8 +652,8 @@ int factorial(int n);
 
 `@ingroup` コマンドを用いることで、複数のファイルや異なる箇所に置かれた関連機能を一つのグループとしてドキュメント化できます。
 
-`@ingroup` を使用すると、Doxygen はファイル コンパウンドの完全な memberdef をグループ コンパウンドへ移し、ファイル側に参照だけを残す場合があります。
-ソース ファイル側の参照は `materialize-group-members.py` が完全な memberdef に変換し、ヘッダーなどの宣言ファイル側は `inject-groups.py` がグループ セクションとして補完します。
+`@ingroup` を使用すると、Doxygen はファイル コンパウンドの完全な memberdef をグループ コンパウンドへ移し、ファイル側に参照だけを残す場合があります。  
+ソース ファイル側の参照は `materialize-group-members.py` が完全な memberdef に変換し、ヘッダーなどの宣言ファイル側は `inject-groups.py` がグループ セクションとして補完します。  
 このため、異なるファイル間でグループの親子関係 (ネスト) を定義するときは `@defgroup {子グループ}` + `@ingroup {親グループ}` の組み合わせを推奨します。`@addtogroup` は不要です。
 
 ```c

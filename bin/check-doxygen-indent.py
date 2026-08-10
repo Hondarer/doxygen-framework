@@ -8,8 +8,8 @@ Doxygen コメント字下げレベル統一チェック・修正ツール
   - --dry-run オプションで修正内容を表示（実際には修正しない）
 
 使用例：
-  check-doxygen-indent.py --check <file>           # チェックモード（既定）
-  check-doxygen-indent.py --dry-run <file>         # 修正プレビュー（修正なし）
+  check-doxygen-indent.py --check <file>           # チェック モード (既定)
+  check-doxygen-indent.py --dry-run <file>         # 修正プレビュー (修正なし)
   check-doxygen-indent.py --fix <file>             # 実際に修正
   check-doxygen-indent.py --check <dir>            # ディレクトリ内の .h ファイルをチェック
 """
@@ -77,7 +77,7 @@ def scan_file(filepath, skip_single_line_comments=True):
                 i = skip_to_comment_end(lines, i)
                 continue
 
-            # 末尾コメント（/** ... */ が同一行）の場合はスキップ（オプション）
+            # 末尾コメント (/** ... */ が同一行) の場合はスキップ (オプション)
             if skip_single_line_comments and re.search(r'/\*\*.*\*/', line):
                 i += 1
                 continue
@@ -94,7 +94,7 @@ def scan_file(filepath, skip_single_line_comments=True):
             while j < len(lines):
                 next_line = lines[j]
                 
-                # コメント終了行か？
+                # コメント終了行か?
                 if re.search(r'\*/', next_line):
                     # 終了行も字下げレベルをチェック
                     end_indent = get_indent_level(next_line)
@@ -109,7 +109,7 @@ def scan_file(filepath, skip_single_line_comments=True):
                         })
                     break
                 
-                # コメント内容行か？（* で始まる行）
+                # コメント内容行か? (* で始まる行)
                 if re.match(r'^\s*\*', next_line):
                     next_indent = get_indent_level(next_line)
                     
@@ -176,7 +176,7 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
                 i = skip_to_comment_end(lines, i)
                 continue
 
-            # 末尾コメント（/** ... */ が同一行）の場合はスキップ（オプション）
+            # 末尾コメント (/** ... */ が同一行) の場合はスキップ (オプション)
             if skip_single_line_comments and re.search(r'/\*\*.*\*/', line):
                 i += 1
                 continue
@@ -189,7 +189,7 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
             while j < len(lines):
                 next_line = lines[j]
                 
-                # コメント終了行か？
+                # コメント終了行か?
                 if re.search(r'\*/', next_line):
                     # 終了行も字下げレベルを修正
                     current_indent = get_indent_level(next_line)
@@ -217,7 +217,7 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
                             })
                     break
                 
-                # コメント内容行か？（* で始まる行）
+                # コメント内容行か? (* で始まる行)
                 if re.match(r'^\s*\*', next_line):
                     current_indent = get_indent_level(next_line)
                     
@@ -251,7 +251,7 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
         else:
             i += 1
     
-    # 修正が必要な場合は、ファイルに書き込み（dry_run でない場合）
+    # 修正が必要な場合は、ファイルに書き込み (dry_run でない場合)
     if modified and not dry_run:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.writelines(lines)
@@ -281,7 +281,7 @@ def print_check_results(all_issues, filepath_list):
             print(f"  L{issue['doc_start_line']}: /** (indent={issue['doc_start_indent']})")
             print(f"  期待される後続行のインデント: {issue['expected_indent']}")
             
-            for mismatch in issue['mismatches'][:5]:  # 最初の5件表示
+            for mismatch in issue['mismatches'][:5]:  # 最初の 5 件表示
                 marker = "━" if mismatch['is_closing'] else "✗"
                 print(f"    {marker} L{mismatch['line_num']}: indent={mismatch['actual_indent']} "
                       f"(expected={mismatch['expected_indent']})")
@@ -313,7 +313,7 @@ def print_fix_preview(all_files_with_mods):
             print(f"\n📄 {format_rel_path(filepath)}")
             print(f"  修正対象: {len(modifications)} 行\n")
             
-            for mod in modifications[:10]:  # 最初の10件表示
+            for mod in modifications[:10]:  # 最初の 10 件表示
                 before_indent = len(mod['before']) - len(mod['before'].lstrip())
                 after_indent = len(mod['after']) - len(mod['after'].lstrip())
                 print(f"    L{mod['line_num']}: indent {before_indent} → {after_indent}")
@@ -359,7 +359,7 @@ def main():
   check-doxygen-indent.py --fix app/com_util/prod/include
   check-doxygen-indent.py --check app/com_util/prod/include/com_util/sync/sync.h
   
-  # ブロックコメント以外にマクロの末尾コメント（/** ... */）も処理する場合:
+  # ブロック コメント以外にマクロの末尾コメント (/** ... */) も処理する場合:
   check-doxygen-indent.py --check --include-single-line app/com_util/prod/include
         """
     )
@@ -436,7 +436,7 @@ def main():
             return 0
     
     elif args.dry_run:
-        # 修正プレビューモード
+        # 修正プレビュー モード
         print(f"🔍 修正プレビューモード: {len(header_files)} ファイルを処理中...\n")
         
         all_files_with_mods = []
@@ -449,7 +449,7 @@ def main():
         return print_fix_preview(all_files_with_mods)
     
     else:
-        # チェックモード（既定）
+        # チェック モード (既定)
         print(f"🔍 チェックモード: {len(header_files)} ファイルをスキャン中...\n")
         
         all_issues = []
