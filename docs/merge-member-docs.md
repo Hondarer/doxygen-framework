@@ -6,10 +6,10 @@
 
 非グループ関数をヘッダーで宣言し、ソースで定義した場合、Doxygen XML は次のように出力されます (実査で確定した挙動)。
 
-- ソースを INPUT に含むビルド (internal) では、宣言側 (`*_8h.xml`) の memberdef に、宣言コメントと定義コメントが「宣言、定義」の順で統合済みになる。
-- 定義側 (`*_8c.xml`) の memberdef は定義ローカルのコメントのみで、宣言側の detaileddescription が欠落する。
-- 宣言側 memberdef の `<location>` は `file` がヘッダー、`bodyfile` がソースを指す。定義側は `file` がソース (`file == bodyfile`) で、`declfile` 属性を持たない。
-- グループ メンバーはファイル コンパウンドに完全な memberdef を持たず、`<member refid="group__...">` 参照のみとなる場合がある。完全版は group XML にあり、`materialize-group-members.py` がソース ファイル XML へ複製する。
+- ソースを INPUT に含むビルド (internal) では、宣言側 (`*_8h.xml`) の memberdef に、宣言コメントと定義コメントが「宣言、定義」の順で統合済みになります。
+- 定義側 (`*_8c.xml`) の memberdef は定義ローカルのコメントのみで、宣言側の detaileddescription が欠落します。
+- 宣言側 memberdef の `<location>` は `file` がヘッダー、`bodyfile` がソースを指します。定義側は `file` がソース (`file == bodyfile`) で、`declfile` 属性を持ちません。
+- グループ メンバーはファイル コンパウンドに完全な memberdef を持たず、`<member refid="group__...">` 参照のみとなる場合がある。完全版は group XML にあり、`materialize-group-members.py` がソース ファイル XML へ複製します。
 
 このため、Doxybook2 が描画する `Files/src/*.c.md` は宣言側の説明が欠落した状態になります。
 
@@ -35,5 +35,5 @@
 
 ## 回帰サンプル
 
-ワークスペースの `app/doxygen-sample/prod/include/merge.h` と `app/doxygen-sample/prod/src/merge.c` が回帰検証用のサンプルです。  
+利用側のワークスペースには、宣言と定義を分けた回帰検証用サンプルを配置してください。  
 internal ビルドで `Files/src/merge.c.md` に宣言側の説明が反映されることを確認します。

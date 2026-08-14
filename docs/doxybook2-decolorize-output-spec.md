@@ -1,5 +1,7 @@
 # doxybook2-decolorize-output.sh 仕様
 
+設計判断の背景は、[Doxybook2 出力の調査結果](doxybook2-decolorize-output-research.md) を参照してください。
+
 ## 概要
 
 `doxybook2-decolorize-output.sh` は、Doxybook2 の出力メッセージから過剰な ANSI カラー コードを除去するフィルター スクリプトです。`[info]` ログを完全に脱色し、`[warning]` / `[error]` / `[critical]` の太字を除去します。
@@ -10,11 +12,11 @@
 
 Doxybook2 は spdlog ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラー コードによる着色が有効になっています。実行時、以下の問題が発生します。
 
-- `[info]` レベルのログが緑色で大量に出力され、視認性が低下する
-- Doxygen とは逆に、着色が過剰である
+- `[info]` レベルのログが緑色で大量に出力され、視認性が低下します。
+- Doxygen とは逆に、着色が過剰です。
 - `[info]` は情報メッセージであり、着色の必要性が低い
-- `[warning]`、`[error]`、`[critical]` の太字も、強調が過剰である
-- `[critical]` の赤背景も過剰であり、通常の赤文字で十分である
+- `[warning]`、`[error]`、`[critical]` の太字も、強調が過剰です。
+- `[critical]` の赤背景も過剰であり、通常の赤文字で十分です。
 
 ### 目標
 
@@ -239,9 +241,9 @@ EOF
 期待される結果:
 
 - `[info]` 行: ANSI コードが完全に削除される
-- `[critical]` 行: 太字と背景色が除去され、`[critical]` 単語が通常の太さの赤色になる
-- `[warning]` 行: 太字が除去され、`[warning]` 単語が通常の太さの黄色になる
-- `[error]` 行: 太字が除去され、`[error]` 単語が通常の太さの赤色になる
+- `[critical]` 行: 太字と背景色が除去され、`[critical]` 単語が通常の太さの赤色になります。
+- `[warning]` 行: 太字が除去され、`[warning]` 単語が通常の太さの黄色になります。
+- `[error]` 行: 太字が除去され、`[error]` 単語が通常の太さの赤色になります。
 
 実際の ANSI コードを含むテストは以下の通りです。
 

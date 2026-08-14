@@ -147,14 +147,14 @@ main-project/
 
 各大分類・小分類に応じて、異なる入力ディレクトリやプロジェクト名を指定できます。
 
-#### app/calc/prod/Doxyfile.part.public (公開 API のみ)
+#### app/example/prod/Doxyfile.part.public (公開 API のみ)
 
 ```text
 PROJECT_NAME           = "Calc Public API"
 INPUT                  = include
 ```
 
-#### app/calc/prod/Doxyfile.part.internal (内部仕様: prod 全体)
+#### app/example/prod/Doxyfile.part.internal (内部仕様: prod 全体)
 
 ```text
 PROJECT_NAME           = "Calc Internal"
@@ -167,14 +167,14 @@ EXTRACT_STATIC         = YES
 
 ```text
 PROJECT_NAME           = "API Documentation"
-INPUT                  = app/calc/prod/include
+INPUT                  = app/example/prod/include
 ```
 
 #### app/test/prod/Doxyfile.part
 
 ```text
 PROJECT_NAME           = "Test Documentation"
-INPUT                  = app/calc/test/src
+INPUT                  = app/example/test/src
 ```
 
 ### Doxybook2 出力ディレクトリ名の変更
@@ -202,17 +202,17 @@ Doxygen に未知タグ警告を出させないため、この設定は通常の
 
 CATEGORY が指定された場合、makefile は以下の処理を自動的に行います。
 
-1. `app/{CATEGORY}/prod/Doxyfile.part` を基本 Doxyfile と結合する
-    - SUBCATEGORY 指定時は `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}` を使用する
-2. `app/{CATEGORY}/` を Doxygen の実行基準ディレクトリとして使用する
+1. `app/{CATEGORY}/prod/Doxyfile.part` を基本 Doxyfile と結合します。
+    - SUBCATEGORY 指定時は `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}` を使用します。
+2. `app/{CATEGORY}/` を Doxygen の実行基準ディレクトリとして使用します。
 3. 結合した一時 Doxyfile の `OUTPUT_DIRECTORY`、`XML_OUTPUT`、`GENERATE_TAGFILE` を実行単位の一時ディレクトリへ書き換える
-    - SUBCATEGORY なし: `/tmp/doxyfw-tmp/{CATEGORY}/run.XXXXXX/` 配下を使用する
-    - SUBCATEGORY あり: `/tmp/doxyfw-tmp/{CATEGORY}_{SUBCATEGORY}/run.XXXXXX/` 配下を使用する
+    - SUBCATEGORY なし: `/tmp/doxyfw-tmp/{CATEGORY}/run.XXXXXX/` 配下を使用します。
+    - SUBCATEGORY あり: `/tmp/doxyfw-tmp/{CATEGORY}_{SUBCATEGORY}/run.XXXXXX/` 配下を使用します。
 4. `INPUT_FILTER` を `framework/doxyfw/bin/input-filter.py` の絶対パスへ置き換える
-5. 書き換えた一時 Doxyfile で Doxygen を実行する
-6. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用する
-    - SUBCATEGORY 指定時は既定値が `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/` になる
-7. `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` がある場合は、Doxybook2 の出力先だけを `app/{CATEGORY}/docs/<name>/` に変更する
+5. 書き換えた一時 Doxyfile で Doxygen を実行します。
+6. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用します。
+    - SUBCATEGORY 指定時は既定値が `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/` になります。
+7. `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` がある場合は、Doxybook2 の出力先だけを `app/{CATEGORY}/docs/<name>/` に変更します。
 
 `app/{CATEGORY}/makefile` の doxy ターゲットは `prod/Doxyfile.part*` を列挙し、`Doxyfile.part`、`Doxyfile.part.<SUBCATEGORY>` の各ファイルに対して doxyfw を 1 回ずつ呼び出します。警告ファイルは各 SUBCATEGORY ごとに独立します (`doxy.warn`、`doxy_<SUBCATEGORY>.warn`)。スキップ判定 (`make_doxy.stamp`) は `prod/` 配下の Doxygen 入力 (Doxyfile.part* と `INPUT` / `IMAGE_PATH` で参照される `prod/` 配下のソース、画像) のみを対象とし、SUBCATEGORY が分かれていても app 単位で 1 つの stamp に集約されます。
 
@@ -248,11 +248,11 @@ CATEGORY が指定された場合、clean ターゲットは以下の処理を�
 `Doxyfile.part.{SUBCATEGORY}` だけが存在する大分類では、`SUBCATEGORY` の指定が必須です。指定がないときは、利用できる小分類の一覧とコマンド例をエラー メッセージに表示します。
 
 ```text
-ERROR: /path/to/app/com_util/prod/Doxyfile.part not found.
+ERROR: /path/to/app/example/prod/Doxyfile.part not found.
 CATEGORY=com_util is configured per subcategory. Specify one of: internal public
   make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=internal
   make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=public
-To run every subcategory at once, use: make -C "/path/to/app/com_util" doxy
+To run every subcategory at once, use: make -C "/path/to/app/example" doxy
 ```
 
 `Doxyfile.part` も `Doxyfile.part.*` も存在しない大分類では、Doxygen が設定されていない旨を表示して終了します。

@@ -1,5 +1,9 @@
 # Doxybook2 出力の調査結果
 
+> [!NOTE]
+> 本書は実装前の調査記録です。
+> 現行仕様は [doxybook2-decolorize-output.sh 仕様](doxybook2-decolorize-output-spec.md) を参照してください。
+
 ## 調査概要
 
 Doxybook2 の出力形式と着色パターンについて調査を実施しました。

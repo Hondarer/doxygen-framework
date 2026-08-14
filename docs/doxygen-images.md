@@ -90,8 +90,8 @@ VS Code のプレビューでは、Markdown ファイルから画像を相対パ
 
 この記法を使った場合の Doxygen の動作を確認します。
 
-- Doxygen は `IMAGE_PATH` を再帰的に検索してファイル名 (`diagram.png`) のみで照合する
-- 見つかった画像を HTML 出力ルートにフラットにコピーする
+- Doxygen は `IMAGE_PATH` を再帰的に検索してファイル名 (`diagram.png`) のみで照合します。
+- 見つかった画像を HTML 出力ルートにフラットにコピーします。
 - HTML には `<img src="diagram.png">` とファイル名のみを出力する (パスが置き換えられる)
 
 ```text

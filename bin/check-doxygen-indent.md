@@ -57,10 +57,10 @@ chmod +x framework/doxyfw/bin/check-doxygen-indent.py
 
 ```bash
 # 単一ファイルをチェック
-python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/include/com_util/sync/sync.h
+python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/example/prod/include/example/sync/sync.h
 
 # ディレクトリ配下のすべての .h ファイルをチェック
-python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/include/com_util
+python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/example/prod/include/example
 ```
 
 出力例:
@@ -76,7 +76,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
 ```
 ❌ Doxygen コメント字下げレベルの不一致が検出されました
 
-📄 app/com_util/prod/include/com_util/runtime/shutdown.h
+📄 app/example/prod/include/example/runtime/shutdown.h
   L42: /** (indent=4)
   期待される後続行のインデント: 5
     ✗ L43: indent=9 (expected=5)
@@ -89,7 +89,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/i
 修正内容を表示します。実際には修正しません。
 
 ```bash
-python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/com_util/prod/include/com_util/runtime/shutdown.h
+python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/example/prod/include/example/runtime/shutdown.h
 ```
 
 出力例:
@@ -97,7 +97,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/com_util/prod
 ```
 🔍 修正プレビューモード: 1 ファイルを処理中...
 
-📄 app/com_util/prod/include/com_util/runtime/shutdown.h
+📄 app/example/prod/include/example/runtime/shutdown.h
   修正対象: 13 行
 
     L43: indent 9 → 5
@@ -115,7 +115,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --dry-run app/com_util/prod
 実際にファイルの字下げレベルを修正します。
 
 ```bash
-python3 framework/doxyfw/bin/check-doxygen-indent.py --fix app/com_util/prod/include/com_util/runtime/shutdown.h
+python3 framework/doxyfw/bin/check-doxygen-indent.py --fix app/example/prod/include/example/runtime/shutdown.h
 ```
 
 出力例:
@@ -124,13 +124,13 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --fix app/com_util/prod/inc
 🔧 修正モード: 1 ファイルを処理中...
 
 ✅ 1 ファイルを修正しました (13 行)
-  app/com_util/prod/include/com_util/runtime/shutdown.h: 13 行修正
+  app/example/prod/include/example/runtime/shutdown.h: 13 行修正
 ```
 
 修正後は、clang-format を適用して体裁を整えます。
 
 ```bash
-clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
+clang-format -i app/example/prod/include/example/runtime/shutdown.h
 ```
 
 ## オプション
@@ -153,7 +153,7 @@ clang-format -i app/com_util/prod/include/com_util/runtime/shutdown.h
 
 ```bash
 # マクロの末尾コメントも処理する場合
-python3 framework/doxyfw/bin/check-doxygen-indent.py --check --include-single-line app/com_util/prod/include
+python3 framework/doxyfw/bin/check-doxygen-indent.py --check --include-single-line app/example/prod/include
 ```
 
 ## 動作原理
@@ -185,7 +185,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check --include-single-li
 ターゲットが `.h` ファイルを含んでいることを確認してください。
 
 ```bash
-python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/com_util/prod/include/com_util
+python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/example/prod/include/example
 ```
 
 ### 修正後に clang-format で元に戻る

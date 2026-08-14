@@ -1,5 +1,9 @@
 # Doxygen 着色出力の調査結果
 
+> [!NOTE]
+> 本書は実装前の調査記録です。
+> 現行仕様は [doxygen-colorize-output.sh 仕様](doxygen-colorize-output-spec.md) を参照してください。
+
 ## 調査概要
 
 Doxygen の警告・エラー メッセージに対する ANSI カラー コード着色機能の有無について調査を実施しました。

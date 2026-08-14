@@ -18,7 +18,7 @@
 
 ### nonclass_members_tables.tmpl
 
-> 注意: `kind_nonclass.tmpl` から include されておらず、現状は出力に現れない。
+> 注意: `kind_nonclass.tmpl` から include されておらず、現状は出力に現れません。
 
 | 行 | 現在の英語 |
 |---|---|

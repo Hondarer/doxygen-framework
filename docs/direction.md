@@ -18,4 +18,4 @@ doxybook2 では direction を解釈できないので、
 <parametername>[in, out] d</parametername>
 ```
 
-になるように前処理を行う。
+になるように前処理を行います。

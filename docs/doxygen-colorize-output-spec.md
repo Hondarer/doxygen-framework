@@ -1,5 +1,7 @@
 # doxygen-colorize-output.sh 仕様
 
+設計判断の背景は、[Doxygen 着色出力の調査結果](doxygen-colored-output-research.md) を参照してください。
+
 ## 概要
 
 `doxygen-colorize-output.sh` は、Doxygen の出力メッセージに ANSI カラー コードを適用し、エラーとワーニングを視覚的に区別しやすくするフィルター スクリプトです。

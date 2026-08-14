@@ -154,16 +154,16 @@ level が小さい leaf 関数は対象範囲内で他関数に依存せず、�
 
 | 分類 | rank | 条件 |
 |---|---:|---|
-| `leaf-static` | 0 | `static` 関数で、対象範囲内の呼び出し先がない |
-| `include-static-leaf` | 1 | `include` 配下の `static` 関数で、対象範囲内の呼び出し先がない |
-| `include-internal-static-leaf` | 1 | `include_internal` 配下の `static` 関数で、対象範囲内の呼び出し先がない |
-| `leaf-global` | 1 | 非 `static` 関数で、対象範囲内の呼び出し先がない |
-| `file-local` | 2 | 呼び出し先があり、すべて同一ファイル内の対象範囲内関数である |
+| `leaf-static` | 0 | `static` 関数で、対象範囲内の呼び出し先がありません。 |
+| `include-static-leaf` | 1 | `include` 配下の `static` 関数で、対象範囲内の呼び出し先がありません。 |
+| `include-internal-static-leaf` | 1 | `include_internal` 配下の `static` 関数で、対象範囲内の呼び出し先がありません。 |
+| `leaf-global` | 1 | 非 `static` 関数で、対象範囲内の呼び出し先がありません。 |
+| `file-local` | 2 | 呼び出し先があり、すべて同一ファイル内の対象範囲内関数です。 |
 | `libsrc-file-caller` | 3 | `libsrc` 相当領域内で別ファイルの対象範囲内関数を呼び出す、または `src` から `include` / `include_internal` の対象範囲内関数を呼び出す |
 | `src-file-caller` | 4 | `src` 内で別ファイルの対象範囲内関数を呼び出す |
 | `other-to-libsrc-caller` | 5 | `libsrc` 以外から `libsrc` の対象範囲内関数を呼び出す |
 | `cross-area-caller` | 6 | 上記以外のカテゴリをまたいで対象範囲内関数を呼び出す |
-| `cycle` | - | 循環依存グループに属する |
+| `cycle` | - | 循環依存グループに属します。 |
 
 `static` 関数は C ファイル内に限定される場合が多いため、`leaf-static` は局所的に確認しやすい候補として扱えます。  
 ただし、`include` と `include_internal` にある `static` 関数は複数の翻訳単位から呼び出される可能性があるため、`leaf-static` とは別の分類にします。  

@@ -4,7 +4,7 @@ Doxygen と Doxybook2 を使って HTML と Markdown を生成するための設
 
 ## 概要
 
-この repo には以下が含まれます。
+このリポジトリには以下が含まれます。
 
 - Doxygen のベース設定
 - Doxybook2 の設定とテンプレート
@@ -21,7 +21,7 @@ make clean
 カテゴリ単位で実行する場合は、`CATEGORY` を指定します。
 
 ```bash
-CATEGORY=calc make
+CATEGORY=example make
 ```
 
 `CATEGORY` 指定時の Doxybook2 出力先は `app/<CATEGORY>/docs/doxybook2/` です。  
@@ -45,8 +45,8 @@ CATEGORY=calc make
 `Doxyfile.part` に加えて、`Doxyfile.part.<SUBCATEGORY>` を配置すると、同一 app から複数の Doxygen ドキュメントを生成できます。
 
 ```text
-app/calc/prod/Doxyfile.part.public   # 公開 API (prod/include のみ)
-app/calc/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
+app/example/prod/Doxyfile.part.public   # 公開 API (prod/include のみ)
+app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 ```
 
 各 Doxyfile.part.* の出力先は次のとおりです。
