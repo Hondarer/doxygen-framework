@@ -249,9 +249,9 @@ CATEGORY が指定された場合、clean ターゲットは以下の処理を�
 
 ```text
 ERROR: /path/to/app/example/prod/Doxyfile.part not found.
-CATEGORY=com_util is configured per subcategory. Specify one of: internal public
-  make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=internal
-  make -C "/path/to/framework/doxyfw" CATEGORY=com_util SUBCATEGORY=public
+CATEGORY=cplat is configured per subcategory. Specify one of: internal public
+  make -C "/path/to/framework/doxyfw" CATEGORY=cplat SUBCATEGORY=internal
+  make -C "/path/to/framework/doxyfw" CATEGORY=cplat SUBCATEGORY=public
 To run every subcategory at once, use: make -C "/path/to/app/example" doxy
 ```
 

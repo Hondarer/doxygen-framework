@@ -9,19 +9,19 @@ Doxybook2 は、文書化されたメンバーを持たない名前空間に対�
 該当エントリ行も削除するが、子名前空間のエントリ行は残るため、親のない字下げ行だけが
 取り残される。
 
-例として、com_util 名前空間はメンバーをすべて子の com_util::regex_detail に持つため、
-Namespaces/namespacecom__util.md が空ページとして削除され、目次は以下の状態になる。
+例として、cplat 名前空間はメンバーをすべて子の cplat::regex_detail に持つため、
+Namespaces/namespacecplat.md が空ページとして削除され、目次は以下の状態になる。
 
     ::: {.collapsible-list open-level=-1}
-        - 📄 [com_util::regex_detail](namespacecom__util_1_1regex__detail.md)
+        - 📄 [cplat::regex_detail](namespacecplat_1_1regex__detail.md)
     :::
 
 このスクリプトは、:: 修飾された名前から祖先の名前空間を求め、目次に現れない祖先を
 リンクのない見出しとして補完する。個別ページは生成しない。
 
     ::: {.collapsible-list open-level=-1}
-    - 📄 com_util
-        - 📄 [com_util::regex_detail](namespacecom__util_1_1regex__detail.md)
+    - 📄 cplat
+        - 📄 [cplat::regex_detail](namespacecplat_1_1regex__detail.md)
     :::
 
 アイコンは index.tmpl が名前空間に用いる 📄 で統一する。個別ページの有無で
@@ -33,7 +33,7 @@ see: framework/docsfw/docs/collapsible-list.md
 使用方法:
     python3 complete-namespace-index.py <markdown_directory>
 例:
-    python3 complete-namespace-index.py app/com_util/docs/doxybook2_internal
+    python3 complete-namespace-index.py app/c-platform/docs/doxybook2_internal
 """
 
 import re

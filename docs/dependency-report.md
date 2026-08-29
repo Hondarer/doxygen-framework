@@ -89,7 +89,7 @@ Git blob URL の ref には、リンク対象ファイルの最終コミット S
 ライブラリ本体である `libsrc` に定義が見つからなかったことを示すため、多くは Doxygen の `INPUT` に `libsrc` が含まれていない設定ミスです。
 
 ```text
-Warning: include function definition fallback to src: com_util_foo (src/cmd/sample/sample.c:401)
+Warning: include function definition fallback to src: cplat_foo (src/cmd/sample/sample.c:401)
 ```
 
 定義行の判定では、`programlisting` に定義行と呼び出し行の区別がないため、行の字面を見ます。  
@@ -98,12 +98,12 @@ Warning: include function definition fallback to src: com_util_foo (src/cmd/samp
 
 | 行 | 判定 | 前置き |
 |---|---|---|
-| `int com_util_foo(com_util_screen *s,` | 定義 | `int` |
-| `COM_UTIL_EXPORT int COM_UTIL_API com_util_foo(` | 定義 | `COM_UTIL_EXPORT int COM_UTIL_API` |
-| `(void)com_util_foo(s, POSITION_TOP,` | 呼び出し | `(void)` |
-| `rc = com_util_foo(a,` | 呼び出し | `rc =` |
-| `cfg.com_util_foo(a,` | 呼び出し | `cfg.` |
-| `bar(baz, com_util_foo(a,` | 呼び出し | `bar(baz,` |
+| `int cplat_foo(cplat_screen *s,` | 定義 | `int` |
+| `CPLAT_EXPORT int CPLAT_API cplat_foo(` | 定義 | `CPLAT_EXPORT int CPLAT_API` |
+| `(void)cplat_foo(s, POSITION_TOP,` | 呼び出し | `(void)` |
+| `rc = cplat_foo(a,` | 呼び出し | `rc =` |
+| `cfg.cplat_foo(a,` | 呼び出し | `cfg.` |
+| `bar(baz, cplat_foo(a,` | 呼び出し | `bar(baz,` |
 
 前置きが識別子の並びに見えても、`if`、`return`、`case` などの文の開始キーワードを含む場合は定義とみなしません。
 
@@ -119,7 +119,7 @@ Warning: include function definition fallback to src: com_util_foo (src/cmd/samp
 
 関数の `references` が `define` を指す場合、依存関係レポートはその `define` の `initializer` に含まれる参照をたどります。  
 到達先が対象範囲内の関数であれば、呼び出し元関数からその関数への edge として扱います。  
-この処理は多段マクロにも適用されるため、`POTR_TRACE` から `com_util_tracer_writef` を経由して `_com_util_tracer_writef` に到達するような呼び出し関係も、XML に各 `define` と参照が出力されていれば補完できます。  
+この処理は多段マクロにも適用されるため、`POTR_TRACE` から `cplat_tracer_writef` を経由して `_cplat_tracer_writef` に到達するような呼び出し関係も、XML に各 `define` と参照が出力されていれば補完できます。  
 `define` 同士が循環している場合、該当する経路は補完せず、`Warning: macro-reference-cycle detected` で始まる警告を出力します。
 
 Doxygen の `references` や `referencedby` が、同名 `static` 関数を別ファイルの `refid` に誤解決する場合があります。  

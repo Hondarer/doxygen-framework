@@ -331,7 +331,7 @@ def parse_group_md_sections(md_path):
 
 
 # メンバー本文中の Classes include 行を検出する正規表現
-# (例: !include Classes/structcom__util__realtime__timestamp.md)
+# (例: !include Classes/structcplat__realtime__timestamp.md)
 _CLASSES_INCLUDE_RE = re.compile(r"^[ \t]*!include[ \t]+(Classes/.+\.md)[ \t]*$")
 
 

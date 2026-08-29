@@ -56,7 +56,7 @@ class CompleteNamespaceIndexTest(unittest.TestCase):
 
     def test_missing_parent_entry_is_completed_without_link(self):
         self._write_index([
-            "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
+            "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
         ])
 
         inserted = complete_namespace_index.complete_namespace_index(self.index_path)
@@ -65,8 +65,8 @@ class CompleteNamespaceIndexTest(unittest.TestCase):
         self.assertEqual(
             self._entry_lines(),
             [
-                "- 📄 com_util",
-                "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
+                "- 📄 cplat",
+                "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
             ],
         )
 
@@ -89,8 +89,8 @@ class CompleteNamespaceIndexTest(unittest.TestCase):
 
     def test_existing_parent_entry_is_left_untouched(self):
         entry_lines = [
-            "- 📄 [com_util](Namespaces/namespacecom__util.md)",
-            "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
+            "- 📄 [cplat](Namespaces/namespacecplat.md)",
+            "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
         ]
         self._write_index(entry_lines)
         original = self.index_path.read_text(encoding="utf-8")
@@ -102,8 +102,8 @@ class CompleteNamespaceIndexTest(unittest.TestCase):
 
     def test_sibling_entries_share_a_single_completed_parent(self):
         self._write_index([
-            "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
-            "    - 📄 [com_util::text_detail](Namespaces/namespacecom__util_1_1text__detail.md)",
+            "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
+            "    - 📄 [cplat::text_detail](Namespaces/namespacecplat_1_1text__detail.md)",
         ])
 
         inserted = complete_namespace_index.complete_namespace_index(self.index_path)
@@ -112,15 +112,15 @@ class CompleteNamespaceIndexTest(unittest.TestCase):
         self.assertEqual(
             self._entry_lines(),
             [
-                "- 📄 com_util",
-                "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
-                "    - 📄 [com_util::text_detail](Namespaces/namespacecom__util_1_1text__detail.md)",
+                "- 📄 cplat",
+                "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
+                "    - 📄 [cplat::text_detail](Namespaces/namespacecplat_1_1text__detail.md)",
             ],
         )
 
     def test_completion_is_idempotent(self):
         self._write_index([
-            "    - 📄 [com_util::regex_detail](Namespaces/namespacecom__util_1_1regex__detail.md)",
+            "    - 📄 [cplat::regex_detail](Namespaces/namespacecplat_1_1regex__detail.md)",
         ])
 
         complete_namespace_index.complete_namespace_index(self.index_path)

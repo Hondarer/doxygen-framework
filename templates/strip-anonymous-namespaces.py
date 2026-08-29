@@ -26,7 +26,7 @@ EXTRACT_ANON_NSPACES = YES の構成では Doxygen が実名 (anonymous_namespac
 使用方法:
     python3 strip-anonymous-namespaces.py <xml_directory>
 例:
-    python3 strip-anonymous-namespaces.py /tmp/doxyfw-tmp/com_util_internal/run.XXXXXX/xml
+    python3 strip-anonymous-namespaces.py /tmp/doxyfw-tmp/cplat_internal/run.XXXXXX/xml
 """
 
 import re

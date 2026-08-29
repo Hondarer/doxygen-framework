@@ -1283,19 +1283,19 @@ class GenerateDependencyReportTest(unittest.TestCase):
     <compoundname>trace.c</compoundname>
     <sectiondef>
       <memberdef kind="define" id="macro_writef" static="no">
-        <name>com_util_tracer_writef</name>
-        <initializer><ref refid="real_writef" kindref="member">_com_util_tracer_writef</ref>(handle, level, timestamp, fmt)</initializer>
+        <name>cplat_tracer_writef</name>
+        <initializer><ref refid="real_writef" kindref="member">_cplat_tracer_writef</ref>(handle, level, timestamp, fmt)</initializer>
       </memberdef>
       <memberdef kind="define" id="macro_trace" static="no">
         <name>POTR_TRACE</name>
-        <initializer><ref refid="macro_writef" kindref="member">com_util_tracer_writef</ref>(<ref refid="trace_get" kindref="member">potr_trace_get</ref>(), level, NULL, fmt)</initializer>
+        <initializer><ref refid="macro_writef" kindref="member">cplat_tracer_writef</ref>(<ref refid="trace_get" kindref="member">potr_trace_get</ref>(), level, NULL, fmt)</initializer>
       </memberdef>
       <memberdef kind="function" id="trace_get" static="no">
         <name>potr_trace_get</name>
         <location file="libsrc/trace.c" line="10" bodyfile="libsrc/trace.c" bodystart="10"/>
       </memberdef>
       <memberdef kind="function" id="real_writef" static="no">
-        <name>_com_util_tracer_writef</name>
+        <name>_cplat_tracer_writef</name>
         <location file="libsrc/trace.c" line="20" bodyfile="libsrc/trace.c" bodystart="20"/>
       </memberdef>
       <memberdef kind="function" id="caller" static="no">
@@ -1991,19 +1991,19 @@ class GenerateDependencyReportTest(unittest.TestCase):
 class IsDefinitionReferenceLineTest(unittest.TestCase):
     """programlisting の 1 行が関数定義の開始行かどうかの判定を検証する。"""
 
-    def _judge(self, line, name="com_util_foo"):
+    def _judge(self, line, name="cplat_foo"):
         return generate_dependency_report.is_definition_reference_line(line, name)
 
     def test_definition_lines_are_detected(self):
         # Arrange
         lines = [
-            "int com_util_foo(int a)",
-            "static void com_util_foo(void)",
-            "const char *com_util_foo(void)",
-            "static char * com_util_foo(void)",
-            "COM_UTIL_EXPORT int COM_UTIL_API com_util_foo(",
-            "int com_util_foo(com_util_pinned_prompt *screen,",
-            "static SQLITE_NOINLINE int com_util_foo(int a){",
+            "int cplat_foo(int a)",
+            "static void cplat_foo(void)",
+            "const char *cplat_foo(void)",
+            "static char * cplat_foo(void)",
+            "CPLAT_EXPORT int CPLAT_API cplat_foo(",
+            "int cplat_foo(cplat_pinned_prompt *screen,",
+            "static SQLITE_NOINLINE int cplat_foo(int a){",
         ]
 
         # Pre-Assert
@@ -2021,17 +2021,17 @@ class IsDefinitionReferenceLineTest(unittest.TestCase):
         # Arrange
         # [状態] 複数行にまたがる呼び出しの継続行は、行内に ";" を持たないものとする。
         lines = [
-            "(void)com_util_foo(session->screen, COM_UTIL_POSITION_TOP,",
-            "(int)com_util_foo(a,",
-            "rc = com_util_foo(a,",
-            "cfg.com_util_foo(a,",
-            "p->com_util_foo(a,",
-            "bar(baz, com_util_foo(a,",
-            "ok = ok && com_util_foo(a,",
-            "return com_util_foo(a,",
-            "if (com_util_foo(a,",
-            "} else if (com_util_foo(a,",
-            "case FOO: com_util_foo(a,",
+            "(void)cplat_foo(session->screen, CPLAT_POSITION_TOP,",
+            "(int)cplat_foo(a,",
+            "rc = cplat_foo(a,",
+            "cfg.cplat_foo(a,",
+            "p->cplat_foo(a,",
+            "bar(baz, cplat_foo(a,",
+            "ok = ok && cplat_foo(a,",
+            "return cplat_foo(a,",
+            "if (cplat_foo(a,",
+            "} else if (cplat_foo(a,",
+            "case FOO: cplat_foo(a,",
         ]
 
         # Pre-Assert
@@ -2048,8 +2048,8 @@ class IsDefinitionReferenceLineTest(unittest.TestCase):
     def test_lines_without_prefix_or_with_semicolon_are_rejected(self):
         # Arrange
         lines = [
-            "com_util_foo(a,",
-            "int com_util_foo(int a);",
+            "cplat_foo(a,",
+            "int cplat_foo(int a);",
             "",
         ]
 
