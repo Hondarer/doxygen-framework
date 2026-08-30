@@ -2077,9 +2077,7 @@ OVERVIEW_DEPTH_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_depth_
 OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT = Path(__file__).resolve().parent / "overview_context_menu_probe.js"
 PAGE_LINK_PROBE_SCRIPT = Path(__file__).resolve().parent / "page_link_probe.js"
 DETAIL_COPY_PROBE_SCRIPT = Path(__file__).resolve().parent / "detail_copy_probe.js"
-PUPPETEER_DIR = (
-    Path(__file__).resolve().parents[2] / "docsfw" / "bin" / "node_modules" / "puppeteer"
-)
+RESOLVE_PUPPETEER_SCRIPT = Path(__file__).resolve().parent / "resolve-puppeteer.js"
 
 
 def _node_binary():
@@ -2089,7 +2087,17 @@ def _node_binary():
 def _puppeteer_available():
     if os.environ.get("DOXYFW_TEST_PUPPETEER"):
         return True
-    return PUPPETEER_DIR.is_dir()
+    node = _node_binary()
+    if not node:
+        return False
+    result = subprocess.run(
+        [node, "-e", "require(process.argv[1]).resolvePuppeteer()", str(RESOLVE_PUPPETEER_SCRIPT)],
+        cwd=str(RESOLVE_PUPPETEER_SCRIPT.parent),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def _style_number(style, key):
