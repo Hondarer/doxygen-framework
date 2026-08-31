@@ -4548,7 +4548,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       const layoutChildren = layoutParents.children();
       if (layoutChildren.length > 0) {{
         // 関数配置に効くのは関数間エッジ (dep-function-edge / dep-pull-edge) のみ。
-        // file-edge は端点がファイル ノードで関数配置に影響しないため除外する。
+        // file-edge はエンドポイントがファイル ノードで関数配置に影響しないため除外する。
         const layoutEdges = overviewCy.edges().filter(
           (edge) => layoutChildren.contains(edge.source()) && layoutChildren.contains(edge.target())
         );
