@@ -11,14 +11,17 @@
 //   4. localStorage 未保存時の既定: ブラウザー言語 en では en (通常) になる。
 //   5. コピー md に [page](...) が含まれる。
 //   6. pageUrlTemplate なしのレポートでは page リンクと設定ボタンが出ない。
+//   7. previewPageUrlTemplate があるレポートでは mkdocs URLを使い、ページ種別を表示しない。
 //
-// argv: page 対応 index.html、page なし index.html、関数 id。結果は "RESULT " 付き JSON 1 行。
+// argv: page 対応 index.html、page なし index.html、preview 対応 index.html、関数 id。
+// 結果は "RESULT " 付き JSON 1 行。
 
 const path = require('path');
 
 const { resolvePuppeteer } = require('./resolve-puppeteer');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const reportUrl = (value) => /^https?:\/\//.test(value) ? value : 'file://' + value;
 
 async function newReportPage(browser, url, errors, options) {
   const page = await browser.newPage();
@@ -54,11 +57,11 @@ function pageLinkHref(page) {
   });
 }
 
-async function run(withPagePath, withoutPagePath, functionId) {
+async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
   const errors = [];
-  const withPageUrl = 'file://' + withPagePath;
+  const withPageUrl = reportUrl(withPagePath);
   try {
     // 1-3, 5: page 対応レポート (ja 環境、localStorage 未保存の状態から開始)
     let page = await newReportPage(browser, withPageUrl, errors, { language: 'ja-JP', clearVariant: true });
@@ -119,7 +122,7 @@ async function run(withPagePath, withoutPagePath, functionId) {
     await pageEn.close();
 
     // 6. pageUrlTemplate なしのレポートでは page リンクと設定ボタンが出ない
-    const pagePlain = await newReportPage(browser, 'file://' + withoutPagePath, errors, { language: 'ja-JP' });
+    const pagePlain = await newReportPage(browser, reportUrl(withoutPagePath), errors, { language: 'ja-JP' });
     await pagePlain.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
     await sleep(200);
     const hrefWithoutTemplate = await pageLinkHref(pagePlain);
@@ -128,6 +131,29 @@ async function run(withPagePath, withoutPagePath, functionId) {
       return Boolean(section && !section.hidden);
     });
     await pagePlain.close();
+
+    // 7. preview では現在の mkdocs 版へ固定し、ページ種別を表示しない。
+    const pagePreview = await newReportPage(browser, reportUrl(previewPagePath), errors, {
+      language: 'ja-JP',
+      clearVariant: true
+    });
+    await pagePreview.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
+    await sleep(200);
+    const hrefPreview = await pageLinkHref(pagePreview);
+    const settingsVisiblePreview = await pagePreview.evaluate(() => {
+      const section = document.getElementById('pageVariantSection');
+      return Boolean(section && !section.hidden);
+    });
+    const copyTextPreview = await pagePreview.evaluate(async () => {
+      window.__copiedText = null;
+      const button = document.querySelector('.dep-detail-copy[data-copy-source="detail"]');
+      button.click();
+      for (let i = 0; i < 50 && window.__copiedText === null; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return window.__copiedText;
+    });
+    await pagePreview.close();
 
     return {
       pageErrors: errors,
@@ -141,7 +167,10 @@ async function run(withPagePath, withoutPagePath, functionId) {
       hrefAfterReload,
       hrefEnDefault,
       hrefWithoutTemplate,
-      settingsVisibleWithout
+      settingsVisibleWithout,
+      hrefPreview,
+      settingsVisiblePreview,
+      copyTextPreview
     };
   } finally {
     await browser.close();
@@ -151,12 +180,18 @@ async function run(withPagePath, withoutPagePath, functionId) {
 if (require.main === module) {
   const withPagePath = process.argv[2];
   const withoutPagePath = process.argv[3];
-  const functionId = process.argv[4] || 'c_2';
-  if (!withPagePath || !withoutPagePath) {
-    console.error('usage: node page_link_probe.js <with-page index.html> <without-page index.html> [function id]');
+  const previewPagePath = process.argv[4];
+  const functionId = process.argv[5] || 'c_2';
+  if (!withPagePath || !withoutPagePath || !previewPagePath) {
+    console.error('usage: node page_link_probe.js <with-page index.html> <without-page index.html> <preview-page index.html> [function id]');
     process.exit(2);
   }
-  run(path.resolve(withPagePath), path.resolve(withoutPagePath), functionId)
+  run(
+    path.resolve(withPagePath),
+    path.resolve(withoutPagePath),
+    /^https?:\/\//.test(previewPagePath) ? previewPagePath : path.resolve(previewPagePath),
+    functionId
+  )
     .then((result) => {
       console.log('RESULT ' + JSON.stringify(result));
     })

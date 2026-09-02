@@ -235,6 +235,8 @@ level、分類、ファイルのフィルターも利用できます。
 関数行を選択すると、詳細領域に基本情報、`rank`、`depth`、領域、呼び出し種別、`export`、Doxygen ページへのリンク、ソース ページへのリンク、1 hop の呼び出し先、1 hop の呼び出し元を表示します。  
 ソース ページへのリンクは Git blob URL を優先し、Git URL を解決できない場合に Doxygen のソース ページを使います。  
 Doxygen ページへのリンクは `doxygen-page`、ソース ページへのリンクは `source-file` を `target` に指定し、それぞれ用途別の別タブまたは別ウィンドウを再利用します。  
+`pageUrlTemplate` が設定されている場合は、Doxybook2 から発行した Page へのリンクも表示します。  
+通常の発行結果ではページ種別を選択でき、`previewPageUrlTemplate` が実行時に指定された場合は preview のページへ固定します。  
 呼び出し先と呼び出し元の関数名は、Doxygen ページへのリンクではなく、同じ表の関数選択として動作します。
 
 近傍項目から選択した関数が現在のフィルター条件で非表示になる場合でも、詳細領域はその関数へ遷移します。  
@@ -351,6 +353,9 @@ PNG 保存では、現在のテーマと表示状態を反映します。
 | `edges` | 呼び出し関係 |
 | `files` | ファイル別集計 |
 | `sccs` | 循環グループ |
+| `pageUrlTemplate` | 通常の発行結果にある Page への URL テンプレート |
+| `previewPageUrlTemplate` | preview 配信時にだけ設定する Page の基底 URL |
+| `pageLanguages` | 通常の発行結果で選択できる言語 |
 
 `functions` の各要素は `dependency-functions.csv` と同等の情報を持ちます。  
 `edges` の各要素は `caller`、`callee`、`sameFile`、`callKind`、`callerArea`、`calleeArea`、`callerFile`、`calleeFile` を持ちます。

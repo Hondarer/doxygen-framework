@@ -2715,9 +2715,16 @@ class OverviewInteractionTest(unittest.TestCase):
         self.assertIsNotNone(line, msg="RESULT 行が見つからない:\n{}".format(result.stdout))
         return json.loads(line[len("RESULT "):])
 
-    def _run_page_link_probe(self, with_page_html, without_page_html):
+    def _run_page_link_probe(self, with_page_html, without_page_html, preview_page_html):
         result = subprocess.run(
-            [_node_binary(), str(PAGE_LINK_PROBE_SCRIPT), str(with_page_html), str(without_page_html), "c_2"],
+            [
+                _node_binary(),
+                str(PAGE_LINK_PROBE_SCRIPT),
+                str(with_page_html),
+                str(without_page_html),
+                str(preview_page_html),
+                "c_2",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
@@ -2738,10 +2745,21 @@ class OverviewInteractionTest(unittest.TestCase):
         # 詳細ペインの第 3 リンク「page」(make docs 発行のシングルページ md HTML) と、
         # 設定メニューのページ種別選択 (localStorage 永続化・既定値の言語決定) を検証する。
         template = "../../../{variant}/html/myapp/doxybook2_internal"
-        with tempfile.TemporaryDirectory() as with_dir, tempfile.TemporaryDirectory() as without_dir:
+        with tempfile.TemporaryDirectory() as with_dir, \
+                tempfile.TemporaryDirectory() as without_dir, \
+                tempfile.TemporaryDirectory() as preview_dir:
             with_page = self._generate_depth_report(Path(with_dir), page_template=template)
             without_page = self._generate_depth_report(Path(without_dir))
-            data = self._run_page_link_probe(with_page, without_page)
+            preview_page = self._generate_depth_report(Path(preview_dir), page_template=template)
+            preview_data_path = preview_page.parent / "dependency-data.js"
+            preview_data = preview_data_path.read_text(encoding="utf-8")
+            data_prefix = "window.DoxyfwDependencyData = "
+            preview_data_object = json.loads(
+                preview_data.strip()[len(data_prefix):-1]
+            )
+            preview_data_object["previewPageUrlTemplate"] = "/myapp/doxybook2_internal"
+            generate_dependency_report.write_data_js(preview_page.parent, preview_data_object)
+            data = self._run_page_link_probe(with_page, without_page, preview_page)
 
             self.assertEqual(data["pageErrors"], [], msg=str(data))
             # ja 環境の既定は ja (通常)。href はテンプレート置換 + Files/<パス>.html + 小文字アンカー。
@@ -2770,6 +2788,18 @@ class OverviewInteractionTest(unittest.TestCase):
             # pageUrlTemplate なしのレポートでは page リンクと設定ボタンが出ない。
             self.assertIsNone(data["hrefWithoutTemplate"], msg=str(data))
             self.assertFalse(data["settingsVisibleWithout"], msg=str(data))
+            # preview は mkdocs の use_directory_urls に合わせて末尾 / を使う。
+            self.assertEqual(
+                data["hrefPreview"],
+                "/myapp/doxybook2_internal/Files/src/chain.c/#c_2",
+                msg=str(data),
+            )
+            self.assertFalse(data["settingsVisiblePreview"], msg=str(data))
+            self.assertIn(
+                "/myapp/doxybook2_internal/Files/src/chain.c/#c_2)",
+                data["copyTextPreview"],
+                msg=str(data),
+            )
 
     def test_detail_copy_button(self):
         # 3 つの詳細ペイン (関数一覧・ファイル一覧・全体マップ) の「コピー」ボタンで、
