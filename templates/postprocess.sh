@@ -1255,6 +1255,8 @@ strip_folder_index_frontmatter() {
 # 各 index 一覧を対応フォルダーの README.md (フォルダーの目次) へ移動する。
 # フォルダー内ページを指すリンクはフォルダー基準へ変換するため先頭の "<フォルダー>/" を除去する
 # (例: ](Files/include/calc.h.md) -> ](include/calc.h.md))。
+# 他カテゴリ (Classes/Modules/Namespaces/Examples/Files のうち移動先以外) へのリンクは
+# 1 階層下へ移動することで相対位置がずれるため、"../" を補って書き換える。
 # ※ 空の Namespaces/Classes/Modules/Examples は前段で index ごと削除済みのため、
 #   ここで存在する index は非空フォルダーのものに限られる。
 move_index_to_folder_readme() {
@@ -1262,6 +1264,11 @@ move_index_to_folder_readme() {
     local index_path="$MARKDOWN_DIR/$index_name"
     [ -f "$index_path" ] || return 0
     mkdir -p "$MARKDOWN_DIR/$folder"
+    local other
+    for other in Files Modules Namespaces Examples Classes; do
+        [ "$other" = "$folder" ] && continue
+        sed -i "s|](${other}/|](../${other}/|g" "$index_path"
+    done
     sed -i "s|](${folder}/|](|g" "$index_path"
     mv "$index_path" "$MARKDOWN_DIR/$folder/README.md"
     strip_folder_index_frontmatter "$MARKDOWN_DIR/$folder/README.md"
@@ -1275,6 +1282,8 @@ move_index_to_folder_readme "index_examples.md"   "Examples"
 # index_classes.md は名前空間でグルー ピングされ Namespaces/ へのフォルダー外リンクを
 # 親行に含む。名前空間は Namespaces/README.md に一覧があるためグルー ピング行を削除し、
 # 残るクラス項目をフラット化したうえで Classes/ 接頭辞を除去して Classes/README.md とする。
+# Files/Modules/Examples へのリンク (Doxygen 自動生成のクロス参照など) は
+# 1 階層下へ移動することで相対位置がずれるため、"../" を補って書き換える。
 CLASSES_INDEX="$MARKDOWN_DIR/index_classes.md"
 if [ -f "$CLASSES_INDEX" ]; then
     mkdir -p "$MARKDOWN_DIR/Classes"
@@ -1282,6 +1291,9 @@ if [ -f "$CLASSES_INDEX" ]; then
         /\]\(Namespaces\// { next }
         {
             if (match($0, /^[[:space:]]*\* /)) { sub(/^[[:space:]]+/, "") }
+            gsub(/\]\(Files\//, "](../Files/")
+            gsub(/\]\(Modules\//, "](../Modules/")
+            gsub(/\]\(Examples\//, "](../Examples/")
             gsub(/\]\(Classes\//, "](")
             print
         }

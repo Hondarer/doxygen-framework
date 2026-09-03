@@ -906,14 +906,47 @@ def collect_child_group_ids(hierarchy):
     return child_ids
 
 
-def remove_merged_child_group_outputs(docs_dir, merged_child_ids):
+def redirect_links_to_merged_parent(docs_dir, merged_child_parents):
+    """
+    削除される子グループ ページを指す他ファイルからのリンクを、統合先の
+    親グループ ページへ付け替える。
+
+    Doxygen が自動生成するクロス参照 (例: 別の struct の説明文中に埋め込まれる
+    関数へのリンク) は、対象の関数が子グループへ統合され子ページが削除された
+    ことを認識できないため、削除前にリンク先ファイル名だけを付け替える。
+    アンカー (#...) はそのまま保持する。統合後の見出しでアンカー文字列が完全に
+    一致するとは限らないが、mkdocs の links バリデーションはリンク先ファイルの
+    存在のみを検証するため、これで警告は解消する。
+    """
+    redirected_links = 0
+
+    for group_id, parent_id in sorted(merged_child_parents.items()):
+        child_name = "{}.md".format(group_id)
+        parent_name = "{}.md".format(parent_id)
+        pattern = re.compile(r"(?<=[(/])" + re.escape(child_name) + r"(?=[)#])")
+
+        for md_path in sorted(docs_dir.rglob("*.md")):
+            content = md_path.read_text(encoding="utf-8")
+            new_content, count = pattern.subn(parent_name, content)
+            if count:
+                md_path.write_text(new_content, encoding="utf-8", newline="\n")
+                redirected_links += count
+
+    if redirected_links:
+        print("[inject-groups] links redirected to merged parent group: {}".format(redirected_links))
+
+
+def remove_merged_child_group_outputs(docs_dir, merged_child_parents):
     """
     root group に統合済みの子孫 group ページと目次リンクを削除する。
 
     Doxybook2 が生成した Modules/group__*.md は postprocess.sh 前の段階では
     index_groups.md から参照されるため、ページ削除と同時に目次行も削除する。
+    目次行の削除は子グループ ID をそのまま含む形で判定するため、
+    redirect_links_to_merged_parent による付け替えより前に行う必要がある
+    (先に付け替えると目次行も書き換わり、削除対象として検出できなくなる)。
     """
-    if not merged_child_ids:
+    if not merged_child_parents:
         return
 
     removed_pages = 0
@@ -923,7 +956,7 @@ def remove_merged_child_group_outputs(docs_dir, merged_child_ids):
         if not modules_dir.is_dir():
             continue
 
-        for group_id in sorted(merged_child_ids):
+        for group_id in sorted(merged_child_parents):
             child_md = modules_dir / "{}.md".format(group_id)
             if child_md.exists():
                 child_md.unlink()
@@ -937,7 +970,7 @@ def remove_merged_child_group_outputs(docs_dir, merged_child_ids):
         filtered_lines = []
         for line in lines:
             remove_line = False
-            for group_id in merged_child_ids:
+            for group_id in merged_child_parents:
                 if "]({}/{}.md)".format(modules_dir.name, group_id) in line:
                     remove_line = True
                     break
@@ -951,6 +984,8 @@ def remove_merged_child_group_outputs(docs_dir, merged_child_ids):
 
         if len(filtered_lines) != len(lines):
             index_path.write_text("\n".join(filtered_lines), encoding="utf-8", newline="\n")
+
+    redirect_links_to_merged_parent(docs_dir, merged_child_parents)
 
     print(
         "[inject-groups] merged child group outputs removed: pages={}, index_lines={}".format(
@@ -975,7 +1010,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
     スタンドアロンページとして残さない。
     """
     processed = 0
-    merged_child_ids = set()
+    merged_child_ids = {}
     child_group_ids = collect_child_group_ids(hierarchy)
     root_group_ids = set(hierarchy.keys()) - child_group_ids
 
@@ -1021,7 +1056,7 @@ def inject_children_into_parent_groups(docs_dir, hierarchy):
                 append_lines.append("\n!doxyfw-structure-title!## {}\n".format(path_title))
                 append_lines.append("\n!include {}\n".format(include_path))
                 generated.append(descendant_id)
-                merged_child_ids.add(descendant_id)
+                merged_child_ids[descendant_id] = parent_id
 
             if not generated:
                 continue
