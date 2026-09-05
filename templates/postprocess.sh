@@ -1303,5 +1303,12 @@ if [ -f "$CLASSES_INDEX" ]; then
     echo "  Moved index_classes.md -> Classes/README.md"
 fi
 
+# Doxybook2 形式のメンバー アンカーを実在する見出しへ合わせる。
+# index_*.md はここまでの処理でフォルダー直下の README.md へ移動しており、
+# サブディレクトリ Markdown のリンク除去ループの対象外だったため、
+# Doxybook2 が出力した #function-xxx 形式のアンカーが残っている。
+# 移動が終わったこの位置で、全 Markdown に対してまとめて補正する。
+python3 "$SCRIPT_DIR/fix-member-anchors.py" "$MARKDOWN_DIR" || exit 1
+
 # 処理終了
 exit 0
