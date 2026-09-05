@@ -11,9 +11,9 @@
 //   4. localStorage 未保存時の既定: ブラウザー言語 en では en (通常) になる。
 //   5. コピー md に [page](...) が含まれる。
 //   6. pageUrlTemplate なしのレポートでは page リンクと設定ボタンが出ない。
-//   7. previewPageUrlTemplate があるレポートでは mkdocs URLを使い、ページ種別を表示しない。
+//   7. livedocsPageUrlTemplate があるレポートでは mkdocs URLを使い、ページ種別を表示しない。
 //
-// argv: page 対応 index.html、page なし index.html、preview 対応 index.html、関数 id。
+// argv: page 対応 index.html、page なし index.html、livedocs 対応 index.html、関数 id。
 // 結果は "RESULT " 付き JSON 1 行。
 
 const path = require('path');
@@ -57,7 +57,7 @@ function pageLinkHref(page) {
   });
 }
 
-async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
+async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) {
   const puppeteer = resolvePuppeteer();
   const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
   const errors = [];
@@ -132,19 +132,19 @@ async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
     });
     await pagePlain.close();
 
-    // 7. preview では現在の mkdocs 版へ固定し、ページ種別を表示しない。
-    const pagePreview = await newReportPage(browser, reportUrl(previewPagePath), errors, {
+    // 7. 動的発行では現在の mkdocs 版へ固定し、ページ種別を表示しない。
+    const pageLivedocs = await newReportPage(browser, reportUrl(livedocsPagePath), errors, {
       language: 'ja-JP',
       clearVariant: true
     });
-    await pagePreview.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
+    await pageLivedocs.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
     await sleep(200);
-    const hrefPreview = await pageLinkHref(pagePreview);
-    const settingsVisiblePreview = await pagePreview.evaluate(() => {
+    const hrefLivedocs = await pageLinkHref(pageLivedocs);
+    const settingsVisibleLivedocs = await pageLivedocs.evaluate(() => {
       const section = document.getElementById('pageVariantSection');
       return Boolean(section && !section.hidden);
     });
-    const copyTextPreview = await pagePreview.evaluate(async () => {
+    const copyTextLivedocs = await pageLivedocs.evaluate(async () => {
       window.__copiedText = null;
       const button = document.querySelector('.dep-detail-copy[data-copy-source="detail"]');
       button.click();
@@ -153,7 +153,7 @@ async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
       }
       return window.__copiedText;
     });
-    await pagePreview.close();
+    await pageLivedocs.close();
 
     return {
       pageErrors: errors,
@@ -168,9 +168,9 @@ async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
       hrefEnDefault,
       hrefWithoutTemplate,
       settingsVisibleWithout,
-      hrefPreview,
-      settingsVisiblePreview,
-      copyTextPreview
+      hrefLivedocs,
+      settingsVisibleLivedocs,
+      copyTextLivedocs
     };
   } finally {
     await browser.close();
@@ -180,16 +180,16 @@ async function run(withPagePath, withoutPagePath, previewPagePath, functionId) {
 if (require.main === module) {
   const withPagePath = process.argv[2];
   const withoutPagePath = process.argv[3];
-  const previewPagePath = process.argv[4];
+  const livedocsPagePath = process.argv[4];
   const functionId = process.argv[5] || 'c_2';
-  if (!withPagePath || !withoutPagePath || !previewPagePath) {
-    console.error('usage: node page_link_probe.js <with-page index.html> <without-page index.html> <preview-page index.html> [function id]');
+  if (!withPagePath || !withoutPagePath || !livedocsPagePath) {
+    console.error('usage: node page_link_probe.js <with-page index.html> <without-page index.html> <livedocs-page index.html> [function id]');
     process.exit(2);
   }
   run(
     path.resolve(withPagePath),
     path.resolve(withoutPagePath),
-    /^https?:\/\//.test(previewPagePath) ? previewPagePath : path.resolve(previewPagePath),
+    /^https?:\/\//.test(livedocsPagePath) ? livedocsPagePath : path.resolve(livedocsPagePath),
     functionId
   )
     .then((result) => {

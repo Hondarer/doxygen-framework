@@ -2575,9 +2575,9 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   // make docs 発行のシングルページ md HTML への URL テンプレート ({{variant}} を置換して使う)。
   // 空のときは page リンク機能と設定メニューを無効にする。
   const pageUrlTemplate = data.pageUrlTemplate || "";
-  // mkdocs preview は dependency-data.js の HTTP 応答へこの値を追加する。
+  // mkdocs による動的発行は dependency-data.js の HTTP 応答へこの値を追加する。
   // 指定時は use_directory_urls に合わせた URL を使い、ページ種別を選択させない。
-  const previewPageUrlTemplate = data.previewPageUrlTemplate || "";
+  const livedocsPageUrlTemplate = data.livedocsPageUrlTemplate || "";
   const pageLanguages = (data.pageLanguages && data.pageLanguages.length > 0) ? data.pageLanguages : ["ja", "en"];
   const byId = new Map(functions.map((fn) => [fn.id, fn]));
   const baseOrder = new Map(functions.map((fn, index) => [fn.id, index]));
@@ -6332,8 +6332,8 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
 
   function pageUrlForFile(filePath) {{
     if (!filePath) return "";
-    if (previewPageUrlTemplate) {{
-      return previewPageUrlTemplate + "/Files/" + filePath + "/";
+    if (livedocsPageUrlTemplate) {{
+      return livedocsPageUrlTemplate + "/Files/" + filePath + "/";
     }}
     if (!pageUrlTemplate) return "";
     return pageUrlTemplate.replace("{{variant}}", pageVariant) + "/Files/" + filePath + ".html";
@@ -6349,7 +6349,7 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   }}
 
   function pageLinkFor(target, isFile) {{
-    if (!pageUrlTemplate && !previewPageUrlTemplate) return "";
+    if (!pageUrlTemplate && !livedocsPageUrlTemplate) return "";
     const url = isFile ? pageUrlForFile(target.path) : pageUrlForFunction(target);
     if (!url) return "";
     return "<a href=\\"" + escapeHtml(url) + "\\" target=\\"doxyfw-dependency-page\\">Page</a>";
@@ -6959,9 +6959,9 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
   }}
 
   // 設定メニュー自体は常時表示 (テーマ設定があるため)。ページ種別セクションのみ
-  // 発行用 pageUrlTemplate があり、preview 専用 URL でないレポートで表示する。
+  // 発行用 pageUrlTemplate があり、動的発行専用 URL でないレポートで表示する。
   const pageVariantSection = document.getElementById("pageVariantSection");
-  if (pageVariantSection && pageVariantOptions && pageUrlTemplate && !previewPageUrlTemplate) {{
+  if (pageVariantSection && pageVariantOptions && pageUrlTemplate && !livedocsPageUrlTemplate) {{
     pageVariantSection.hidden = false;
     for (const variant of pageVariantList()) {{
       const button = document.createElement("button");
