@@ -165,7 +165,7 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check --include-single-li
 3. 末尾コメント形式 (`/**< ... */` が同一行) の場合はスキップ (既定)
 4. `/**` のインデントを基準に、後続行の期待インデント (`/** のインデント + 1`) を計算
 5. 後続行のインデントが期待値と異なる場合を報告
-6. `*/` に到達するまで繰り返す
+6. `*/` に到達するまで処理を反復
 
 ### 修正処理
 
@@ -190,9 +190,9 @@ python3 framework/doxyfw/bin/check-doxygen-indent.py --check app/example/prod/in
 
 ### 修正後に clang-format で元に戻る
 
-本コマンド で修正したあと、`clang-format` を適用すると、`/**` の行の字下げレベルが再度調整される場合があります。その場合は、修正を繰り返すか、clang-format の設定を見直してください。
+本コマンドで修正した後、`clang-format` を適用すると、`/**` の行の字下げレベルが再度調整される場合があります。その場合は、修正を繰り返すか、clang-format の設定を見直してください。
 
-通常の workflow:
+通常のワークフロー:
 
 ```bash
 # 1. 修正プレビューで確認

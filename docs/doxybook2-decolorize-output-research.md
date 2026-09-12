@@ -12,7 +12,7 @@ Doxybook2 の出力形式と着色パターンについて調査を実施しま�
 
 ### Doxybook2 の着色機能
 
-Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を行っており、デフォルトで ANSI カラー コードによる着色が有効になっています。
+Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を実行しており、デフォルトで ANSI カラー コードによる着色が有効になっています。
 
 spdlog は 2022 年頃に Doxybook2 に統合され、以前のカスタム Log.hpp/cpp ファイルを置き換えています。
 
@@ -53,7 +53,7 @@ Doxybook2 には `-q, --quiet` オプションが存在します。
 doxybook2 -q -i "$DOXYFW_XML_WORK_DIR" -o output/
 ```
 
-このオプションは stdout を抑制し、stderr にエラーとワーニングのみを出力します。
+このオプションは stdout を抑制し、stderr にエラーと警告のみを出力します。
 
 ## 参考情報
 

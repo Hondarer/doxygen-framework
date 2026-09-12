@@ -10,7 +10,7 @@ C 言語開発における包括的なドキュメンテーション戦略の現
 
 **Doxygen** は 26 年の開発実績を持つ事実上の業界標準として確固たる地位を築いています。GitHub で 6,000 スター、1,300 フォークを獲得し、2025 年 5 月にリリースされた最新版 1.14.0 まで継続的に保守されています。その優位性は **自動化された一貫性** と **包括的な言語サポート** にあります。
 
-C/C++、C#、Java、Python、PHP、Objective-C、Fortran、VHDL、D などの多言語対応により、HTML、PDF、RTF、XML、DocBook、Unix マニュアル ページ、コンパイル済み HTML ヘルプなど多様な出力形式を提供します。特にクラス階層、呼び出しグラフ、インクルード依存関係の自動図表生成機能は大規模プロジェクトでの価値が高いです。
+C/C++、C#、Java、Python、PHP、Objective-C、Fortran、VHDL、D などの多言語対応により、HTML、PDF、RTF、XML、DocBook、Unix マニュアル ページ、コンパイル済み HTML ヘルプなど多様な出力形式を提供します。特にクラス階層、呼び出しグラフ、インクルード依存関係の自動図表生成機能は、大規模プロジェクトにおいて高い価値を持ちます。
 
 **技術的優位性の要因:**
 
@@ -21,7 +21,7 @@ C/C++、C#、Java、Python、PHP、Objective-C、Fortran、VHDL、D などの多
 
 ### 現代的代替案: Sphinx + Breathe の台頭
 
-**Sphinx + Breathe** の組み合わせが現代的な代替案として注目を集めています。Sphinx コアの広範な採用と Breathe の 779GitHub スターが示すように、視覚的品質を重視するプロジェクトでの採用が増加しています。
+**Sphinx + Breathe** の組み合わせが現代的な代替案として注目を集めています。Sphinx コアの広範な採用と Breathe の 779 GitHub スターが示すように、視覚的品質を重視するプロジェクトでの採用が増加しています。
 
 reStructuredText によるより強力なマークアップ、拡張的なテーマ システム、レスポンシブ デザイン、高度な相互参照機能が特徴です。Read the Docs ホスティング、CI/CD 統合、豊富なプラグイン エコシステムにより、**混合型ドキュメンテーション** (叙述的内容と API 参照の統合) に最適化されています。
 
@@ -43,11 +43,11 @@ Linux Kernel は **Sphinx** をドキュメンテーションの中核として�
 
 ### Git: AsciiDoc と Hugo の現代的統合
 
-**Git** プロジェクトは **AsciiDoc/Asciidoctor** をベースとし、カスタム Ruby スクリプトと Hugo 静的サイト ジェネレーターを組み合わせた革新的なアプローチを採用しています。git-scm.com(GitHub Pages) でのホスティングと、GitHub Actions 経由の自動ビルド、「Pro Git」書籍統合により、包括的なマニュアル ページ システムを構築しています。
+**Git** プロジェクトは **AsciiDoc/Asciidoctor** をベースとし、カスタム Ruby スクリプトと Hugo 静的サイト ジェネレーターを組み合わせた革新的なアプローチを採用しています。git-scm.com (GitHub Pages) でのホスティングと、GitHub Actions 経由の自動ビルド、「Pro Git」書籍統合により、包括的なマニュアル ページ システムを構築しています。
 
 ### OpenSSL: Material for MkDocs による現代化
 
-**OpenSSL** は **Material for MkDocs** を採用し、YAML frontmatter を持つ Markdown ファイルと、バージョニング用の mike を使用した Python ビルド スクリプトを組み合わせています。docs.openssl.org(GitHub Pages) での自動リビルドにより、メイン リポジトリ変更との同期を実現しています。
+**OpenSSL** は **Material for MkDocs** を採用し、YAML frontmatter を持つ Markdown ファイルと、バージョニング用の mike を使用した Python ビルド スクリプトを組み合わせています。docs.openssl.org (GitHub Pages) での自動リビルドにより、メイン リポジトリ変更との同期を実現しています。
 
 ### Apache HTTP Server: カスタム XML/XSLT 変換システム
 
@@ -267,7 +267,7 @@ class DocumentationTester:
 
 ### 規模別採用パターン
 
-**大規模プロジェクト** (1000 名以上の開発者) では自動化と一貫性の理由で Doxygen を API 文書に選択し、しばしばハイブリッド アプローチ (Doxygen + Breatheplugin による Sphinx) を実装します。表示品質よりも保守効率を優先します。
+**大規模プロジェクト** (1000 名以上の開発者) では自動化と一貫性の理由で Doxygen を API 文書に選択し、しばしばハイブリッド アプローチ (Doxygen + Breathe プラグインによる Sphinx) を実装します。表示品質よりも保守効率を優先します。
 
 **中規模プロジェクト** (50〜1000 名) では純粋 Doxygen と Doxygen+Sphinx の組み合わせで分かれ、既存ツールチェーンとの互換性が選択を左右することが多いです。
 
@@ -295,7 +295,7 @@ class DocumentationTester:
 
 ### AI 統合の展望 (2025 年)
 
-**開発者調査 (Stack Overflow 2024)** によると、開発者の 81%が AI ツールが 2025 年までに文書ワークフローを改善すると期待しています。90%が主要学習リソースとして API/SDK 文書に依存しており、技術文書が実践的コーディングに次ぐ学習方法として位置づけられています。
+**開発者調査 (Stack Overflow 2024)** によると、開発者の 81% が、AI ツールが 2025 年までに文書ワークフローを改善すると期待しています。90% が主要学習リソースとして API/SDK 文書に依存しており、技術文書が実践的コーディングに次ぐ学習方法として位置づけられています。
 
 **AI 統合の具体的方向性:**
 

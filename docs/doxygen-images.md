@@ -42,11 +42,11 @@ RECURSIVE  = YES
 `src/doxygen.cpp` の `adjustConfiguration()` では、IMAGE_PATH のディレクトリを `readFileOrDirectory()` でスキャンする際に `patList=nullptr` を渡しており、すべてのファイルが `imageNameLinkedMap` に登録されます。Markdown から参照されたファイルをコピーする `findAndCopyImage()` にも拡張子チェックはありません。
 
 ```text
-(Doxygen ソースコード: src/doxygen.cpp / adjustConfiguration())
+(Doxygen ソース コード: src/doxygen.cpp / adjustConfiguration())
 readFileOrDirectory(path,
     Doxygen::imageNameLinkedMap,
     nullptr,   // exclSet
-    nullptr,   // patList  ← 拡張子フィルタなし
+    nullptr,   // patList  ← 拡張子フィルターなし
     ...
 ```
 
@@ -92,7 +92,7 @@ VS Code のプレビューでは、Markdown ファイルから画像を相対パ
 
 - Doxygen は `IMAGE_PATH` を再帰的に検索してファイル名 (`diagram.png`) のみで照合します。
 - 見つかった画像を HTML 出力ルートにフラットにコピーします。
-- HTML には `<img src="diagram.png">` とファイル名のみを出力する (パスが置き換えられる)
+- HTML には `<img src="diagram.png">` とファイル名のみを出力します (パスが置き換えられます)。
 
 ```text
 Markdown の記述:   images/diagram.png
@@ -110,7 +110,7 @@ HTML の出力:       <img src="diagram.png">
 
 ### 注意点
 
-異なるディレクトリに同名の画像ファイルが存在する場合、Doxygen は以下の警告を出し、どちらか一方のみをコピーします (ファイル名のユニーク化は行われません)。
+異なるディレクトリに同名の画像ファイルが存在する場合、Doxygen は以下の警告を出力し、どちらか一方のみをコピーします (ファイル名の一意化は行われません)。
 
 ```text
 warning: image file name 'images/duplicate.png' is ambiguous.
@@ -118,5 +118,5 @@ warning: image file name 'images/duplicate.png' is ambiguous.
   /path/to/dir2/images/duplicate.png
 ```
 
-ドキュメント セットが意図した出力になるためには、画像ファイル名がプロジェクト全体で一意であることが必要です。  
-本フレームワークでは、同名画像ファイルの警告を検出した場合、`make doxy` にて失敗します。これにより、CI/CD で問題を発見、対処できます。
+ドキュメント セットを意図どおりに出力するためには、画像ファイル名がプロジェクト全体で一意である必要があります。  
+本フレームワークでは、同名画像ファイルの警告を検出した場合に `make doxy` が失敗します。これにより、CI/CD で問題を早期に発見し、対処できます。

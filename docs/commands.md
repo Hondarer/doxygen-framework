@@ -6,7 +6,7 @@
 
 簡単な説明を表します。ファイルの場合、簡単な説明はページの先頭で使用されます。ファイル・メンバーの場合、簡単な説明はメンバーの宣言に配置され、詳細な説明の先頭に追加されます。
 
-この repo では Doxybook2 が `@brief` を Markdown の YAML front matter にある `summary` としても出力します。  
+本リポジトリでは Doxybook2 が `@brief` を Markdown の YAML front matter にある `summary` としても出力します。  
 そのため、`Linux: fd` のように半角コロンの直後へ空白を続ける表現を `@brief` に含めると、生成後の YAML で別のマッピングとして解釈され、Pandoc の変換時に警告が出る場合があります。
 
 ```c
@@ -91,7 +91,7 @@ void setPosition(double x, double y, double z);
 void SomeNiceMethod ();
 ```
 
-Doxygen によって生成された対応する HTML ドキュメントについては、[こちら](https://www.doxygen.nl/manual/examples/author/html/class_some_nice_class.html) をクリックしてください。
+Doxygen によって生成された対応する HTML ドキュメントについては、[こちら](https://www.doxygen.nl/manual/examples/author/html/class_some_nice_class.html) を参照してください。
 
 ## @version { version number }
 
@@ -109,7 +109,7 @@ Doxygen によって生成された対応する HTML ドキュメントについ
 
 - プロジェクトの開発期間: `\date 2020-2023`
 - 特定機能の実装日: `\date 2024-01-15`
-- ライブラリのリリース時期: `\date March 2024@
+- ライブラリのリリース時期: `\date March 2024`
 - API 変更の日付: `\date Modified: 2024-03-10`
 - 文書の最終更新日: `\date Last updated: 2024-12-25`
 
@@ -210,7 +210,7 @@ void sortArray(int *arr, size_t size);
 
 ## @remarks { remark text }
 
-`@remark` と同等の別名です。この repo では `@remark` に統一し、`@remarks` は非推奨とします。
+`@remark` と同等の別名です。本リポジトリでは `@remark` に統一し、`@remarks` は非推奨とします。
 
 ## @important { important text }
 
@@ -343,7 +343,7 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
 
 `@details` を明示するのは、`@par` など別タグの本文に続けて details を再開したい場合のように、タグなし本文では所属が曖昧になる箇所です。
 
-### 宣言 (ヘッダー) と定義 (ソース) に説明を分けて書く
+### 宣言 (ヘッダー) と定義 (ソース) に説明を分けて記述する
 
 外部利用者向けの説明はヘッダーの宣言に、実装上の補足はソースの定義に分けて記述できます。  
 ヘッダーの宣言には `@brief` と外部利用者向けの詳細を書き、ソースの定義には `@details` で実装上の補足のみを書きます。  
@@ -549,7 +549,7 @@ void plain_text(void);
 Doxygen は Markdown 形式の fenced code block もサポートしています。  
 Doxygen コメント内で Markdown 形式の fenced code block を使う場合は、バッククォート 3 つではなく `~~~` を使用します。  
 [Doxygen の Markdown マニュアル](https://www.doxygen.nl/manual/markdown.html#md_fenced) では `~~~` の形式が fenced code block の基本例として示されており、言語指定付きの C コードは `~~~{.c}` と記載できます。  
-バッククォート 3 つの形式も Doxygen で解釈できますが、この repo の Doxygen コメントでは推奨しません。  
+バッククォート 3 つの形式も Doxygen で解釈できますが、本リポジトリの Doxygen コメントでは推奨しません。  
 プレーン テキストを記載する場合は、Markdown 形式ではなく `@code{.unparsed}` を使用します。
 
 > [!NOTE]
@@ -699,7 +699,7 @@ class Token {};  // @class を省略
 
 ### Markdown admonition との対応
 
-この repo では、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`、`DEPRECATED` の 6 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
+本リポジトリでは、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`、`DEPRECATED` の 6 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
 
 | Markdown admonition | Doxygen コマンド | 備考 |
 |---|---|---|
@@ -710,7 +710,7 @@ class Token {};  // @class を省略
 | `CAUTION` | `@attention` | 必須の制約条件・使用条件 |
 | `DEPRECATED` | `@deprecated` | 非推奨 API、代替案、廃止予定 |
 
-`@remarks` は `@remark` と同等の別名ですが、この repo では非推奨です。新規作成・既存更新では `@remark` に統一してください。
+`@remarks` は `@remark` と同等の別名ですが、本リポジトリでは非推奨です。新規作成・既存更新では `@remark` に統一してください。
 
 適切なコマンド (タグ) の使い分けにより、開発者にとって実用的で理解しやすいドキュメントを作成できます。各コマンド (タグ) の特徴を理解し、情報の重要度と緊急度に応じて適切に選択することで、コードの品質と保守性の向上につながります。
 

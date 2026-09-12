@@ -1,6 +1,6 @@
 # doxygen-framework
 
-Doxygen と Doxybook2 を使って HTML と Markdown を生成するための設定、テンプレート、スクリプトを提供する repo です。
+Doxygen と Doxybook2 を使って HTML と Markdown を生成するための設定、テンプレート、スクリプトを提供するリポジトリです。
 
 ## 概要
 
@@ -54,9 +54,9 @@ app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 - HTML: `pages/doxygen/<CATEGORY>_<SUBCATEGORY>/`
 - Markdown: `app/<CATEGORY>/docs/doxybook2_<SUBCATEGORY>/`
 
-`Doxyfile.part` と `Doxyfile.part.<SUBCATEGORY>` は、どちらか片方だけでも両方共存しても構いません。`Doxyfile.part` が存在しない app でも、`Doxyfile.part.<SUBCATEGORY>` だけを使えます。
+`Doxyfile.part` と `Doxyfile.part.<SUBCATEGORY>` は、どちらか一方のみの配置、または双方の共存が可能です。`Doxyfile.part` が存在しない app でも、`Doxyfile.part.<SUBCATEGORY>` のみを使用できます。
 
-`<SUBCATEGORY>` にはディレクトリ区切り文字 (`/`、`\`) と空白文字を含まない任意の文字列を使用できます (日本語も可)。`Doxyfile.part` 内の `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` は、サブカテゴリでも同様に使えます (既定値は `doxybook2_<SUBCATEGORY>`)。
+`<SUBCATEGORY>` にはディレクトリ区切り文字 (`/`、`\`) と空白文字を含まない任意の文字列を使用できます (日本語も可)。`Doxyfile.part` 内の `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` は、サブカテゴリでも同様に使用できます (既定値は `doxybook2_<SUBCATEGORY>`)。
 
 ## 主なファイル
 

@@ -6,13 +6,13 @@ doxybook2 のテンプレートの出力方法について以下にまとめま�
 
 ### テンプレートの生成
 
-デフォルト テンプレートを指定したフォルダーに出力 (コピー) するには、以下のコマンドを実行します。
+既定のテンプレートを指定したフォルダーに出力 (コピー) するには、以下のコマンドを実行します。
 
 ```bash
 doxybook2 --generate-templates /path/to/folder
 ```
 
-このコマンドを実行すると、実行ファイル内に保存されているデフォルト テンプレート ファイル群が指定したフォルダーにコピーされます。  
+このコマンドを実行すると、実行ファイル内に保存されている既定のテンプレート ファイル群が指定したフォルダーにコピーされます。  
 注意点として、フォルダーは事前に存在している必要があり、同名ファイルがある場合は上書きされます。
 
 ### カスタム テンプレートの使用
@@ -77,7 +77,7 @@ doxybook2 --debug-templates ...
 
 ### テンプレート エンジン
 
-doxybook2 は、Python Jinja ライクな C++ テンプレート エンジン「inja」を使用しており、`{% include "template_name" %}` や `{{ render("template_name", data) }}` などの構文が使用できます。
+doxybook2 は、Python の Jinja に似た C++ テンプレート エンジン「inja」を使用しており、`{% include "template_name" %}` や `{{ render("template_name", data) }}` などの構文が使用できます。
 
 ## 出力規約と制約
 
@@ -85,9 +85,9 @@ doxybook2 は、Python Jinja ライクな C++ テンプレート エンジン「
 
 doxybook2 出力の各ページ (Modules / Files / Classes / Namespaces / Examples / Pages) は、H1 直下に出力する brief と details を `## 概要` セクションとして出力します。
 
-- 出力条件は「H1 直下に出力される内容があること」です。brief も details もないページには `## 概要` を出しません。
-- 例外として、Classes ページは構造体定義のコード ブロックのみでも `## 概要` を出します (H1 直下に内容があれば概要に含める、が原則)。
-- 実装は `templates/kind_*.tmpl` (kind_file / kind_nonclass / kind_group / kind_class / kind_example / kind_page) です。グループが kind_group と kind_nonclass のどちらにマップされるかは確定していないため、両者を同一構造に維持します。
+- 出力条件は「H1 直下に出力される内容があること」です。brief も details もないページには `## 概要` を出力しません。
+- 例外として、Classes ページは構造体定義のコード ブロックのみでも `## 概要` を出力します (H1 直下に内容があれば概要に含める、が原則)。
+- 実装は `templates/kind_*.tmpl` (kind_file / kind_nonclass / kind_group / kind_class / kind_example / kind_page) です。グループが kind_group と kind_nonclass のどちらにマッピングされるかは確定していないため、両者を同一構造に維持します。
 
 ### postprocess.sh の include 展開は 1 段のみ
 

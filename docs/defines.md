@@ -1,10 +1,10 @@
 # define 値の展開について
 
-doxygen の `PREDEFINED` 設定について詳しく説明します。
+Doxygen の `PREDEFINED` 設定について詳しく説明します。
 
 ## PREDEFINED とは
 
-`PREDEFINED` は、doxygen の前処理段階で事前に定義されるマクロを指定する設定項目です。これにより、条件付きコンパイル (`#ifdef`、`#if` など) の評価を制御できます。
+`PREDEFINED` は、Doxygen の前処理段階で事前に定義されるマクロを指定する設定項目です。これにより、条件付きコンパイル (`#ifdef`、`#if` など) の評価を制御できます。
 
 ## 設定方法
 
@@ -26,7 +26,7 @@ PREDEFINED = MACRO1 \
 PREDEFINED = DEBUG
 ```
 
-これは以下と同等:
+これは次と同等です:
 
 ```cpp
 #define DEBUG
@@ -39,7 +39,7 @@ PREDEFINED = VERSION=2 \
              MAX_SIZE=1024
 ```
 
-これは以下と同等:
+これは次と同等です:
 
 ```cpp
 #define VERSION 2

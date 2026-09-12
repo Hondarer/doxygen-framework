@@ -1,6 +1,6 @@
 # パラメーターの direction の処理
 
-doxybook2 では direction を解釈できないので、
+Doxybook2 では direction を解釈できないため、
 
 ```xml
 <parametername>a</parametername>
@@ -12,10 +12,10 @@ doxybook2 では direction を解釈できないので、
 に対して
 
 ```xml
-<parametername>b</parametername>
+<parametername>a</parametername>
 <parametername>[in] b</parametername>
 <parametername>[out] c</parametername>
 <parametername>[in, out] d</parametername>
 ```
 
-になるように前処理を行います。
+となるように前処理を実行します。

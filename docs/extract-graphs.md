@@ -213,11 +213,11 @@ REFERENCES_RELATION    = YES
 
 ### ノード数の上限
 
-`extract-graphs.py` では、グラフあたりの最大ノード数を 50 に設定しています。この値は Doxygen の `DOT_GRAPH_MAX_NODES` (デフォルト 50) に合わせています。この値を超えるグラフは生成をスキップします。上限値はスクリプト先頭の `DOT_GRAPH_MAX_NODES` 定数で変更できます。
+`extract-graphs.py` では、グラフあたりの最大ノード数を 50 に設定しています。この値は Doxygen の `DOT_GRAPH_MAX_NODES` (既定 50) に合わせています。この値を超えるグラフは生成をスキップします。上限値はスクリプト先頭の `DOT_GRAPH_MAX_NODES` 定数で変更できます。
 
 ```python
 # グラフあたりの最大ノード数 (これを超えるグラフは生成しない)
-# Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
+# Doxygen の DOT_GRAPH_MAX_NODES (既定 50) に合わせた値
 DOT_GRAPH_MAX_NODES = 50
 ```
 
@@ -232,7 +232,7 @@ DOT_GRAPH_MAX_NODES = 50
 INC_GRAPH_LABEL_BASENAME_ONLY = True
 ```
 
-デフォルト値は `True` です。このモードでは basename を起点にして、必要なときだけ親ディレクトリ名を付与します。完全なパスで表示したい場合は `False` に変更してください。
+既定値は `True` です。このモードでは basename を起点にして、必要なときだけ親ディレクトリ名を付与します。完全なパスで表示したい場合は `False` に変更してください。
 
 ### スキップ条件
 
@@ -240,19 +240,19 @@ INC_GRAPH_LABEL_BASENAME_ONLY = True
 
 - ノード数が `MAX_GRAPH_NODES` を超える場合
 - エッジが 1 つもない場合 (ノードが 1 つだけで関係のないグラフ)
-- `index.xml` や `combine.xslt` 等のインデックス ファイル
+- `index.xml` や `combine.xslt` などのインデックス ファイル
 
 ## 技術的な詳細
 
 ### XML 書式の保持
 
-`extract-graphs.py` は XML の解析に正規表現ベースのテキスト操作を使用しています。ElementTree 等の XML パーサーを用いた場合、ファイル再書き込み時に属性の順序変更、空要素の展開、名前空間宣言の変更などが発生する可能性があります。正規表現による操作は、変更箇所以外の XML 書式を完全に保持します。
+`extract-graphs.py` は XML の解析に正規表現ベースのテキスト操作を使用しています。ElementTree などの XML パーサーを用いた場合、ファイル再書き込み時に属性の順序変更、空要素の展開、名前空間宣言の変更などが発生する可能性があります。正規表現による操作は、変更箇所以外の XML 書式を完全に保持します。
 
 ### 挿入位置
 
 生成された `<plantuml>` タグは、対象要素の `<detaileddescription>` 閉じタグの直前に `<simplesect kind="par">` 要素で囲んで挿入されます。Doxybook2 の `details.tmpl` はこれを `par` セクションとして処理し、`####` 見出し付きの独立セクションとして出力します。
 
-compound レベルのグラフ (インクルード依存図等) は、`content.rfind()` により compounddef 自身の `</detaileddescription>` を検索するため、memberdef 内ではなく正しい位置に挿入されます。
+compound レベルのグラフ (インクルード依存図など) は、`content.rfind()` により compounddef 自身の `</detaileddescription>` を検索するため、memberdef 内ではなく正しい位置に挿入されます。
 
 ```text
 <detaileddescription>

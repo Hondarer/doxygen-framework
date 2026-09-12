@@ -40,12 +40,12 @@ make clean
 ### 概要
 
 - **オプション名**: `CATEGORY`
-- **デフォルト値**: 空 (大分類なし)
+- **既定値**: 空 (大分類なし)
 - **用途**: API ドキュメント、内部仕様書、テスト ドキュメントなど、異なる種類のドキュメントを分類して生成
 
 ### 動作仕様
 
-#### CATEGORY 未指定時 (デフォルト)
+#### CATEGORY 未指定時 (既定)
 
 ```bash
 cd framework/doxyfw
@@ -115,7 +115,7 @@ make clean CATEGORY=api
 
 CATEGORY を使用する場合、設定ファイルは `app/<category>/prod/` 配下に配置します。CATEGORY を使わない既定実行では、ワークスペース直下の `Doxyfile.part` を使用できます。
 
-- **デフォルト**: `Doxyfile.part`
+- **既定**: `Doxyfile.part`
 - **CATEGORY 指定時**: `app/{CATEGORY}/prod/Doxyfile.part`
 - **SUBCATEGORY 指定時**: `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}`
 
@@ -127,8 +127,8 @@ CATEGORY を使用する場合、設定ファイルは `app/<category>/prod/` �
 main-project/
 +-- framework/
 |   +-- doxyfw/              # doxyfw サブモジュール
-+-- Doxyfile.part            # デフォルト設定
-+-- prod/                    # CATEGORY 未指定時の既定ソースコード
++-- Doxyfile.part            # 既定設定
++-- prod/                    # CATEGORY 未指定時の既定ソース コード
 +-- app/
 |   +-- calc/
 |   |   +-- prod/
@@ -189,7 +189,7 @@ INPUT                  = app/example/test/src
 
 `Doxyfile.part.<SUBCATEGORY>` でも同じディレクティブを使用できます。既定値は `doxybook2_<SUBCATEGORY>` です。
 
-Doxygen に未知タグ警告を出させないため、この設定は通常の Doxygen タグではなくコメントとして記述します。
+Doxygen に未知タグの警告を出力させないため、この設定は通常の Doxygen タグではなくコメントとして記述します。
 
 値を空にした場合は未指定として扱われ、既定値を使用します。  
 値を指定する場合はディレクトリ名 1 要素だけです。絶対パス、`.`、`..`、`/`、`\` を含む値はエラーになります。
@@ -205,10 +205,10 @@ CATEGORY が指定された場合、makefile は以下の処理を自動的に�
 1. `app/{CATEGORY}/prod/Doxyfile.part` を基本 Doxyfile と結合します。
     - SUBCATEGORY 指定時は `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}` を使用します。
 2. `app/{CATEGORY}/` を Doxygen の実行基準ディレクトリとして使用します。
-3. 結合した一時 Doxyfile の `OUTPUT_DIRECTORY`、`XML_OUTPUT`、`GENERATE_TAGFILE` を実行単位の一時ディレクトリへ書き換える
+3. 結合した一時 Doxyfile の `OUTPUT_DIRECTORY`、`XML_OUTPUT`、`GENERATE_TAGFILE` を実行単位の一時ディレクトリへ書き換えます。
     - SUBCATEGORY なし: `/tmp/doxyfw-tmp/{CATEGORY}/run.XXXXXX/` 配下を使用します。
     - SUBCATEGORY あり: `/tmp/doxyfw-tmp/{CATEGORY}_{SUBCATEGORY}/run.XXXXXX/` 配下を使用します。
-4. `INPUT_FILTER` を `framework/doxyfw/bin/input-filter.py` の絶対パスへ置き換える
+4. `INPUT_FILTER` を `framework/doxyfw/bin/input-filter.py` の絶対パスへ置き換えます。
 5. 書き換えた一時 Doxyfile で Doxygen を実行します。
 6. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用します。
     - SUBCATEGORY 指定時は既定値が `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/` になります。
@@ -257,7 +257,7 @@ To run every subcategory at once, use: make -C "/path/to/app/example" doxy
 
 `Doxyfile.part` も `Doxyfile.part.*` も存在しない大分類では、Doxygen が設定されていない旨を表示して終了します。
 
-基本 Doxyfile のみで生成しない理由は、その `INPUT` が `./README.md ./src ./include` であり、`libsrc` を含まないためです。この入力で生成すると、`libsrc` 配下を指す `\ref` の解決に失敗し、`include` で宣言した関数の定義位置を `src` 側の呼び出し行と誤認した依存関係レポートが出力されます。いずれも生成自体は成功するため、警告を読まない限り不完全なドキュメントに気付けません。
+基本 Doxyfile のみで生成しない理由は、その `INPUT` が `./README.md ./src ./include` であり、`libsrc` を含まないためです。この入力で生成すると、`libsrc` 配下を指す `\ref` の解決に失敗し、`include` で宣言した関数の定義位置を `src` 側の呼び出し行と誤認した依存関係レポートが出力されます。いずれも生成自体は成功するため、警告を確認しない限り不完全なドキュメントを見落としやすくなります。
 
 ### SUBCATEGORY の制約違反でエラーになる
 

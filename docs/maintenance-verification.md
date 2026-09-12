@@ -7,8 +7,8 @@
 生成物は Git 管理対象外のため、`git diff` だけでは比較できません。
 
 テンプレート変更が利用側の `make_doxy.stamp` のシグネチャに含まれない場合は、対象 app のスタンプを除いて再生成します。  
-ワークスペースと対象 app の絶対パスを確認し、対象外のスタンプを削除しません。  
-この場合に `make clean` は不要です。  
+ワークスペースと対象 app の絶対パスを確認し、対象外のスタンプを削除しないでください。  
+この場合、`make clean` は不要です。  
 実行方法は [makefile の利用方法](makefile-usage.md) を参照してください。
 
 ## Python の日本語出力
@@ -30,4 +30,4 @@ sys.stderr.reconfigure(encoding="utf-8")
 図を追加または変更する場合は PlantUML を基本とします。  
 `@startuml` と `caption` には同じタイトル文字列を記載し、`title` は使用しません。  
 フロー説明はアクティビティ図、シーケンス性が主題の場合はシーケンス図を使います。  
-PlantUML で表現しにくい場合は Mermaid を使えます。
+PlantUML で表現しにくい場合は Mermaid も利用できます。
