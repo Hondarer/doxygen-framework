@@ -241,19 +241,22 @@ def fix_member_fence_language(docs_dir, member_langs):
     print("[inject-groups] fence language fixed: {} file(s)".format(processed))
 
 
-def parse_group_md_sections(md_path):
+def parse_group_md(md_path):
     """
-    Doxybook2 が生成した Modules/*.md をパースし、メンバーセクションを分解する。
+    Doxybook2 が生成した Modules/*.md をパースし、概要とメンバーセクションを分解する。
 
     YAML フロントマター・HTML コメント・H1 を読み飛ばした後、
-    残りを H2 (セクション見出し) と H3 (個別メンバー) で分割する。
-    コードブロック内の ## / ### はメンバー境界として扱わない。
+    残りを H2 ごとのブロックに分ける。`## 概要` ブロックはグループの概要として保持し、
+    ほかの H2 ブロックは H3 (個別メンバー) で分割する。
+    コードブロック内の ## / ### は境界として扱わない。
 
     Returns:
-        list: [(h2_heading_line, [(member_name, [content_lines]), ...]), ...]
-            h2_heading_line: "## 定数、マクロ" 等の H2 見出し行
-            member_name: "### COMM_SUCCESS" の "COMM_SUCCESS" 部分
-            content_lines: H3 見出し行を含むそのメンバーのすべての行
+        tuple: (overview_lines, sections)
+            overview_lines: `## 概要` 見出しと本文の行リスト。概要がなければ空。
+            sections: [(h2_heading_line, [(member_name, [content_lines]), ...]), ...]
+                h2_heading_line: "## 定数、マクロ" 等の H2 見出し行
+                member_name: "### COMM_SUCCESS" の "COMM_SUCCESS" 部分
+                content_lines: H3 見出し行を含むそのメンバーのすべての行
     """
     with open(str(md_path), "r", encoding="utf-8") as f:
         raw_lines = f.read().split("\n")
@@ -282,12 +285,9 @@ def parse_group_md_sections(md_path):
 
     structure_marker = "!doxyfw-structure-title!"
 
-    # H2/H3 境界でセクションを分解
-    sections = []          # [(h2_line, [(name, [lines])])]
-    current_h2 = None
-    current_members = []   # [(name, [lines])]
-    current_name = None
-    current_lines = []
+    # コードブロック外の H2 境界でブロックへ分割する。
+    h2_blocks = []
+    current_block = []
     in_code_block = False
 
     for line in remaining:
@@ -299,35 +299,59 @@ def parse_group_md_sections(md_path):
             heading_line = heading_line[len(structure_marker):]
 
         if not in_code_block and heading_line.startswith("## "):
-            # 進行中のメンバーをフラッシュ
-            if current_name is not None:
-                current_members.append((current_name, current_lines))
-                current_name = None
-                current_lines = []
-            # 進行中の H2 セクションをフラッシュ
-            if current_h2 is not None:
-                sections.append((current_h2, current_members))
-                current_members = []
-            current_h2 = line
+            if current_block:
+                h2_blocks.append(current_block)
+            current_block = [line]
+        elif current_block:
+            current_block.append(line)
 
-        elif not in_code_block and heading_line.startswith("### "):
-            # 進行中のメンバーをフラッシュ
-            if current_name is not None:
-                current_members.append((current_name, current_lines))
-            current_name = heading_line[4:].strip()
-            current_lines = [line]
+    if current_block:
+        h2_blocks.append(current_block)
 
-        else:
-            if current_name is not None:
+    overview_lines = []
+    sections = []
+
+    for block in h2_blocks:
+        while block and block[-1] == "":
+            block.pop()
+        if not block:
+            continue
+
+        heading_line = block[0]
+        normalized_heading = heading_line
+        if normalized_heading.startswith(structure_marker):
+            normalized_heading = normalized_heading[len(structure_marker):]
+
+        if normalized_heading == "## 概要":
+            overview_lines = block
+            continue
+
+        current_members = []
+        current_name = None
+        current_lines = []
+        in_code_block = False
+
+        for line in block[1:]:
+            if line.startswith("```"):
+                in_code_block = not in_code_block
+
+            member_heading = line
+            if member_heading.startswith(structure_marker):
+                member_heading = member_heading[len(structure_marker):]
+
+            if not in_code_block and member_heading.startswith("### "):
+                if current_name is not None:
+                    current_members.append((current_name, current_lines))
+                current_name = member_heading[4:].strip()
+                current_lines = [line]
+            elif current_name is not None:
                 current_lines.append(line)
 
-    # 末尾のメンバー・セクションをフラッシュ
-    if current_name is not None:
-        current_members.append((current_name, current_lines))
-    if current_h2 is not None:
-        sections.append((current_h2, current_members))
+        if current_name is not None:
+            current_members.append((current_name, current_lines))
+        sections.append((heading_line, current_members))
 
-    return sections
+    return overview_lines, sections
 
 
 # メンバー本文中の Classes include 行を検出する正規表現
@@ -430,10 +454,11 @@ def resolve_classes_includes(member_lines, classes_dir, offset):
     return resolved
 
 
-def generate_filtered_md(title, sections, member_names, classes_dir=None):
+def generate_filtered_md(title, overview_lines, sections, member_names, classes_dir=None):
     """
     対象ファイルのメンバー名集合でフィルタした中間 MD コンテンツを生成する。
 
+    グループの概要がある場合は、メンバーの所属ファイルにかかわらず先頭へ出力する。
     member_names に含まれるメンバーのみを出力し、別ファイル起源のメンバーを除外する。
     H2/H3 見出しレベルは Doxybook2 出力のまま保持する。
     postprocess.sh の !include 処理が YAML・HTML コメント・H1 を除去し、
@@ -455,6 +480,10 @@ def generate_filtered_md(title, sections, member_names, classes_dir=None):
     out.append("")
     out.append("# {}".format(title))
     out.append("")
+
+    if overview_lines:
+        out.extend(overview_lines)
+        out.append("")
 
     for (h2_line, members) in sections:
         # このセクションで対象ファイルに属するメンバーだけを抽出
@@ -492,10 +521,11 @@ def shift_heading_line(line, offset):
     return prefix + "#" * level + match.group(3)
 
 
-def build_embedded_group_section(title, sections, member_names, classes_dir=None):
+def build_embedded_group_section(title, overview_lines, sections, member_names, classes_dir=None):
     """
     対象メンバーのみを含むグループ セクションを、直接埋め込み用に組み立てる。
 
+    グループの概要がある場合は、グループ タイトルの直後へ出力する。
     !include を使わず、見出しを 1 段シフト済みのテキストとして返す。
     Classes/*.md のように自身が Files/*.md や Namespaces/*.md から !include
     される側のファイルでは、ネストした !include を postprocess.sh が解決
@@ -523,6 +553,11 @@ def build_embedded_group_section(title, sections, member_names, classes_dir=None
             out.append(line)
             return
         out.append(shift_heading_line(line, 1))
+
+    for overview_line in overview_lines:
+        emit(overview_line)
+    if overview_lines:
+        out.append("")
 
     for (h2_line, members) in sections:
         filtered = [(name, lines) for (name, lines) in members if name in member_names]
@@ -603,7 +638,7 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
             print("  -> 警告: {} が見つかりません".format(group_md))
             continue
 
-        sections = parse_group_md_sections(group_md)
+        overview_lines, sections = parse_group_md(group_md)
 
         # グループ md に実在するメンバーだけを対象にする
         # (空セクションの追記を防ぐ)
@@ -621,10 +656,12 @@ def append_missing_group_sections(md_path, modules_dir, modules_rel,
 
         if embed:
             append_lines.append(
-                build_embedded_group_section(title, sections, effective, classes_dir))
+                build_embedded_group_section(
+                    title, overview_lines, sections, effective, classes_dir))
             append_lines.append("\n")
         else:
-            filtered_content = generate_filtered_md(title, sections, effective, classes_dir)
+            filtered_content = generate_filtered_md(
+                title, overview_lines, sections, effective, classes_dir)
 
             filtered_name = "perfile__{}__{}.md".format(group_id, md_path.stem)
             filtered_path = modules_dir / filtered_name
@@ -802,8 +839,9 @@ def inject_into_files_md(files_md_path, groups, modules_dir, modules_rel, group_
             print("  -> 警告: {} が見つかりません".format(group_md_path))
             continue
 
-        sections = parse_group_md_sections(group_md_path)
-        filtered_content = generate_filtered_md(title, sections, member_names, classes_dir)
+        overview_lines, sections = parse_group_md(group_md_path)
+        filtered_content = generate_filtered_md(
+            title, overview_lines, sections, member_names, classes_dir)
 
         # フィルター済み中間 MD を Modules/ に書き出す
         filtered_name = "perfile__{}__{}.md".format(group_id, files_stem)
