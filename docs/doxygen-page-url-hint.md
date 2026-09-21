@@ -40,7 +40,7 @@ doxygen-page-url: "pages/doxygen/calc_public/calc_8h.html"
 python3 "$SCRIPT_DIR/inject-doxygen-url.py" "$MARKDOWN_DIR" "$DOXYFW_TAGFILE" "$DOXYFW_HTML_ROOT" "$WORKSPACE_ROOT"
 ```
 
-`makefile` は Doxygen 実行時に `GENERATE_TAGFILE` を `/tmp/doxyfw-tmp/{CATEGORY_ID}/run.XXXXXX/xml/doxyfw.tag` へ上書きします。  
+`makefile` は Doxygen 実行時に `GENERATE_TAGFILE` を `/tmp/doxyfw-tmp-{UID}/{CATEGORY_ID}/run.XXXXXX/xml/doxyfw.tag` へ上書きします。  
 tag file は postprocess で参照するため、XML 中間ディレクトリは postprocess の後で削除します。
 
 ## docsfw 側の連携

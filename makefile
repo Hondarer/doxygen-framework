@@ -136,8 +136,12 @@ endif
 # make docs が発行する言語のリスト (空白区切り)。設定メニューの選択肢になる。
 DEPENDENCY_PAGE_LANGS ?= ja en
 DOXY_WARN_OUTPUT := $(DOXYGEN_WORKDIR)/$(DOXY_WARN_BASENAME)
-DOXYFW_TMP_ROOT ?= /tmp/doxyfw-tmp
-DOXYFW_LOCK_ROOT ?= /tmp/doxyfw-locks
+# 一時領域とロックの親ディレクトリは並列実行との競合を避けるため終了後も残す。
+# Linux の /tmp は全ユーザーで共有され、別ユーザー (sudo 実行や root の
+# コンテナなど) が作成した親ディレクトリには書き込めないため、ユーザー ID で分ける。
+DOXYFW_UID := $(shell id -u 2>/dev/null)
+DOXYFW_TMP_ROOT ?= /tmp/doxyfw-tmp$(if $(DOXYFW_UID),-$(DOXYFW_UID))
+DOXYFW_LOCK_ROOT ?= /tmp/doxyfw-locks$(if $(DOXYFW_UID),-$(DOXYFW_UID))
 DOXYFW_RUNTIME_KEY := $(if $(CATEGORY_ID),$(CATEGORY_ID),root)
 
 .DEFAULT_GOAL := default

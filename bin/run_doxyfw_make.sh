@@ -114,20 +114,16 @@ cleanup() {
     if [ -n "${SKIP_MARKER:-}" ]; then
         rm -f "$SKIP_MARKER"
     fi
+    # 削除するのは本実行が作成したロックと一時領域だけとする。共有の親
+    # ディレクトリ (DOXYFW_LOCK_ROOT、DOXYFW_TMP_ROOT/<key>、DOXYFW_TMP_ROOT) は
+    # 空でも残す。並列実行中の別の実行が mkdir -p で親を作成してから配下を
+    # 作成するまでの間に親を削除すると、ロック取得が永久に待機し、一時領域の
+    # 作成が失敗するため。
     if [ -n "$lock_dir" ] && [ -d "$lock_dir" ]; then
         rmdir "$lock_dir" 2>/dev/null || true
     fi
-    if [ -n "${DOXYFW_LOCK_ROOT:-}" ]; then
-        rmdir "$DOXYFW_LOCK_ROOT" 2>/dev/null || true
-    fi
     if [ -n "$run_tmp_root" ] && [ -d "$run_tmp_root" ]; then
         rm -rf "$run_tmp_root"
-    fi
-    if [ -n "${tmp_base_dir:-}" ]; then
-        rmdir "$tmp_base_dir" 2>/dev/null || true
-    fi
-    if [ -n "${DOXYFW_TMP_ROOT:-}" ]; then
-        rmdir "$DOXYFW_TMP_ROOT" 2>/dev/null || true
     fi
 }
 
@@ -141,6 +137,9 @@ acquire_lock() {
     lock_path="$DOXYFW_LOCK_ROOT/$DOXYFW_RUNTIME_KEY.lock"
     mkdir -p "$DOXYFW_LOCK_ROOT"
     while ! mkdir "$lock_path" 2>/dev/null; do
+        # 親ディレクトリが外部 (/tmp の定期清掃など) で削除された場合に
+        # 無言で待ち続けないよう作り直す
+        [ -d "$DOXYFW_LOCK_ROOT" ] || mkdir -p "$DOXYFW_LOCK_ROOT"
         sleep 0.05
     done
     lock_dir="$lock_path"
