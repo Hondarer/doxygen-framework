@@ -1468,6 +1468,111 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertIn('referencedby refid="caller_main"', caller_xml)
             self.assertNotIn('referencedby refid="ctrl_main"', caller_xml)
 
+    def test_cross_file_reference_is_removed_when_local_target_does_not_exist(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "reader.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="reader_8c" kind="file">
+    <compoundname>reader.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="reader_main" static="no">
+        <name>main</name>
+        <references refid="writer_lookup" compoundref="writer_8c">lookup</references>
+        <location file="src/reader.c" line="20" bodyfile="src/reader.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "writer.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="writer_8c" kind="file">
+    <compoundname>writer.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="writer_lookup" static="yes">
+        <name>lookup</name>
+        <location file="src/writer.c" line="10" bodyfile="src/writer.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_stderr = io.StringIO()
+            with contextlib.redirect_stderr(normalize_stderr):
+                normalize_function_references.normalize_xml_dir(str(xml_dir))
+
+            reader_xml = (xml_dir / "reader.xml").read_text(encoding="utf-8")
+            self.assertNotIn("<references", reader_xml)
+            self.assertIn("Info: static-cross-file-reference removed", normalize_stderr.getvalue())
+            self.assertNotIn("Warning:", normalize_stderr.getvalue())
+
+    def test_cross_file_referencedby_is_removed_when_local_caller_does_not_exist(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "reader.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="reader_8c" kind="file">
+    <compoundname>reader.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="reader_lookup" static="yes">
+        <name>lookup</name>
+        <referencedby refid="writer_main" compoundref="writer_8c">main</referencedby>
+        <location file="src/reader.c" line="10" bodyfile="src/reader.c" bodystart="10"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+            write_xml(
+                xml_dir,
+                "writer.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="writer_8c" kind="file">
+    <compoundname>writer.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="writer_lookup" static="yes">
+        <name>lookup</name>
+        <location file="src/writer.c" line="10" bodyfile="src/writer.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="writer_main" static="no">
+        <name>main</name>
+        <references refid="writer_lookup" compoundref="writer_8c">lookup</references>
+        <location file="src/writer.c" line="20" bodyfile="src/writer.c" bodystart="20"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            normalize_stderr = io.StringIO()
+            with contextlib.redirect_stderr(normalize_stderr):
+                normalize_function_references.normalize_xml_dir(str(xml_dir))
+
+            reader_xml = (xml_dir / "reader.xml").read_text(encoding="utf-8")
+            self.assertNotIn("<referencedby", reader_xml)
+            self.assertIn("Info: static-cross-file-referencedby removed", normalize_stderr.getvalue())
+            self.assertNotIn("Warning:", normalize_stderr.getvalue())
+
     def test_cross_file_reference_keeps_static_inline_header_target(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:
             temp_dir = Path(temp_dir_text)

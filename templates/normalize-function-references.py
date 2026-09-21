@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-normalize-function-references.py - Doxygen XML の関数参照を正規化する
+normalize-function-references.py - Doxygen XML の関数参照を正規化します。
 
 同名 static 関数の誤参照により、references / referencedby の refid が
-別ファイル関数を指すケースを XML 段階で補正する。
+別ファイルの関数を指すケースを XML 段階で補正します。
 """
 
 from __future__ import annotations
@@ -153,7 +153,7 @@ def process_memberdef_block(
         replacement_id = remap_target_id(current, target, by_file_and_name)
         if replacement_id is None:
             print(
-                "Warning: static-cross-file-reference unresolved: {} ({}) -> {} ({})".format(
+                "Info: static-cross-file-reference removed: {} ({}) -> {} ({})".format(
                     current.name,
                     current.file_path,
                     target.name,
@@ -161,7 +161,8 @@ def process_memberdef_block(
                 ),
                 file=sys.stderr,
             )
-            return match.group(0)
+            changed += 1
+            return ""
         replacement = by_id.get(replacement_id)
         if replacement is None:
             return match.group(0)
@@ -196,7 +197,7 @@ def process_memberdef_block(
         replacement_id = remap_target_id(current, target, by_file_and_name)
         if replacement_id is None:
             print(
-                "Warning: static-cross-file-referencedby unresolved: {} ({}) <- {} ({})".format(
+                "Info: static-cross-file-referencedby removed: {} ({}) <- {} ({})".format(
                     current.name,
                     current.file_path,
                     target.name,
@@ -204,7 +205,8 @@ def process_memberdef_block(
                 ),
                 file=sys.stderr,
             )
-            return match.group(0)
+            changed += 1
+            return ""
         replacement = by_id.get(replacement_id)
         if replacement is None:
             return match.group(0)
