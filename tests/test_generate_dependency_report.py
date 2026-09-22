@@ -3407,6 +3407,7 @@ class OverviewInteractionTest(unittest.TestCase):
                 json.dumps(["", "src/file_a.c", ""], separators=(",", ":")),
             )
             self.assertEqual(initial_hidden_selection["beforeActivate"]["elementCount"], 0)
+            self.assertTrue(initial_hidden_selection["afterActivate"]["initializing"])
             self.assertFalse(initial_hidden_selection["hiddenDroppedBeforeReady"])
             self.assertEqual(
                 initial_hidden_selection["baseline"]["nodeIds"],

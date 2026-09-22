@@ -6057,10 +6057,18 @@ def write_html(output_dir: Path, category_id: str, git_info: str = "") -> None:
       const requestedImmediate = Boolean(opts && opts.immediate);
       const immediate = requestedImmediate && !alreadyLaidOut;
       const hideDuringUpdate = requestedImmediate;
+      // 初回表示では refresh を 2 フレーム遅延するため、resetOverviewGraph が開始するまでにも
+      // 空のキャンバスを露出させない。タブを有効化した時点で初期化中にし、非同期初期化の
+      // 完了時だけ revealOverviewGraphAfterFit が解除する。
+      if (immediate && overviewCy && overviewCy.elements().length === 0) {{
+        overviewGraph.classList.add("layout-initializing");
+        setOverviewControlsInert(true);
+        setOverviewGraphInteractionLocked(true);
+      }}
       if (!revealed && immediate && isOverviewSelectionPendingOrRendered()) {{
         return;
       }}
-      if (immediate && overviewCy && overviewCy.elements().length > 0) {{
+      if (hideDuringUpdate && overviewCy && overviewCy.elements().length > 0) {{
         ++overviewRelayoutRevealToken;
         overviewGraph.classList.add("layout-relayouting");
         setOverviewControlsInert(true);
