@@ -881,6 +881,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
       <memberdef kind="function" id="cycle_a" static="yes">
         <name>cycle_a</name>
         <references refid="cycle_b" compoundref="cycle_8c">cycle_b</references>
+        <references refid="cycle_a" compoundref="cycle_8c">cycle_a</references>
         <location file="src/cycle.c" line="10" bodyfile="src/cycle.c" bodystart="10"/>
       </memberdef>
       <memberdef kind="function" id="cycle_b" static="yes">
@@ -924,6 +925,58 @@ class GenerateDependencyReportTest(unittest.TestCase):
             self.assertLess(by_id["cycle_a"]["dependencyLevel"], by_id["cycle_c"]["dependencyLevel"])
             scc_sizes = sorted(scc["size"] for scc in data["sccs"])
             self.assertEqual(scc_sizes, [2, 3])
+
+    def test_self_calls_do_not_create_cycle_groups(self):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            temp_dir = Path(temp_dir_text)
+            xml_dir = temp_dir / "xml"
+            output_dir = temp_dir / "out"
+            xml_dir.mkdir()
+            write_xml(
+                xml_dir,
+                "self.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+<doxygen>
+  <compounddef id="self_8c" kind="file">
+    <compoundname>self.c</compoundname>
+    <sectiondef>
+      <memberdef kind="function" id="self_only" static="yes">
+        <name>self_only</name>
+        <references refid="self_only" compoundref="self_8c">self_only</references>
+        <location file="src/self.c" line="10" bodyfile="src/self.c" bodystart="10"/>
+      </memberdef>
+      <memberdef kind="function" id="self_with_leaf" static="yes">
+        <name>self_with_leaf</name>
+        <references refid="self_with_leaf" compoundref="self_8c">self_with_leaf</references>
+        <references refid="leaf" compoundref="self_8c">leaf</references>
+        <location file="src/self.c" line="20" bodyfile="src/self.c" bodystart="20"/>
+      </memberdef>
+      <memberdef kind="function" id="leaf" static="yes">
+        <name>leaf</name>
+        <location file="src/self.c" line="30" bodyfile="src/self.c" bodystart="30"/>
+      </memberdef>
+    </sectiondef>
+  </compounddef>
+</doxygen>
+""",
+            )
+
+            data = generate_dependency_report.generate_report(xml_dir, output_dir, "sample")
+            by_id = {row["id"]: row for row in data["functions"]}
+
+            self.assertEqual(data["summary"]["cycleGroupCount"], 0)
+            self.assertEqual(data["sccs"], [])
+            self.assertEqual(data["summary"]["edgeCount"], 3)
+            self.assertIn({"caller": "self_only", "callee": "self_only", "sameFile": True,
+                           "callKind": "same-file", "callerArea": "src", "calleeArea": "src",
+                           "callerFile": "src/self.c", "calleeFile": "src/self.c"}, data["edges"])
+            for func_id, expected_depth in (("self_only", 0), ("self_with_leaf", 1)):
+                row = by_id[func_id]
+                self.assertIsNone(row["sccId"])
+                self.assertIsNone(row["cycleGroupSize"])
+                self.assertEqual(row["dependencyClass"], "file-local")
+                self.assertEqual(row["dependencyDepth"], expected_depth)
+                self.assertEqual(row["dependencyLevel"], 2000 + expected_depth)
 
     def test_include_definition_prefers_libsrc_and_ignores_src_call(self):
         with tempfile.TemporaryDirectory() as temp_dir_text:

@@ -865,8 +865,7 @@ def detect_cycle_groups(functions: Dict[str, FunctionInfo]) -> Tuple[Dict[str, s
 
     next_id = 1
     for component in components:
-        has_self_loop = len(component) == 1 and component[0] in edges.get(component[0], set())
-        if len(component) <= 1 and not has_self_loop:
+        if len(component) <= 1:
             continue
         scc_id = f"scc-{next_id}"
         next_id += 1
@@ -1068,6 +1067,8 @@ def compute_dependency_depths(
         visiting.add(func_id)
         max_depth = -1
         for callee_id in functions[func_id].callees:
+            if callee_id == func_id:
+                continue
             callee_depth = visit(callee_id)
             if callee_depth is None:
                 callee_depth = 0

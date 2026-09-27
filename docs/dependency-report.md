@@ -142,7 +142,9 @@ Doxygen の `references` や `referencedby` が、同名 `static` 関数を別�
 `file-local` は `2000` 番台、`libsrc-file-caller` は `3000` 番台、`src-file-caller` は `4000` 番台、`other-to-libsrc-caller` は `5000` 番台、`cross-area-caller` は `6000` 番台を使います。
 
 `dependencyDepth` は、対象範囲内の呼び出し先を持たない関数を `0` とします。  
-呼び出し先を持つ関数は、呼び出し先の最大 `dependencyDepth` に `1` を加えた値になります。
+呼び出し先を持つ関数は、呼び出し先の最大 `dependencyDepth` に `1` を加えた値になります。  
+自身への再呼び出しは深さの計算から除外します。  
+自身だけを呼び出す関数の `dependencyDepth` は `0` です。
 
 `dependencyRank` は分類に対応する並び順の重みです。  
 この重みを先に反映することで、`leaf-static`、`include` / `include_internal` の static leaf、`leaf-global`、`file-local`、`libsrc` 内のファイル間コール、`src` 内のファイル間コール、`libsrc` 以外から `libsrc` へのカテゴリまたぎコールが、この順に大きな level になります。
@@ -198,7 +200,8 @@ bodyfile を持たない phantom 外部関数と同名の内部関数が存在�
 ## 循環依存
 
 循環依存は strongly connected component として検出します。  
-2 つ以上の関数が相互に到達できる場合、または自己呼び出しがある場合、その関数は `cycle` に分類されます。
+2 つ以上の関数が相互に到達できる場合、その関数は `cycle` に分類されます。  
+自身への再呼び出しだけでは循環グループと評価せず、呼び出し関係としてレポートに残します。
 
 循環グループは `dependency-data.js` の `sccs` に出力されます。  
 CSV では各関数の `sccId` に循環グループ ID が入ります。
