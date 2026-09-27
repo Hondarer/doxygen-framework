@@ -64,7 +64,8 @@ app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 - `Doxyfile` - Doxygen のベース設定
 - `doxybook2-config.json` - Doxybook2 設定
 - `templates/` - テンプレートと前後処理スクリプト
-- `bin/` - 警告抽出や出力整形の補助スクリプト
+- `bin/` - Doxygen コメントの検査コマンド
+- `bin_internal/` - 警告抽出や出力整形の補助スクリプト
 
 ## 詳細情報
 

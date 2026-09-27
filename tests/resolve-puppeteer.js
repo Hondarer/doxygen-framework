@@ -8,7 +8,7 @@ function resolvePuppeteer() {
     candidates.push(process.env.DOXYFW_TEST_PUPPETEER);
   }
   candidates.push('puppeteer');
-  candidates.push(path.resolve(__dirname, '../../docsfw/bin/node_modules/puppeteer'));
+  candidates.push(path.resolve(__dirname, '../../docsfw/bin_internal/node_modules/puppeteer'));
   for (const candidate of candidates) {
     try {
       return require(candidate);

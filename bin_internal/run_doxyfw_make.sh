@@ -274,7 +274,7 @@ fi
 run_doxygen_pass() {
     (
         cd "$DOXYGEN_RUNDIR" &&
-        doxygen "$temp_doxyfile" > >("$MAKEFILE_DIR/bin/doxygen-colorize-output.sh")
+        doxygen "$temp_doxyfile" > >("$MAKEFILE_DIR/bin_internal/doxygen-colorize-output.sh")
     )
 }
 

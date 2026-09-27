@@ -3,13 +3,13 @@ SHELL := /bin/bash
 # この makefile のディレクトリ (絶対パス) を取得
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 WORKSPACE_DIR ?= $(abspath $(MAKEFILE_DIR)/../..)
-INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin/input-filter.py
-DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin/doxygen-warning-colorize-output.sh
-EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin/extract_doxy_warnings.sh
+INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin_internal/input-filter.py
+DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin_internal/doxygen-warning-colorize-output.sh
+EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin_internal/extract_doxy_warnings.sh
 DEPENDENCY_REPORT_GENERATOR := $(MAKEFILE_DIR)/templates/generate-dependency-report.py
 FUNCTION_REFERENCE_NORMALIZER := $(MAKEFILE_DIR)/templates/normalize-function-references.py
 GROUP_MEMBER_MATERIALIZER := $(MAKEFILE_DIR)/templates/materialize-group-members.py
-RUN_DOXYFW_SCRIPT := $(MAKEFILE_DIR)/bin/run_doxyfw_make.sh
+RUN_DOXYFW_SCRIPT := $(MAKEFILE_DIR)/bin_internal/run_doxyfw_make.sh
 MARKDOWN_MAKE_CMD := $(MAKE)
 
 # ドキュメント大分類オプション (デフォルトは空)
@@ -226,7 +226,7 @@ markdown-generation:
 		-i $(DOXYFW_XML_WORK_DIR) \
 		-o $(DOCS_DOXYBOOK2_DIR) \
 		--config doxybook2-config.json \
-		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh; \
+		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/bin_internal/doxybook2-decolorize-output.sh; \
 	DOXYBOOK2_EXIT=$${PIPESTATUS[0]}; \
 	if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 		TEMP_WARN=$$(mktemp); \

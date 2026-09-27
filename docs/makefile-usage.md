@@ -208,7 +208,7 @@ CATEGORY が指定された場合、makefile は以下の処理を自動的に�
 3. 結合した一時 Doxyfile の `OUTPUT_DIRECTORY`、`XML_OUTPUT`、`GENERATE_TAGFILE` を実行単位の一時ディレクトリへ書き換えます。
     - SUBCATEGORY なし: `/tmp/doxyfw-tmp-{UID}/{CATEGORY}/run.XXXXXX/` 配下を使用します。
     - SUBCATEGORY あり: `/tmp/doxyfw-tmp-{UID}/{CATEGORY}_{SUBCATEGORY}/run.XXXXXX/` 配下を使用します。
-4. `INPUT_FILTER` を `framework/doxyfw/bin/input-filter.py` の絶対パスへ置き換えます。
+4. `INPUT_FILTER` を `framework/doxyfw/bin_internal/input-filter.py` の絶対パスへ置き換えます。
 5. 書き換えた一時 Doxyfile で Doxygen を実行します。
 6. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用します。
     - SUBCATEGORY 指定時は既定値が `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/` になります。
@@ -220,7 +220,7 @@ CATEGORY が指定された場合、makefile は以下の処理を自動的に�
 
 XML 中間ファイルは `/tmp/doxyfw-tmp-{UID}/{CATEGORY_ID}/run.XXXXXX/xml/` に作成します。  
 `CATEGORY` 未指定時の `{CATEGORY_ID}` は `root` です。  
-`{UID}` は実行ユーザーの `id -u` の値です。Linux の `/tmp` は全ユーザーで共有されるため、別ユーザー (sudo 実行や root のコンテナなど) が作成したディレクトリへの書き込みで失敗しないよう、ユーザーごとに分けます。  
+`{UID}` は実行ユーザーの `id -u` の値です。Linux の `/tmp` は全ユーザーで共有されるため、別ユーザー (sudo 実行や root のコンテナーなど) が作成したディレクトリへの書き込みで失敗しないよう、ユーザーごとに分けます。  
 Doxygen 実行ごとに `mktemp` で実行単位のディレクトリを作成するため、異なる app の `make doxy` が同時に実行されても XML 中間ファイルは共有されません。  
 終了時に削除するのは実行単位の `run.XXXXXX/` とロックだけです。親ディレクトリ (`/tmp/doxyfw-tmp-{UID}/`、`/tmp/doxyfw-tmp-{UID}/{CATEGORY_ID}/`、`/tmp/doxyfw-locks-{UID}/`) は、並列実行中の別の実行と競合しないよう空でも残します。
 

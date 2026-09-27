@@ -20,7 +20,7 @@ Doxybook2 は spdlog ライブラリを使用してログを出力しており�
 
 ### 目標
 
-Doxygen 着色スクリプト (`bin/doxygen-colorize-output.sh`) とは逆のアプローチを採用します。
+Doxygen 着色スクリプト (`bin_internal/doxygen-colorize-output.sh`) とは逆のアプローチを採用します。
 
 - 着色の除去: 過剰な ANSI エスケープ コードの除去
 - 選択的処理: `[info]` の完全脱色、`[warning]` / `[error]` / `[critical]` の太字除去
@@ -29,7 +29,7 @@ Doxygen 着色スクリプト (`bin/doxygen-colorize-output.sh`) とは逆のア
 ## ファイル パス
 
 ```text
-bin/doxybook2-decolorize-output.sh
+bin_internal/doxybook2-decolorize-output.sh
 ```
 
 ## 実行権限
@@ -150,7 +150,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 
 #### Doxygen 着色スクリプトとの対比
 
-| 項目 | bin/doxygen-colorize-output.sh | bin/doxybook2-decolorize-output.sh |
+| 項目 | bin_internal/doxygen-colorize-output.sh | bin_internal/doxybook2-decolorize-output.sh |
 |------|----------------------------|--------------------------------|
 | 目的 | 着色を追加 | 着色を削除/調整 |
 | 対象 | error, warning | info, warning, error |
@@ -166,7 +166,7 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 ### makefile からの呼び出し
 
 ```bash
-doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh
+doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin_internal/doxybook2-decolorize-output.sh
 ```
 
 - `2>&1`: stderr を stdout にリダイレクトして結合
@@ -175,7 +175,7 @@ doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-
 ### 終了コードの保持
 
 ```bash
-doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin/doxybook2-decolorize-output.sh;
+doxybook2 -i "$DOXYFW_XML_WORK_DIR" -o "$DOCS_DOXYBOOK2_DIR" --config doxybook2-config.json --templates templates 2>&1 | $(MAKEFILE_DIR)/bin_internal/doxybook2-decolorize-output.sh;
 DOXYBOOK2_EXIT=${PIPESTATUS[0]};
 exit $DOXYBOOK2_EXIT;
 ```
@@ -219,7 +219,7 @@ ANSI カラー コードを含む出力をファイルにリダイレクトす�
 
 ```bash
 # 推奨: フィルターを適用してログ ファイルに保存
-doxybook2 ... 2>&1 | bin/doxybook2-decolorize-output.sh | tee doxybook2.log
+doxybook2 ... 2>&1 | bin_internal/doxybook2-decolorize-output.sh | tee doxybook2.log
 ```
 
 ## テスト方法
@@ -227,7 +227,7 @@ doxybook2 ... 2>&1 | bin/doxybook2-decolorize-output.sh | tee doxybook2.log
 以下のコマンドでスクリプト単体のテストが可能です。
 
 ```bash
-cat <<'EOF' | bin/doxybook2-decolorize-output.sh
+cat <<'EOF' | bin_internal/doxybook2-decolorize-output.sh
 Normal output line
 [2025-11-26 10:30:15.123] [info] Processing file
 Another normal line
@@ -248,7 +248,7 @@ EOF
 実際の ANSI コードを含むテストは以下の通りです。
 
 ```bash
-cat <<'EOF' | bin/doxybook2-decolorize-output.sh
+cat <<'EOF' | bin_internal/doxybook2-decolorize-output.sh
 Normal output line
 [2025-11-26 10:30:15.123] [32m[info][0m Processing file
 [2025-11-26 10:30:15.124] [1;33m[warning][0m Missing description
@@ -261,4 +261,4 @@ EOF
 
 - `makefile`: 本スクリプトを doxybook2 実行時に適用
 - `docs/doxybook2-decolorize-output-research.md`: 調査結果と背景情報
-- `bin/doxygen-colorize-output.sh`: Doxygen 用の着色スクリプト (対比参考)
+- `bin_internal/doxygen-colorize-output.sh`: Doxygen 用の着色スクリプト (対比参考)

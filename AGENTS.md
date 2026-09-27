@@ -9,7 +9,7 @@ Doxygen と Doxybook2 の設定、テンプレート、補助スクリプトを�
 - 実行方法や出力先を変更する場合は `makefile` と [makefile の利用方法](docs/makefile-usage.md)
 - 入力を変更する場合は `Doxyfile` と利用側の `Doxyfile.part`
 - 出力変換を変更する場合は `doxybook2-config.json`、`templates/preprocess.sh`、`templates/postprocess.sh`、関係する `templates/*.py`
-- 警告抽出を変更する場合は `bin/extract_doxy_warnings.sh`
+- 警告抽出を変更する場合は `bin_internal/extract_doxy_warnings.sh`
 - 概要が必要な場合は [README.md](README.md)、文書を探す場合は [文書一覧](docs/README.md)
 
 ## 変更時の確認
