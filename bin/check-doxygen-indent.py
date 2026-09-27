@@ -354,13 +354,13 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例：
-  check-doxygen-indent.py --check app/c-platform/prod/include
-  check-doxygen-indent.py --dry-run app/c-platform/prod/include
-  check-doxygen-indent.py --fix app/c-platform/prod/include
-  check-doxygen-indent.py --check app/c-platform/prod/include/cplat/sync/sync.h
+  check-doxygen-indent.py --check app/cplat/prod/include
+  check-doxygen-indent.py --dry-run app/cplat/prod/include
+  check-doxygen-indent.py --fix app/cplat/prod/include
+  check-doxygen-indent.py --check app/cplat/prod/include/cplat/sync/sync.h
   
   # ブロック コメント以外にマクロの末尾コメント (/** ... */) も処理する場合:
-  check-doxygen-indent.py --check --include-single-line app/c-platform/prod/include
+  check-doxygen-indent.py --check --include-single-line app/cplat/prod/include
         """
     )
     

@@ -33,7 +33,7 @@ see: framework/docsfw/docs/collapsible-list.md
 使用方法:
     python3 complete-namespace-index.py <markdown_directory>
 例:
-    python3 complete-namespace-index.py app/c-platform/docs/doxybook2_internal
+    python3 complete-namespace-index.py app/cplat/docs/doxybook2_internal
 """
 
 import re
