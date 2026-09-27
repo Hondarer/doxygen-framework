@@ -67,6 +67,8 @@ while (sectiondef) {
 | `<description>` | 読み取らない (無視される) |
 | `<memberdef>` | 抽出され、kind 属性に基づいてカテゴリ分け |
 
+Table: doxybook2 における Doxygen XML 要素の処理内容
+
 ## 出力結果
 
 ### 期待される出力
@@ -170,6 +172,8 @@ doxybook2 と Doxygen を併用するプロジェクトでは、メンバー グ
 | 個別マクロの説明 | ✅ 出力される | ✅ 出力される |
 | Doxygen HTML 出力 | ✅ グループ化表示 | ✅ セクション表示 |
 
+Table: メンバー グループと `@section` 使用時の出力結果比較
+
 ### 注意事項
 
 `@section` は Doxygen XML で `<sect1>` として出力されます。doxybook2 はこれを Markdown の `#` (レベル 1) に変換しますが、ファイル ドキュメントの構造上 `#####` (レベル 5) が適切です。
@@ -182,6 +186,8 @@ doxybook2 と Doxygen を併用するプロジェクトでは、メンバー グ
 | --- | --- | --- | --- |
 | `@section` | `<sect1>` | `<sect5>` | `#####` (レベル 5) |
 | `@subsection` | `<sect2>` | `<sect6>` | `######` (レベル 6) |
+
+Table: Doxygen コマンドと Markdown 見出しレベルの変換対応
 
 ### 参考
 

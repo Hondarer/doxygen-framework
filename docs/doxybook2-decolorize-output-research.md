@@ -45,6 +45,8 @@ spdlog の `ansicolor_sink` は、以下のデフォルト カラー マッピ�
 | `[error]` | `\033[1;31m` | 🔴 赤 | 太字 |
 | `[critical]` | `\033[1;41m` | 赤背景 | 太字 + 赤背景 |
 
+Table: spdlog のログ レベル別デフォルト カラー マッピング
+
 ## Doxybook2 のコマンド ライン オプション
 
 Doxybook2 には `-q, --quiet` オプションが存在します。

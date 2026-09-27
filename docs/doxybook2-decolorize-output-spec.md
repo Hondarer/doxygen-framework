@@ -50,6 +50,8 @@ bin_internal/doxybook2-decolorize-output.sh
 | Error | `[error]` | 太字コードを除去、赤色は維持 | 🔴 赤 (通常の太さ) |
 | その他 | (該当なし) | そのまま出力 | 変更なし |
 
+Table: ログ レベル別の ANSI カラー コード処理ルール
+
 ## 実装詳細
 
 ### 処理フロー
@@ -156,6 +158,8 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 | 対象 | error, warning | info, warning, error |
 | 処理 | ANSI コードを付与 | ANSI コードを除去/変換 |
 | 理由 | 着色が不足 | 着色が過剰 |
+
+Table: Doxygen 着色スクリプトと doxybook2 脱色スクリプトの比較
 
 #### パターン マッチングの簡潔性
 

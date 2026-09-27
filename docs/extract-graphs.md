@@ -56,6 +56,8 @@ Doxybook2 はグラフ データをテンプレート変数として公開して
 | インクルード依存 | `incdepgraph` | 対象ファイルがインクルードしているファイルの関係を示します |
 | 被インクルード関係 | `invincdepgraph` | 対象ファイルをインクルードしているファイルの関係を示します |
 
+Table: ファイル レベルのグラフ種別と XML ソース要素
+
 ### クラス/構造体レベルのグラフ
 
 | グラフ種別 | XML ソース要素 | 説明 |
@@ -63,12 +65,16 @@ Doxybook2 はグラフ データをテンプレート変数として公開して
 | 継承関係 | `inheritancegraph` | クラスの継承階層を示します |
 | コラボレーション図 | `collaborationgraph` | クラス/構造体のメンバー型の関連を示します |
 
+Table: クラスおよび構造体レベルのグラフ種別と XML ソース要素
+
 ### 関数レベルのグラフ
 
 | グラフ種別 | XML ソース要素 | 説明 |
 |---|---|---|
 | コールグラフ | `references` | 対象関数が呼び出す関数を示します |
 | 呼び出し元グラフ | `referencedby` | 対象関数を呼び出す関数を示します |
+
+Table: 関数レベルのグラフ種別と XML ソース要素
 
 ## Doxygen XML のグラフ データ構造
 
@@ -105,6 +111,8 @@ Doxybook2 はグラフ データをテンプレート変数として公開して
 | `public-inheritance` | public 継承 | `--\|>` |
 | `protected-inheritance` | protected 継承 | `--\|>` |
 | `private-inheritance` | private 継承 | `--\|>` |
+
+Table: relation 属性値と PlantUML 矢印記法の対応
 
 ### references / referencedby 要素
 
@@ -208,6 +216,8 @@ REFERENCES_RELATION    = YES
 | `COLLABORATION_GRAPH = YES` | コラボレーション図 |
 | `REFERENCES_RELATION = YES` | コールグラフ |
 | `REFERENCED_BY_RELATION = YES` | 呼び出し元グラフ |
+
+Table: Doxyfile 設定項目と生成対象グラフの対応
 
 これらの設定を `NO` にすると、対応する XML 要素が生成されなくなり、Markdown への図の挿入もスキップされます。
 

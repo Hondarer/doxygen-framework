@@ -35,6 +35,8 @@ RECURSIVE  = YES
 | Markdown で `![...](filename.png)` と参照している | ✅ コピーされる |
 | `IMAGE_PATH` に置いているが Markdown から未参照 | ❌ コピーされない |
 
+Table: Markdown での参照状況による画像コピー条件
+
 ### コピー対象の拡張子
 
 **Doxygen のソース コードに拡張子フィルターは存在しません。**
@@ -69,6 +71,8 @@ HTML 出力での実用的な対応形式は以下の通りです。
 | `.webp` | `<img>` タグ | ✅ (主要ブラウザー) |
 | `.svg` | `<object type="image/svg+xml">` タグ | ✅ |
 | その他 | `<img>` タグ | ブラウザー依存 |
+
+Table: 画像拡張子別の HTML 出力形式とブラウザー表示対応
 
 `.svg` のみ、Doxygen ソース コード内の `DocImage::isSVG()` (`src/docnode.cpp`) が拡張子を判定して `<object>` タグに切り替えます。
 
@@ -107,6 +111,8 @@ HTML の出力:       <img src="diagram.png">
 |---|---|---|
 | VS Code プレビュー | `images/diagram.png` (相対パス) | ✅ 表示される |
 | Doxygen HTML | `diagram.png` (ファイル名のみ) | ✅ 表示される |
+
+Table: 閲覧環境ごとの画像パス解決と表示結果
 
 ### 注意点
 

@@ -10,11 +10,15 @@
 |---|---|---|
 | 15 | `# {{name}} {{title(kind)}} Reference` | `title(kind)` が英語 (例: `Namespace Reference`, `Class Reference`) を返す。doxybook2 の組み込み関数のため template 側での対応が困難。 |
 
+Table: header.tmpl のローカライズ未対応箇所一覧
+
 ### breadcrumbs.tmpl
 
 | 行 | 現在の英語 |
 |---|---|
 | 2 | `**Module:**` |
+
+Table: breadcrumbs.tmpl のローカライズ未対応箇所一覧
 
 ### nonclass_members_tables.tmpl
 
@@ -27,3 +31,5 @@
 | 63 | `## Slots` |
 | 86 | `## Signals` |
 | 132 | `## Attributes` |
+
+Table: nonclass_members_tables.tmpl のローカライズ未対応箇所一覧

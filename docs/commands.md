@@ -314,6 +314,8 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
 | `@section` | ファイル全体の構造化、複数のマクロや定義のグループ化 | 独立したセクション見出し |
 | `@par` | 関数やメンバーの補足情報、履歴などの追加項目 | 段落見出し |
 
+Table: `@section` と `@par` の使い分けと見出しレベル
+
 `@section` は主にファイル レベルのドキュメントで使用し、`@par` は関数やメンバーのドキュメントで使用します。
 
 ### @subsection <subsection-name> (subsection title)
@@ -582,6 +584,8 @@ int getErrorCode();
 | `@code{.unparsed} ~ @endcode` | ❌ なし | ❌ なし | プレーン テキスト |
 | Markdown 形式 | ✅ あり | ❌ なし | 非推奨 |
 
+Table: Doxygen コード ブロック コマンドの比較と使い分け
+
 ### 選択基準
 
 - **Doxygen コマンドとして書く C コード例**: `@code{.c}` を使用
@@ -710,6 +714,8 @@ class Token {};  // @class を省略
 | `CAUTION` | `@attention` | 必須の制約条件・使用条件 |
 | `DEPRECATED` | `@deprecated` | 非推奨 API、代替案、廃止予定 |
 
+Table: Markdown admonition と Doxygen コマンドの対応
+
 `@remarks` は `@remark` と同等の別名ですが、本リポジトリでは非推奨です。新規作成・既存更新では `@remark` に統一してください。
 
 適切なコマンド (タグ) の使い分けにより、開発者にとって実用的で理解しやすいドキュメントを作成できます。各コマンド (タグ) の特徴を理解し、情報の重要度と緊急度に応じて適切に選択することで、コードの品質と保守性の向上につながります。
@@ -725,6 +731,8 @@ class Token {};  // @class を省略
 | `\important` | 🔴 高 | 🟢 低 | 重要情報の強調 |
 | `\note` | 🟡 中 | 🟡 中 | 技術的詳細・実装仕様 |
 | `\remark` | 🟢 低～中 | 🟢 低 | 補足情報・推奨事項 |
+
+Table: Doxygen 注釈タグの優先度・重要度マトリックス
 
 ### @warning - 危険回避のための警告
 

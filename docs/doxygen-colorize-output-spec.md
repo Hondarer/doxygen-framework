@@ -28,6 +28,8 @@ bin_internal/doxygen-colorize-output.sh
 | 警告 | ` warning: ` | `\033[0;33m` | 🟡 黄 |
 | その他 | (該当なし) | (なし) | 既定 |
 
+Table: メッセージ タイプ別の着色ルールと ANSI カラー コード
+
 ## 実装詳細
 
 ### ANSI カラー コード定義
