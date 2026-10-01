@@ -67,6 +67,7 @@ app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 - `templates/` - テンプレートと前後処理スクリプト
 - `bin/` - Doxygen コメントの検査コマンド
 - `bin_internal/` - 警告抽出や出力整形の補助スクリプト
+- `bin_test/` - 補助スクリプトと前後処理のテスト
 
 ## 詳細情報
 
