@@ -163,7 +163,7 @@ copy_referenced_images() {
 # Markdown ファイルとディレクトリ構造をコピー
 copy_markdown_files() {
     local base_dir="$1"       # Doxygen 実行ディレクトリ
-    local input_dirs="$2"     # INPUT ディレクトリ リスト (空白区切り)
+    local input_dirs="$2"     # INPUT の引用符を保持した値
     local dest_dir="$3"       # コピー先ディレクトリ
 
     # コピー先をクリーンアップして作成
@@ -181,10 +181,17 @@ copy_markdown_files() {
     fi
 
     # 各 INPUT ディレクトリを処理
-    for input_path in $input_dirs; do
+    local -a input_paths
+    mapfile -d '' -t input_paths < <(python3 -c '
+import shlex
+import sys
+for path in shlex.split(sys.argv[1], comments=True):
+    sys.stdout.buffer.write(path.encode("utf-8") + b"\0")
+' "$input_dirs")
+    for input_path in "${input_paths[@]}"; do
         # 絶対パスに変換
         local src_path
-        if [[ "$input_path" == /* ]]; then
+        if [[ "$input_path" == /* || "$input_path" =~ ^[a-zA-Z]:[/\\] ]]; then
             src_path="$input_path"
         else
             src_path="$base_dir/$input_path"
@@ -335,11 +342,6 @@ INPUT_DIRS=$(extract_input_from_doxyfile "$DOXYFILE_PATH")
 if [ -n "$INPUT_DIRS" ]; then
     echo "  INPUT directories: $INPUT_DIRS"
     echo "  Base directory: $DOXYGEN_BASE_DIR"
-
-    # 引用符が含まれている場合は警告
-    if echo "$INPUT_DIRS" | grep -q '"'; then
-        echo "  Warning: Quoted paths in INPUT may not be handled correctly"
-    fi
 
     # Markdown ファイルをコピー
     PAGES_DIR="$MARKDOWN_DIR/Pages"

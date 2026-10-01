@@ -1,8 +1,16 @@
 SHELL := /bin/bash
 
 # この makefile のディレクトリ (絶対パス) を取得
-MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-WORKSPACE_DIR ?= $(abspath $(MAKEFILE_DIR)/../..)
+# 最初の makefile の単一パスを保持し、配置先の空白を単語区切りから保護する。
+# see: https://www.gnu.org/software/make/manual/html_node/File-Name-Functions.html
+_doxyfw_empty :=
+_doxyfw_space := $(_doxyfw_empty) $(_doxyfw_empty)
+_doxyfw_encode = $(subst $(_doxyfw_space),__DOXYFW_SPACE__,$(1))
+_doxyfw_decode = $(subst __DOXYFW_SPACE__,$(_doxyfw_space),$(1))
+_doxyfw_abspath = $(call _doxyfw_decode,$(abspath $(call _doxyfw_encode,$(1))))
+_doxyfw_escape = $(subst $(_doxyfw_space),\$(_doxyfw_space),$(1))
+MAKEFILE_DIR := $(call _doxyfw_decode,$(abspath $(dir $(call _doxyfw_encode,$(MAKEFILE_LIST)))))
+WORKSPACE_DIR ?= $(call _doxyfw_abspath,$(MAKEFILE_DIR)/../..)
 INPUT_FILTER_ABS := $(MAKEFILE_DIR)/bin_internal/input-filter.py
 DOXY_WARNING_COLORIZE := $(MAKEFILE_DIR)/bin_internal/doxygen-warning-colorize-output.sh
 EXTRACT_DOXY_WARNINGS := $(MAKEFILE_DIR)/bin_internal/extract_doxy_warnings.sh
@@ -76,7 +84,7 @@ export DOXYGEN_WORKDIR
 export DOXYGEN_RUNDIR
 export CATEGORY_ID
 
-ifneq ($(wildcard $(DOXYFILE_PART)),)
+ifneq ($(wildcard $(call _doxyfw_escape,$(DOXYFILE_PART))),)
     DOXYFILE_PART_PATH := $(DOXYFILE_PART)
 else
     DOXYFILE_PART_PATH :=
@@ -211,22 +219,22 @@ markdown-generation:
 		echo "ERROR: DOXYFW_XML_WORK_DIR is required for markdown-generation." >&2; \
 		exit 2; \
 	fi
-	mkdir -p $(DOCS_DOXYBOOK2_DIR)
+	mkdir -p "$(DOCS_DOXYBOOK2_DIR)"
     # 宣言側 (統合済み) memberdef の説明をソース定義側 memberdef へ同期 (非グループ関数)
-	python3 templates/merge-member-docs.py $(DOXYFW_XML_WORK_DIR) || exit 1
+	python3 templates/merge-member-docs.py "$(DOXYFW_XML_WORK_DIR)" || exit 1
     # グラフ抽出 (XML のグラフ情報から PlantUML を生成し XML に挿入)
-	python3 templates/extract-graphs.py $(DOXYFW_XML_WORK_DIR) || exit 1
+	python3 templates/extract-graphs.py "$(DOXYFW_XML_WORK_DIR)" || exit 1
     # グループへ移動したメンバーを定義元のソース ファイル XML へ具象化
-	python3 $(GROUP_MEMBER_MATERIALIZER) $(DOXYFW_XML_WORK_DIR) || exit 1
+	python3 "$(GROUP_MEMBER_MATERIALIZER)" "$(DOXYFW_XML_WORK_DIR)" || exit 1
     # プリプロセッシング
-	templates/preprocess.sh $(DOXYFW_XML_WORK_DIR) || exit 1
+	templates/preprocess.sh "$(DOXYFW_XML_WORK_DIR)" || exit 1
     # xml -> md 変換
 	@DOXYBOOK2_LOG=$$(mktemp); \
 	doxybook2 \
-		-i $(DOXYFW_XML_WORK_DIR) \
-		-o $(DOCS_DOXYBOOK2_DIR) \
+		-i "$(DOXYFW_XML_WORK_DIR)" \
+		-o "$(DOCS_DOXYBOOK2_DIR)" \
 		--config doxybook2-config.json \
-		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | $(MAKEFILE_DIR)/bin_internal/doxybook2-decolorize-output.sh; \
+		--templates templates 2>&1 | tee "$$DOXYBOOK2_LOG" | "$(MAKEFILE_DIR)/bin_internal/doxybook2-decolorize-output.sh"; \
 	DOXYBOOK2_EXIT=$${PIPESTATUS[0]}; \
 	if [ -x "$(EXTRACT_DOXY_WARNINGS)" ]; then \
 		TEMP_WARN=$$(mktemp); \
@@ -239,22 +247,22 @@ markdown-generation:
 	rm -f "$$DOXYBOOK2_LOG"; \
 	if [ $$DOXYBOOK2_EXIT -ne 0 ]; then exit $$DOXYBOOK2_EXIT; fi
     # Doxybook2 が Windows で非 ASCII ファイル名の画像コピーに失敗する場合があるため補完
-	python3 templates/copy-doxygen-images.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
+	python3 templates/copy-doxygen-images.py "$(DOXYFW_XML_WORK_DIR)" "$(DOCS_DOXYBOOK2_DIR)" || exit 1
     # C# enum を Files ドキュメントに挿入
-	python3 templates/inject-cs-enums.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
+	python3 templates/inject-cs-enums.py "$(DOXYFW_XML_WORK_DIR)" "$(DOCS_DOXYBOOK2_DIR)" || exit 1
     # グループ (@defgroup) を Files ドキュメントに挿入
-	python3 templates/inject-groups.py $(DOXYFW_XML_WORK_DIR) $(DOCS_DOXYBOOK2_DIR) || exit 1
+	python3 templates/inject-groups.py "$(DOXYFW_XML_WORK_DIR)" "$(DOCS_DOXYBOOK2_DIR)" || exit 1
     # ポスト プロセッシング
-	DOXYFW_TAGFILE=$(DOXYFW_XML_WORK_DIR)/doxyfw.tag templates/postprocess.sh $(DOCS_DOXYBOOK2_DIR) || exit 1
+	DOXYFW_TAGFILE="$(DOXYFW_XML_WORK_DIR)/doxyfw.tag" templates/postprocess.sh "$(DOCS_DOXYBOOK2_DIR)" || exit 1
     # 正常に変換できたら xml は不要なため削除
-	rm -rf $(DOXYFW_XML_WORK_DIR)
+	rm -rf "$(DOXYFW_XML_WORK_DIR)"
 
 .PHONY: clean
 clean:
-	-rm -rf $(DOCS_DOXYGEN_DIR) $(DOCS_DOXYBOOK2_DIR)
+	-rm -rf "$(DOCS_DOXYGEN_DIR)" "$(DOCS_DOXYBOOK2_DIR)"
     # 警告ファイルも生成物と同時に削除する。残しておくと、設定変更で発生しなくなった
     # 警告が次回以降も検出済みとして扱われ続ける
-	-rm -f $(DOXY_WARN_OUTPUT)
+	-rm -f "$(DOXY_WARN_OUTPUT)"
     # 実行中プロセスの一時ディレクトリは削除しない。
     # rmdir コマンドは空のディレクトリのみを削除する
 	@if [ -n "$(APP_DOCS_DIR)" ]; then rmdir "$(APP_DOCS_DIR)" 2>/dev/null || true; fi

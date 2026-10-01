@@ -27,7 +27,7 @@ WORKSPACE_ROOT="${WORKSPACE_DIR:-$(cd "$FRAMEWORK_DIR/../.." && pwd)}"
 
 # 一時ディレクトリを作成
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # Doxyfile から PROJECT_NAME を抽出する
 # 複数の PROJECT_NAME 行がある場合は最後の値 (Doxyfile.part が上書きした値) を採用する。

@@ -217,12 +217,31 @@ prepare_doxyfile() {
     local xml_work_dir_doxy="$4"
     local docs_doxygen_stage_dir_doxy="$5"
 
-    sed -e "s|^\(OUTPUT_DIRECTORY[[:space:]]*=\).*|\1 $docs_doxygen_stage_dir_doxy/|" \
-        -e "s|^\(XML_OUTPUT[[:space:]]*=\).*|\1 $xml_work_dir_doxy|" \
-        -e "s|^\(GENERATE_TAGFILE[[:space:]]*=\).*|\1 $xml_work_dir_doxy/doxyfw.tag|" \
-        -e "s|^\(INPUT_FILTER[[:space:]]*=\).*|\1 \"python3 $INPUT_FILTER_ABS\"|" \
-        -e "s|^\(WARN_LOGFILE[[:space:]]*=\).*|\1 $warn_logfile_doxy|" \
-        "$input_doxyfile" > "$output_file"
+    # Doxygen の値とフィルター コマンドの引数をそれぞれ引用する。
+    # 置換するパスに & があっても sed の置換構文として解釈されないようにする。
+    python3 - "$input_doxyfile" "$output_file" "$warn_logfile_doxy" \
+        "$xml_work_dir_doxy" "$docs_doxygen_stage_dir_doxy" "$INPUT_FILTER_ABS" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+input_file, output_file, warn, xml, stage, input_filter = sys.argv[1:]
+
+def quote(value):
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+values = {
+    "OUTPUT_DIRECTORY": stage + "/",
+    "XML_OUTPUT": xml,
+    "GENERATE_TAGFILE": xml + "/doxyfw.tag",
+    "INPUT_FILTER": 'python3 "' + input_filter + '"',
+    "WARN_LOGFILE": warn,
+}
+text = Path(input_file).read_text(encoding="utf-8")
+for key, value in values.items():
+    text = re.sub(r"(?m)^(" + key + r"\s*=).*$", lambda match: match[1] + " " + quote(value), text)
+Path(output_file).write_text(text, encoding="utf-8", newline="\n")
+PY
 }
 
 trap cleanup EXIT
