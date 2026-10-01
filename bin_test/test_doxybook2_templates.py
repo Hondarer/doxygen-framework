@@ -50,6 +50,7 @@ typedef enum sample_kind {
             doxyfile = work_dir / "Doxyfile"
             doxyfile.write_text(
                 """PROJECT_NAME = sample
+CASE_SENSE_NAMES = YES
 OUTPUT_DIRECTORY = {output}
 INPUT = {c_header} {cs_source}
 FILE_PATTERNS = *.h *.cs

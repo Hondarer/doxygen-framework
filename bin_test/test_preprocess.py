@@ -32,7 +32,7 @@ class PreprocessTest(unittest.TestCase):
             )
 
             subprocess.run(
-                [str(PREPROCESS_SCRIPT), str(xml_dir)],
+                ["bash", str(PREPROCESS_SCRIPT), str(xml_dir)],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -139,7 +139,7 @@ class StripAnonymousNamespacesTest(unittest.TestCase):
 
     def _run_preprocess(self, xml_dir):
         subprocess.run(
-            [str(PREPROCESS_SCRIPT), str(xml_dir)],
+            ["bash", str(PREPROCESS_SCRIPT), str(xml_dir)],
             check=True,
             capture_output=True,
             text=True,

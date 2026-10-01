@@ -53,7 +53,7 @@ const char *escapes = "\t\c\\";
             )
 
             subprocess.run(
-                [str(POSTPROCESS_SCRIPT), str(markdown_dir)],
+                ["bash", str(POSTPROCESS_SCRIPT), str(markdown_dir)],
                 cwd=DOXYFW_ROOT,
                 env=env,
                 check=True,
