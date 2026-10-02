@@ -1985,6 +1985,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             ).stdout.strip()
 
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -2059,6 +2060,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             ).stdout.strip()
 
         with tempfile.TemporaryDirectory() as temp_dir_text:
@@ -2558,6 +2560,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(PROBE_SCRIPT), str(index_html)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2577,6 +2580,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(LARGE_LAYOUT_PROBE_SCRIPT), str(index_html), "src/big_file.c"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2596,6 +2600,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(SCOPE_LAYOUT_PROBE_SCRIPT), str(index_html), file_path, str(samples)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=180,
         )
         self.assertEqual(
@@ -2615,6 +2620,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(RESELECT_PROBE_SCRIPT), str(index_html), file_path, function_id],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2634,6 +2640,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(FILE_RECLICK_PROBE_SCRIPT), str(index_html), file_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=180,
         )
         self.assertEqual(
@@ -2659,6 +2666,7 @@ class OverviewInteractionTest(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=180,
         )
         self.assertEqual(
@@ -2678,6 +2686,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(URL_STATE_PROBE_SCRIPT), str(index_html), function_id, file_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2786,6 +2795,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(OVERVIEW_DEPTH_PROBE_SCRIPT), str(index_html)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2805,6 +2815,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(OVERVIEW_CONTEXT_MENU_PROBE_SCRIPT), str(index_html)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2859,6 +2870,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(DETAIL_COPY_PROBE_SCRIPT), str(index_html), function_id, file_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -2885,6 +2897,7 @@ class OverviewInteractionTest(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
@@ -3037,6 +3050,7 @@ class OverviewInteractionTest(unittest.TestCase):
             [_node_binary(), str(FILE_TO_FN_PROBE_SCRIPT), str(index_html), file_path, function_id],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=120,
         )
         self.assertEqual(
