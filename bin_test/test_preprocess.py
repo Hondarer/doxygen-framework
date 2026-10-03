@@ -5,6 +5,12 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import shutil
+
+# Windows の subprocess は System32 を PATH より先に探すため、名前だけで起動すると
+# WSL の bash.exe を選ぶことがある。PATH 上の bash (Git Bash など) を明示して使う。
+# see: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+BASH = shutil.which("bash") or "bash"
 
 
 PREPROCESS_SCRIPT = Path(__file__).resolve().parents[1] / "templates" / "preprocess.sh"
@@ -32,7 +38,7 @@ class PreprocessTest(unittest.TestCase):
             )
 
             subprocess.run(
-                ["bash", str(PREPROCESS_SCRIPT), str(xml_dir)],
+                [BASH, str(PREPROCESS_SCRIPT), str(xml_dir)],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -139,7 +145,7 @@ class StripAnonymousNamespacesTest(unittest.TestCase):
 
     def _run_preprocess(self, xml_dir):
         subprocess.run(
-            ["bash", str(PREPROCESS_SCRIPT), str(xml_dir)],
+            [BASH, str(PREPROCESS_SCRIPT), str(xml_dir)],
             check=True,
             capture_output=True,
             text=True,

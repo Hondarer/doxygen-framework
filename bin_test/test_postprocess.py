@@ -5,6 +5,12 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+import shutil
+
+# Windows の subprocess は System32 を PATH より先に探すため、名前だけで起動すると
+# WSL の bash.exe を選ぶことがある。PATH 上の bash (Git Bash など) を明示して使う。
+# see: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+BASH = shutil.which("bash") or "bash"
 
 
 DOXYFW_ROOT = Path(__file__).resolve().parents[1]
@@ -53,7 +59,7 @@ const char *escapes = "\t\c\\";
             )
 
             subprocess.run(
-                ["bash", str(POSTPROCESS_SCRIPT), str(markdown_dir)],
+                [BASH, str(POSTPROCESS_SCRIPT), str(markdown_dir)],
                 cwd=DOXYFW_ROOT,
                 env=env,
                 check=True,

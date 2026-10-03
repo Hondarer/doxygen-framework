@@ -5,6 +5,12 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import shutil
+
+# Windows の subprocess は System32 を PATH より先に探すため、名前だけで起動すると
+# WSL の bash.exe を選ぶことがある。PATH 上の bash (Git Bash など) を明示して使う。
+# see: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+BASH = shutil.which("bash") or "bash"
 
 
 DOXYFW = Path(__file__).resolve().parents[1]
@@ -30,7 +36,7 @@ class PathSpacesTest(unittest.TestCase):
                     + "Warning: doxygen command not found. Skipping generation.\n"
                     + "ordinary output\n")
             result = subprocess.run(
-                ["bash", str(DOXYFW / "bin_internal/extract_doxy_warnings.sh"), str(log), str(warn)],
+                [BASH, str(DOXYFW / "bin_internal/extract_doxy_warnings.sh"), str(log), str(warn)],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 encoding="utf-8", errors="replace", timeout=30,
             )
