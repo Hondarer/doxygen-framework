@@ -23,14 +23,12 @@ class PathSpacesTest(unittest.TestCase):
                 "D:/workspace space/prod/sample.h: warning: no line number",
                 "relative.h:15: warning: relative path",
             ]
-            log.write_text(
-                "\x1b[33m" + expected[0] + "\x1b[0m\r\n"
-                + "\n".join(expected[1:3]) + "\n"
-                + "prefix " + expected[3] + "\n" + expected[4] + "\n"
-                + "Warning: doxygen command not found. Skipping generation.\n"
-                + "ordinary output\n",
-                encoding="utf-8", newline="\n",
-            )
+            with open(log, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write("\x1b[33m" + expected[0] + "\x1b[0m\r\n"
+                    + "\n".join(expected[1:3]) + "\n"
+                    + "prefix " + expected[3] + "\n" + expected[4] + "\n"
+                    + "Warning: doxygen command not found. Skipping generation.\n"
+                    + "ordinary output\n")
             result = subprocess.run(
                 ["bash", str(DOXYFW / "bin_internal/extract_doxy_warnings.sh"), str(log), str(warn)],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

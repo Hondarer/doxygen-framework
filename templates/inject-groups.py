@@ -967,7 +967,8 @@ def redirect_links_to_merged_parent(docs_dir, merged_child_parents):
             content = md_path.read_text(encoding="utf-8")
             new_content, count = pattern.subn(parent_name, content)
             if count:
-                md_path.write_text(new_content, encoding="utf-8", newline="\n")
+                with open(md_path, "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write(new_content)
                 redirected_links += count
 
     if redirected_links:
@@ -1021,7 +1022,8 @@ def remove_merged_child_group_outputs(docs_dir, merged_child_parents):
                 filtered_lines.append(line)
 
         if len(filtered_lines) != len(lines):
-            index_path.write_text("\n".join(filtered_lines), encoding="utf-8", newline="\n")
+            with open(index_path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write("\n".join(filtered_lines))
 
     redirect_links_to_merged_parent(docs_dir, merged_child_parents)
 

@@ -240,7 +240,9 @@ values = {
 text = Path(input_file).read_text(encoding="utf-8")
 for key, value in values.items():
     text = re.sub(r"(?m)^(" + key + r"\s*=).*$", lambda match: match[1] + " " + quote(value), text)
-Path(output_file).write_text(text, encoding="utf-8", newline="\n")
+# Path.write_text の newline 引数は Python 3.10 以降のため、open で書き出す。
+with open(output_file, "w", encoding="utf-8", newline="\n") as handle:
+    handle.write(text)
 PY
 }
 

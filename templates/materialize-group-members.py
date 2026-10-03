@@ -400,9 +400,11 @@ def materialize(xml_dir):
         )
 
     for xml_path, updated in file_updates.items():
-        xml_path.write_text(updated, encoding="utf-8", newline="\n")
+        with open(xml_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(updated)
     if operations:
-        index_path.write_text(index_updates, encoding="utf-8", newline="\n")
+        with open(index_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(index_updates)
 
     print(
         "[materialize-group-members] materialized: {}, already present: {}".format(
