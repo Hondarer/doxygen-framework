@@ -56,7 +56,8 @@ app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 
 `Doxyfile.part` と `Doxyfile.part.<SUBCATEGORY>` は、どちらか一方のみの配置、または双方の共存が可能です。`Doxyfile.part` が存在しない app でも、`Doxyfile.part.<SUBCATEGORY>` のみを使用できます。
 
-`<SUBCATEGORY>` にはディレクトリ区切り文字 (`/`、`\`) と空白文字を含まない任意の文字列を使用できます (日本語も可)。`Doxyfile.part` 内の `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` は、サブカテゴリでも同様に使用できます (既定値は `doxybook2_<SUBCATEGORY>`)。
+`<SUBCATEGORY>` にはディレクトリ区切り文字 (`/`、`\`) と空白文字を含まない任意の文字列を使用できます (日本語も可)。`Doxyfile.part` 内の `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` は、サブカテゴリでも同様に使用できます (既定値は `doxybook2_<SUBCATEGORY>`)。  
+公開 API と内部仕様の出し分け設計やコメント統合の仕組みは、[ドキュメントの性質に応じた出し分け](docs/document-separation.md) を参照してください。
 
 ## 主なファイル
 

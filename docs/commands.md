@@ -397,7 +397,8 @@ doxyfw は Doxybook2 変換前に `templates/merge-member-docs.py` を実行し�
 対象は関数に限定せず、定数、マクロ、変数、列挙型、型定義などの memberdef 全般です。  
 複製後のメンバーは、ソースの Files ページにある通常の種類別セクションへ出力されます。
 
-ヘッダーのみを入力とするビルド (public) では、ソースを処理しないため、ヘッダーの Files ページには宣言側の説明だけが出力されます。
+ヘッダーのみを入力とするビルド (public) では、ソースを処理しないため、ヘッダーの Files ページには宣言側の説明だけが出力されます。  
+公開 API と内部仕様の出し分けや、同期処理の詳細は [ドキュメントの性質に応じた出し分け](document-separation.md) を参照してください。
 
 ## @copyright { copyright description }
 

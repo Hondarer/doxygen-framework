@@ -33,15 +33,19 @@ make clean
 `CATEGORY` 指定時に生成された Markdown は、既定では `app/<CATEGORY>/docs/doxybook2` から削除されます。  
 `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` を指定している場合は、指定したディレクトリが削除対象になります。
 
-## CATEGORY オプション
+## CATEGORY と SUBCATEGORY オプション
 
-`CATEGORY` オプションを使用すると、ドキュメントを大分類ごとに生成できます。これにより、同一プロジェクト内で複数種類のドキュメントを管理できます。
+`CATEGORY` および `SUBCATEGORY` オプションを使用すると、対象 app (大分類) やドキュメント種別 (小分類) を指定してドキュメントを生成できます。これにより、同一プロジェクト内で公開 API と内部仕様などの複数種類のドキュメントを管理できます。
+
+公開 API や内部仕様の出し分け設計、および `Doxyfile.part` の命名規則や設定例の詳細は、[ドキュメントの性質に応じた出し分け](document-separation.md) を参照してください。
 
 ### 概要
 
-- **オプション名**: `CATEGORY`
-- **既定値**: 空 (大分類なし)
-- **用途**: API ドキュメント、内部仕様書、テスト ドキュメントなど、異なる種類のドキュメントを分類して生成
+- **オプション名**: `CATEGORY`, `SUBCATEGORY`
+- **既定値**: 空 (指定なし)
+- **用途**:
+    - `CATEGORY`: 対象 app (`app/<CATEGORY>`) を指定します。
+    - `SUBCATEGORY`: 公開 API (`public`) や内部仕様 (`internal`) など、ドキュメントの種別を指定します。
 
 ### 動作仕様
 
@@ -57,7 +61,7 @@ make
 - **Markdown 出力先**: `../../docs/doxybook2/`
 - **XML 中間ファイル**: `/tmp/doxyfw-tmp-{UID}/root/run.XXXXXX/xml/` (処理後削除)
 
-#### CATEGORY 指定時
+#### CATEGORY 指定時 (SUBCATEGORY なし)
 
 ```bash
 cd framework/doxyfw
@@ -69,113 +73,56 @@ make CATEGORY=api
 - **Markdown 出力先**: `../../app/api/docs/doxybook2/`
 - **XML 中間ファイル**: `/tmp/doxyfw-tmp-{UID}/api/run.XXXXXX/xml/` (処理後削除)
 
+#### CATEGORY および SUBCATEGORY 指定時
+
+```bash
+cd framework/doxyfw
+make CATEGORY=calc SUBCATEGORY=public
+```
+
+- **使用する設定ファイル**: `../../app/calc/prod/Doxyfile.part.public`
+- **HTML 出力先**: `../../pages/doxygen/calc_public/`
+- **Markdown 出力先**: `../../app/calc/docs/doxybook2_public/`
+- **XML 中間ファイル**: `/tmp/doxyfw-tmp-{UID}/calc_public/run.XXXXXX/xml/` (処理後削除)
+
 ### 使用例
 
-#### API ドキュメント生成
+#### 大分類のみのドキュメント生成
 
 ```bash
 cd framework/doxyfw
 make CATEGORY=api
 ```
 
-このコマンドは `app/api/Doxyfile.part` を使用し、API 向けのドキュメントを生成します。
-
-#### 内部仕様ドキュメント生成
+#### サブカテゴリ (公開 API / 内部仕様) のドキュメント生成
 
 ```bash
 cd framework/doxyfw
-make CATEGORY=internal
+make CATEGORY=calc SUBCATEGORY=public
+make CATEGORY=calc SUBCATEGORY=internal
 ```
 
-このコマンドは `app/internal/Doxyfile.part` を使用し、内部仕様向けのドキュメントを生成します。
+### クリーンアップ (CATEGORY / SUBCATEGORY 指定時)
 
-#### テスト ドキュメント生成
-
-```bash
-cd framework/doxyfw
-make CATEGORY=test
-```
-
-このコマンドは `app/test/Doxyfile.part` を使用し、テスト向けのドキュメントを生成します。
-
-### クリーンアップ (CATEGORY 指定時)
-
-特定の大分類のドキュメントのみを削除できます。
+指定した分類のドキュメントのみを削除できます。
 
 ```bash
 cd framework/doxyfw
 make clean CATEGORY=api
+make clean CATEGORY=calc SUBCATEGORY=public
 ```
 
-このコマンドは `pages/doxygen/api/`、`app/api/docs/doxybook2/`、および警告ファイル `app/api/doxy.warn` を削除します。
+このコマンドは、対象の HTML 出力ディレクトリ、Markdown 出力ディレクトリ、および警告ファイルを削除します。親ディレクトリ (`pages/doxygen/`、`app/<CATEGORY>/docs/`) が空になった場合は、親ディレクトリも自動的に削除されます。
 
-さらに、親ディレクトリ (`pages/doxygen/`、`app/api/docs/`) が空になった場合は、親ディレクトリも自動的に削除されます。
+### 設定ファイル (Doxyfile.part) の配置
 
-### Doxyfile.part の命名規則
-
-CATEGORY を使用する場合、設定ファイルは `app/<category>/prod/` 配下に配置します。CATEGORY を使わない既定実行では、ワークスペース直下の `Doxyfile.part` を使用できます。
+CATEGORY や SUBCATEGORY を指定した実行では、`app/{CATEGORY}/prod/` 配下の `Doxyfile.part` または `Doxyfile.part.{SUBCATEGORY}` を読み込みます。
 
 - **既定**: `Doxyfile.part`
 - **CATEGORY 指定時**: `app/{CATEGORY}/prod/Doxyfile.part`
 - **SUBCATEGORY 指定時**: `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}`
 
-`Doxyfile.part` と `Doxyfile.part.{SUBCATEGORY}` は共存でき、片方のみでも構いません。
-
-#### ファイル配置例
-
-```text
-main-project/
-+-- framework/
-|   +-- doxyfw/              # doxyfw サブモジュール
-+-- Doxyfile.part            # 既定設定
-+-- prod/                    # CATEGORY 未指定時の既定ソース コード
-+-- app/
-|   +-- calc/
-|   |   +-- prod/
-|   |       +-- Doxyfile.part          # 任意
-|   |       +-- Doxyfile.part.public   # 公開 API (任意)
-|   |       +-- Doxyfile.part.internal # 内部仕様 (任意)
-|   +-- api/
-|   |   +-- prod/
-|   |       +-- Doxyfile.part
-|   +-- test/
-|       +-- prod/
-|           +-- Doxyfile.part
-```
-
-### Doxyfile.part の設定例
-
-各大分類・小分類に応じて、異なる入力ディレクトリやプロジェクト名を指定できます。
-
-#### app/example/prod/Doxyfile.part.public (公開 API のみ)
-
-```text
-PROJECT_NAME           = "Calc Public API"
-INPUT                  = include
-```
-
-#### app/example/prod/Doxyfile.part.internal (内部仕様: prod 全体)
-
-```text
-PROJECT_NAME           = "Calc Internal"
-INPUT                  = include include_internal libsrc
-EXTRACT_PRIVATE        = YES
-EXTRACT_STATIC         = YES
-```
-
-#### app/api/prod/Doxyfile.part
-
-```text
-PROJECT_NAME           = "API Documentation"
-INPUT                  = app/example/prod/include
-```
-
-#### app/test/prod/Doxyfile.part
-
-```text
-PROJECT_NAME           = "Test Documentation"
-INPUT                  = app/example/test/src
-```
+公開 API 向け (`.public`) や内部仕様向け (`.internal`) などの性質に応じた設定例や、コメント統合の設計については、[ドキュメントの性質に応じた出し分け](document-separation.md) を参照してください。
 
 ### Doxybook2 出力ディレクトリ名の変更
 
