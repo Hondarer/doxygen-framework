@@ -216,16 +216,32 @@ prepare_doxyfile() {
     local warn_logfile_doxy="$3"
     local xml_work_dir_doxy="$4"
     local docs_doxygen_stage_dir_doxy="$5"
+    local workspace_caller="" workspace_long=""
+
+    # MSYS の bash から起動した Doxygen は、8.3 形式の短い名前 (RUNNER~1 など) の
+    # ディレクトリへ cd しても、長い形式のカレント ディレクトリで実行される。
+    # 短い名前のまま指定した INPUT は、既定の STRIP_FROM_PATH (カレント ディレクトリ) や
+    # USE_MDFILE_AS_MAINPAGE の相対パスと一致しないため、ワークスペースの表記を長い形式へ揃える。
+    # see: https://www.doxygen.nl/manual/config.html#cfg_strip_from_path
+    if command -v cygpath >/dev/null 2>&1; then
+        workspace_caller=$(cygpath -m "$WORKSPACE_DIR")
+        workspace_long=$(cygpath -l -m "$WORKSPACE_DIR")
+        if [ "$workspace_caller" = "$workspace_long" ]; then
+            workspace_caller=""
+            workspace_long=""
+        fi
+    fi
 
     # Doxygen の値とフィルター コマンドの引数をそれぞれ引用する。
     # 置換するパスに & があっても sed の置換構文として解釈されないようにする。
     python3 - "$input_doxyfile" "$output_file" "$warn_logfile_doxy" \
-        "$xml_work_dir_doxy" "$docs_doxygen_stage_dir_doxy" "$INPUT_FILTER_ABS" <<'PY'
+        "$xml_work_dir_doxy" "$docs_doxygen_stage_dir_doxy" "$INPUT_FILTER_ABS" \
+        "$workspace_caller" "$workspace_long" <<'PY'
 from pathlib import Path
 import re
 import sys
 
-input_file, output_file, warn, xml, stage, input_filter = sys.argv[1:]
+input_file, output_file, warn, xml, stage, input_filter, workspace_caller, workspace_long = sys.argv[1:]
 
 def quote(value):
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
@@ -238,6 +254,9 @@ values = {
     "WARN_LOGFILE": warn,
 }
 text = Path(input_file).read_text(encoding="utf-8")
+if workspace_caller:
+    # 区切りの後に続く場合だけ置き換え、別のディレクトリ名の一部には一致させない。
+    text = re.sub(re.escape(workspace_caller) + r"(?=[/\"\s]|$)", lambda match: workspace_long, text)
 for key, value in values.items():
     text = re.sub(r"(?m)^(" + key + r"\s*=).*$", lambda match: match[1] + " " + quote(value), text)
 # Path.write_text の newline 引数は Python 3.10 以降のため、open で書き出す。
