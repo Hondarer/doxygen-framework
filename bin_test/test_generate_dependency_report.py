@@ -2245,13 +2245,21 @@ def _node_binary():
 
 
 def _puppeteer_available():
+    if os.environ.get("DOXYFW_TEST_PUPPETEER") == "0":
+        return False
     if os.environ.get("DOXYFW_TEST_PUPPETEER"):
         return True
     node = _node_binary()
     if not node:
         return False
     result = subprocess.run(
-        [node, "-e", "require(process.argv[1]).resolvePuppeteer()", str(RESOLVE_PUPPETEER_SCRIPT)],
+        [
+            node,
+            "-e",
+            "const p = require(process.argv[1]).resolvePuppeteer();"
+            "p.launch({args: ['--no-sandbox']}).then(b => { b.close(); process.exit(0); }).catch(() => process.exit(1));",
+            str(RESOLVE_PUPPETEER_SCRIPT),
+        ],
         cwd=str(RESOLVE_PUPPETEER_SCRIPT.parent),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

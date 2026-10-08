@@ -240,7 +240,7 @@ def main():
         print("[inject-cs-enums] Done: 0 file(s) processed")
         return 0
 
-    # docs_dir 以下の Files/ ディレクトリを再帰的に探索
+    # docs_dir 配下の Files/ ディレクトリを再帰的に探索
     processed = 0
     for files_dir in sorted(docs_dir.rglob("Files")):
         if not files_dir.is_dir():

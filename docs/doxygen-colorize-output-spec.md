@@ -82,7 +82,7 @@ elif [[ "$line" == *" warning: "* ]]; then
 
 ### 誤検知の防止
 
-スペースを含むパターン マッチングにより、以下のような誤検知を防止します。
+スペースを含むパターン マッチングにより、次のような誤検知を防止します。
 
 - 変数名: `show_error_flag`, `warning_count`
 - 関数名: `print_error()`, `handle_warning()`
@@ -121,7 +121,7 @@ Normal output line
 
 ### 着色後
 
-(ターミナルでは以下のように表示されます)
+(ターミナルでは次のように表示されます)
 
 <span style="color: #ffaa00">/path/to/file.c:42: warning: undocumented parameter 'foo'</span>
 <span style="color: #ff0000">/path/to/file.c:100: error: invalid syntax</span>
@@ -137,14 +137,14 @@ Windows コマンド プロンプトなど、ANSI カラー コードに対応�
 
 ANSI カラー コードを含む出力をファイルにリダイレクトすると、エスケープ シーケンスがそのまま記録されます。
 
-ログ ファイルに保存する場合は、以下のいずれかの方法を推奨します。
+ログ ファイルに保存する場合は、次のいずれかの方法を推奨します。
 
 - フィルターを適用しない Doxygen の直接実行
 - `WARN_LOGFILE` 設定による Doxygen からの直接ログ ファイル出力
 
 ## テスト方法
 
-以下のコマンドでスクリプト単体のテストが可能です。
+次のコマンドでスクリプト単体のテストが可能です。
 
 ```bash
 cat <<'EOF' | bin_internal/doxygen-colorize-output.sh

@@ -44,7 +44,7 @@ Doxygen では、`@name` コマンドと `@{`/`@}` マーカーを使用して�
 
 ## doxybook2 の処理
 
-doxybook2 のソース コード (Node.cpp) では、`sectiondef` 要素を以下のように処理しています。
+doxybook2 のソース コード (Node.cpp) では、`sectiondef` 要素を次のように処理しています。
 
 ```cpp
 auto sectiondef = compounddef.firstChildElement("sectiondef");
@@ -58,7 +58,7 @@ while (sectiondef) {
 }
 ```
 
-この処理により、以下の情報が失われます。
+この処理により、次の情報が失われます。
 
 | XML 要素 | doxybook2 の処理 |
 |----------|------------------|
@@ -180,7 +180,7 @@ Table: メンバー グループと `@section` 使用時の出力結果比較
 
 同様に、`@subsection` は `<sect2>` として出力され、doxybook2 は `##` (レベル 2) に変換しますが、`######` (レベル 6) が適切です。
 
-本フレームワークでは、`preprocess.sh` で以下の変換を行うことで、適切な見出しレベルで出力されるように調整しています。
+本フレームワークでは、`preprocess.sh` で次の変換を行うことで、適切な見出しレベルで出力されるように調整しています。
 
 | Doxygen コマンド | XML 要素 | 変換後 | Markdown 見出し |
 | --- | --- | --- | --- |

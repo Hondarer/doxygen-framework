@@ -955,7 +955,7 @@ _C_KEYWORDS: frozenset = frozenset({
 def is_external_function(info: FunctionInfo) -> bool:
     """自ライブラリに含まれない外部関数かどうかを判定する。
 
-    Doxygen は以下の 2 種類の phantom memberdef を生成することがある。いずれも依存関係レポートの
+    Doxygen は次の 2 種類の phantom memberdef を生成することがある。いずれも依存関係レポートの
     対象外とする。
 
     1. 標準ライブラリなどプロジェクト外の関数:

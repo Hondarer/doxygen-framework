@@ -14,7 +14,7 @@ make
 別のワークスペースから呼び出す場合は、呼び出し元で `DOXYFW_HOME` に doxyfw の配置先を指定します。  
 doxyfw の makefile は `WORKSPACE_DIR` を workspace 側の基準ディレクトリとして使います。通常は呼び出し元 makefile が設定するため、手動指定は不要です。
 
-このコマンドは以下の処理を順次実行します。
+このコマンドは次の処理を順次実行します。
 
 1. 既存のドキュメントをクリーンアップ
 2. Doxygen で C ソース コードを解析し、HTML と XML を生成
@@ -147,7 +147,7 @@ Doxygen に未知タグの警告を出力させないため、この設定は通
 
 #### ドキュメント生成時
 
-CATEGORY が指定された場合、makefile は以下の処理を自動的に行います。
+CATEGORY が指定された場合、makefile は次の処理を自動的に行います。
 
 1. `app/{CATEGORY}/prod/Doxyfile.part` を基本 Doxyfile と結合します。
     - SUBCATEGORY 指定時は `app/{CATEGORY}/prod/Doxyfile.part.{SUBCATEGORY}` を使用します。
@@ -175,7 +175,7 @@ Doxygen 実行ごとに `mktemp` で実行単位のディレクトリを作成�
 
 #### クリーンアップ時
 
-CATEGORY が指定された場合、clean ターゲットは以下の処理を自動的に行います。
+CATEGORY が指定された場合、clean ターゲットは次の処理を自動的に行います。
 
 1. 警告ファイルを削除
     - `app/{CATEGORY}/doxy.warn` (SUBCATEGORY ありの場合は `app/{CATEGORY}/doxy_{SUBCATEGORY}.warn`)

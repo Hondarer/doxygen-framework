@@ -61,7 +61,7 @@ HTML での表示はブラウザーに依存します。公式ドキュメント
 >
 > — [Doxygen: Special Commands — \image](https://www.doxygen.nl/manual/commands.html#cmdimage)
 
-HTML 出力での実用的な対応形式は以下の通りです。
+HTML 出力での実用的な対応形式は次のとおりです。
 
 | 拡張子 | HTML 出力での扱い | ブラウザーでの表示 |
 |---|---|---|
@@ -116,7 +116,7 @@ Table: 閲覧環境ごとの画像パス解決と表示結果
 
 ### 注意点
 
-異なるディレクトリに同名の画像ファイルが存在する場合、Doxygen は以下の警告を出力し、どちらか一方のみをコピーします (ファイル名の一意化は行われません)。
+異なるディレクトリに同名の画像ファイルが存在する場合、Doxygen は次の警告を出力し、どちらか一方のみをコピーします (ファイル名の一意化は行われません)。
 
 ```text
 warning: image file name 'images/duplicate.png' is ambiguous.

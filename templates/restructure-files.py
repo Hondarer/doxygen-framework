@@ -14,7 +14,7 @@ index_files.md 内の変換前ファイル名リンクを新パスへ書き換�
   - basename 衝突がない場合、エンコード名にパス情報が含まれない
     (divide_8c.md → libsrc/calcbase/divide.c は名前から復元不可)
   - エンコード表は Doxygen 内部仕様でバージョン依存
-  - CASE_SENSE_NAMES が OS 依存でクロスプラットフォーム挙動が変わる
+  - CASE_SENSE_NAMES が OS 依存でクロス プラットフォームの挙動が変わる
   - H1 は INPUT 相対の完全パスを常に保持し、バージョン/OS 非依存
 
 使用方法:

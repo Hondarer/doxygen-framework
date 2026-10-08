@@ -4,7 +4,7 @@
 """
 extract-graphs.py - Doxygen XML からグラフ情報を抽出し PlantUML として挿入する
 
-Doxygen が生成した XML ファイルを解析し、以下のグラフ情報を PlantUML 形式に変換して
+Doxygen が生成した XML ファイルを解析し、次のグラフ情報を PlantUML 形式に変換して
 XML の detaileddescription セクションに <plantuml> タグとして挿入する。
 
 - インクルード依存グラフ (incdepgraph)
@@ -26,7 +26,7 @@ import glob
 import re
 
 # グラフあたりの最大ノード数 (これを超えるグラフは生成しない)
-# Doxygen の DOT_GRAPH_MAX_NODES (デフォルト 50) に合わせた値
+# Doxygen の DOT_GRAPH_MAX_NODES (既定値 50) に合わせた値
 DOT_GRAPH_MAX_NODES = 50
 
 # インクルード依存グラフ・被インクルード関係グラフのノード ラベル表示モード
@@ -980,7 +980,7 @@ def inject_compound_graphs(xml_text):
                 display_name = _path_basename(compound_fullname)
 
             # インクルード依存グラフ
-            # reverse_edges=True により以下を実現する。
+            # reverse_edges=True により次を実現する。
             # - エッジを dst --> src と出力し「依存ヘッダー → 対象」の矢印方向にする
             # - 対象が PlantUML レイアウトの末尾 (下) に配置される
             graphs = parse_graph_nodes(content, 'incdepgraph')

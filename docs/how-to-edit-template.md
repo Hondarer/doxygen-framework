@@ -1,12 +1,12 @@
 # doxybook2 のテンプレート編集方法
 
-doxybook2 のテンプレートの出力方法について以下にまとめます。
+doxybook2 のテンプレートの出力方法について次にまとめます。
 
 ## doxybook2 のテンプレート出力方法
 
 ### テンプレートの生成
 
-既定のテンプレートを指定したフォルダーに出力 (コピー) するには、以下のコマンドを実行します。
+既定のテンプレートを指定したフォルダーに出力 (コピー) するには、次のコマンドを実行します。
 
 ```bash
 doxybook2 --generate-templates /path/to/folder
@@ -17,7 +17,7 @@ doxybook2 --generate-templates /path/to/folder
 
 ### カスタム テンプレートの使用
 
-テンプレートを使用するには、`.tmpl` ファイル拡張子で終わるテンプレート ファイルを含むフォルダーを作成し、以下のように指定します。
+テンプレートを使用するには、`.tmpl` ファイル拡張子で終わるテンプレート ファイルを含むフォルダーを作成し、次のように指定します。
 
 ```bash
 doxybook2 --input ... --output ... --templates /path/to/folder
@@ -25,7 +25,7 @@ doxybook2 --input ... --output ... --templates /path/to/folder
 
 ### テンプレートの種類
 
-doxybook2 には以下のコア テンプレートがあります。
+doxybook2 には次のコア テンプレートがあります。
 
 **主要テンプレート (設定ファイルで定義):**
 

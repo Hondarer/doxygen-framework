@@ -20,9 +20,9 @@ GROUP_MEMBER_MATERIALIZER := $(MAKEFILE_DIR)/templates/materialize-group-members
 RUN_DOXYFW_SCRIPT := $(MAKEFILE_DIR)/bin_internal/run_doxyfw_make.sh
 MARKDOWN_MAKE_CMD := $(MAKE)
 
-# ドキュメント大分類オプション (デフォルトは空)
+# ドキュメント大分類オプション (既定値は空)
 CATEGORY ?=
-# ドキュメント小分類オプション (デフォルトは空)
+# ドキュメント小分類オプション (既定値は空)
 SUBCATEGORY ?=
 
 # CATEGORY、SUBCATEGORY を環境変数としてエクスポート (postprocess.sh で使用)

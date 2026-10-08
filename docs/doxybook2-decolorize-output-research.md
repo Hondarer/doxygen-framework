@@ -12,13 +12,13 @@ Doxybook2 の出力形式と着色パターンについて調査を実施しま�
 
 ### Doxybook2 の着色機能
 
-Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を実行しており、デフォルトで ANSI カラー コードによる着色が有効になっています。
+Doxybook2 は [spdlog](https://github.com/gabime/spdlog) ライブラリを使用してログ出力を実行しており、既定で ANSI カラー コードによる着色が有効になっています。
 
 spdlog は 2022 年頃に Doxybook2 に統合され、以前のカスタム Log.hpp/cpp ファイルを置き換えています。
 
 ### spdlog の出力形式
 
-spdlog のデフォルト出力形式は以下の通りです。
+spdlog の既定出力形式は次のとおりです。
 
 ```text
 [2022-07-05 14:25:26.685] [info] Welcome to spdlog!
@@ -32,9 +32,9 @@ spdlog のデフォルト出力形式は以下の通りです。
 - ログ レベル (`[info]`, `[warning]`, `[error]` など)
 - メッセージ本文
 
-### spdlog のデフォルト着色
+### spdlog の既定の着色
 
-spdlog の `ansicolor_sink` は、以下のデフォルト カラー マッピングを使用します。
+spdlog の `ansicolor_sink` は、次の既定カラー マッピングを使用します。
 
 | ログ レベル | ANSI カラー コード | 表示色 | 備考 |
 |------------|-------------------|--------|------|
@@ -45,7 +45,7 @@ spdlog の `ansicolor_sink` は、以下のデフォルト カラー マッピ�
 | `[error]` | `\033[1;31m` | 🔴 赤 | 太字 |
 | `[critical]` | `\033[1;41m` | 赤背景 | 太字 + 赤背景 |
 
-Table: spdlog のログ レベル別デフォルト カラー マッピング
+Table: spdlog のログ レベル別既定カラー マッピング
 
 ## Doxybook2 のコマンド ライン オプション
 

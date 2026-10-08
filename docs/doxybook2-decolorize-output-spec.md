@@ -10,7 +10,7 @@
 
 ### 問題点
 
-Doxybook2 は spdlog ライブラリを使用してログを出力しており、既定で ANSI カラー コードによる着色が有効になっています。実行時、以下の問題が発生します。
+Doxybook2 は spdlog ライブラリを使用してログを出力しており、既定で ANSI カラー コードによる着色が有効になっています。実行時、次の問題が発生します。
 
 - `[info]` レベルのログが緑色で大量に出力され、視認性が低下します。
 - Doxygen とは逆に、着色が過剰です。
@@ -228,7 +228,7 @@ doxybook2 ... 2>&1 | bin_internal/doxybook2-decolorize-output.sh | tee doxybook2
 
 ## テスト方法
 
-以下のコマンドでスクリプト単体のテストが可能です。
+次のコマンドでスクリプト単体のテストが可能です。
 
 ```bash
 cat <<'EOF' | bin_internal/doxybook2-decolorize-output.sh
@@ -249,7 +249,7 @@ EOF
 - `[warning]` 行: 太字が除去され、`[warning]` 単語が通常の太さの黄色になります。
 - `[error]` 行: 太字が除去され、`[error]` 単語が通常の太さの赤色になります。
 
-実際の ANSI コードを含むテストは以下の通りです。
+実際の ANSI コードを含むテストは次のとおりです。
 
 ```bash
 cat <<'EOF' | bin_internal/doxybook2-decolorize-output.sh

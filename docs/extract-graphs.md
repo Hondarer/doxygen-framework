@@ -102,7 +102,7 @@ Table: 関数レベルのグラフ種別と XML ソース要素
 
 `node` 要素がグラフのノードを定義し、`childnode` 要素がノード間のエッジを定義します。`relation` 属性はエッジの種類を表します。
 
-`relation` 属性の値と PlantUML 矢印の対応は以下の通りです。
+`relation` 属性の値と PlantUML 矢印の対応は次のとおりです。
 
 | relation 値 | 意味 | PlantUML 矢印 |
 |---|---|---|
@@ -135,7 +135,7 @@ Table: relation 属性値と PlantUML 矢印記法の対応
 同一グラフ内で同名ファイルが複数現れる場合は、`add/add.c` や `calcbase/add.c` のように、後方パスを 1 要素ずつ広げて最短一意表記にします。  
 また、グラフ内で重複がなくても、注記対象のファイル名が起点ノードの所属ファイル名と同じ場合は同じ規則で後方パスを付与します。
 
-これらの要素を XML に含めるには、Doxyfile で以下の設定が必要です。
+これらの要素を XML に含めるには、Doxyfile で次の設定が必要です。
 
 ```text
 REFERENCED_BY_RELATION = YES
@@ -146,7 +146,7 @@ REFERENCES_RELATION    = YES
 
 ### コールグラフ
 
-関数 `divide` が `validate_input` と `check_zero` を呼び出す場合、以下の PlantUML が生成されます。
+関数 `divide` が `validate_input` と `check_zero` を呼び出す場合、次の PlantUML が生成されます。
 
 ```plantuml
 @startuml divide の呼び出し先
@@ -161,7 +161,7 @@ REFERENCES_RELATION    = YES
 
 ### 呼び出し元グラフ
 
-関数 `add` が `main` と `test_add` から呼び出される場合、以下の PlantUML が生成されます。
+関数 `add` が `main` と `test_add` から呼び出される場合、次の PlantUML が生成されます。
 
 ```plantuml
 @startuml add の呼び出し元
@@ -176,7 +176,7 @@ REFERENCES_RELATION    = YES
 
 ### インクルード依存グラフ
 
-`calculator.c` が `calculator.h` と `stdio.h` をインクルードする場合、以下の PlantUML が生成されます。
+`calculator.c` が `calculator.h` と `stdio.h` をインクルードする場合、次の PlantUML が生成されます。
 
 ```plantuml
 @startuml calculator.c のインクルード元
@@ -191,7 +191,7 @@ REFERENCES_RELATION    = YES
 
 ### コラボレーション図
 
-構造体 `UserInfo` が `char *` 型のメンバーを持つ場合、以下の PlantUML が生成されます。
+構造体 `UserInfo` が `char *` 型のメンバーを持つ場合、次の PlantUML が生成されます。
 
 ```plantuml
 @startuml UserInfo のコラボレーション図
@@ -246,7 +246,7 @@ INC_GRAPH_LABEL_BASENAME_ONLY = True
 
 ### スキップ条件
 
-以下の条件に該当する場合、グラフの生成はスキップされます。
+次の条件に該当する場合、グラフの生成はスキップされます。
 
 - ノード数が `MAX_GRAPH_NODES` を超える場合
 - エッジが 1 つもない場合 (ノードが 1 つだけで関係のないグラフ)

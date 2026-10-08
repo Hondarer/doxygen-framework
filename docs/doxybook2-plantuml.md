@@ -1,6 +1,6 @@
 # doxybook2 への PlantUML 対応
 
-Doxygen が出力した XML ファイルに以下のようにパッチを適用することで、`[warning] Text tag "plantuml" not recognised, please contact the author` のメッセージを出力することなく Markdown を生成します。
+Doxygen が出力した XML ファイルに次のようにパッチを適用することで、`[warning] Text tag "plantuml" not recognised, please contact the author` のメッセージを出力することなく Markdown を生成します。
 
 ## 変換ルール
 

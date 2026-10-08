@@ -1171,7 +1171,7 @@ def main():
     for basename in file_groups:
         file_groups[basename].sort(key=lambda x: x[2])
 
-    # docs_dir 以下の Files/ ディレクトリを再帰的に探索
+    # docs_dir 配下の Files/ ディレクトリを再帰的に探索
     processed = 0
     for files_dir in sorted(docs_dir.rglob("Files")):
         if not files_dir.is_dir():

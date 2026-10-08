@@ -10,7 +10,7 @@ Doxybook2 は、文書化されたメンバーを持たない名前空間に対�
 取り残される。
 
 例として、cplat 名前空間はメンバーをすべて子の cplat::regex_detail に持つため、
-Namespaces/namespacecplat.md が空ページとして削除され、目次は以下の状態になる。
+Namespaces/namespacecplat.md が空ページとして削除され、目次は次の状態になる。
 
     ::: {.collapsible-list open-level=-1}
         - 📄 [cplat::regex_detail](namespacecplat_1_1regex__detail.md)
