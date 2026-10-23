@@ -156,10 +156,12 @@ CATEGORY が指定された場合、makefile は次の処理を自動的に行�
     - SUBCATEGORY なし: `/tmp/doxyfw-tmp-{UID}/{CATEGORY}/run.XXXXXX/` 配下を使用します。
     - SUBCATEGORY あり: `/tmp/doxyfw-tmp-{UID}/{CATEGORY}_{SUBCATEGORY}/run.XXXXXX/` 配下を使用します。
 4. `INPUT_FILTER` を `framework/doxyfw/bin_internal/input-filter.py` の絶対パスへ置き換えます。
-5. 書き換えた一時 Doxyfile で Doxygen を実行します。
-6. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用します。
+5. 入力ファイルの絶対パスに非 ASCII 文字が含まれていないかを `framework/doxyfw/bin_internal/check-input-filenames.py` で検査し、含まれていればエラーで中止します。
+    - Windows の Doxygen は、`INPUT_FILTER` へ渡すパスを ANSI コード ページで解釈するため、非 ASCII のパスでは強制終了するか、ファイルの内容が警告なしに欠落します。Doxygen 側の制約のため、OS を問わず同じ条件で検査します。
+6. 書き換えた一時 Doxyfile で Doxygen を実行します。
+7. Doxybook2 の出力先として、既定では `app/{CATEGORY}/docs/doxybook2/` を使用します。
     - SUBCATEGORY 指定時は既定値が `app/{CATEGORY}/docs/doxybook2_{SUBCATEGORY}/` になります。
-7. `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` がある場合は、Doxybook2 の出力先だけを `app/{CATEGORY}/docs/<name>/` に変更します。
+8. `# DOXYFW_DOXYBOOK2_OUTPUT_DIR_NAME` がある場合は、Doxybook2 の出力先だけを `app/{CATEGORY}/docs/<name>/` に変更します。
 
 `app/{CATEGORY}/makefile` の doxy ターゲットは `prod/Doxyfile.part*` を列挙し、`Doxyfile.part`、`Doxyfile.part.<SUBCATEGORY>` の各ファイルに対して doxyfw を 1 回ずつ呼び出します。警告ファイルは各 SUBCATEGORY ごとに独立します (`doxy.warn`、`doxy_<SUBCATEGORY>.warn`)。スキップ判定 (`make_doxy.stamp`) は `prod/` 配下の Doxygen 入力 (Doxyfile.part* と `INPUT` / `IMAGE_PATH` で参照される `prod/` 配下のソース、画像) のみを対象とし、SUBCATEGORY が分かれていても app 単位で 1 つの stamp に集約されます。
 

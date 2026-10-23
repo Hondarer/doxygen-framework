@@ -311,6 +311,12 @@ else
     prepare_doxyfile "$MAKEFILE_DIR/Doxyfile" "$temp_doxyfile" "$warn_logfile_doxy" "$xml_work_dir_doxy" "$docs_doxygen_stage_dir_doxy" || exit 1
 fi
 
+# Doxygen の制約により、入力ファイルのパスは ASCII だけに限る。
+# Windows の Doxygen は INPUT_FILTER の起動時に UTF-8 のパスを ANSI 版の _popen へ渡すため、
+# 非 ASCII のパスでは Doxygen が強制終了するか、ファイルの内容が警告なしに欠落する。
+# 詳細と根拠は check-input-filenames.py の冒頭を参照。
+python3 "$MAKEFILE_DIR/bin_internal/check-input-filenames.py" "$temp_doxyfile" "$DOXYGEN_RUNDIR" || exit $?
+
 run_doxygen_pass() {
     (
         cd "$DOXYGEN_RUNDIR" &&
