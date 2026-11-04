@@ -18,3 +18,6 @@ Doxygen と Doxybook2 の設定、テンプレート、補助スクリプトを�
 生成結果は変更前後で比較し、標準出力だけでなく抽出された警告も確認してください。  
 文書や図を変更する場合は、同文書の「文書の表記と図」を適用してください。  
 Python に日本語出力を追加する場合は「Python の日本語出力」を参照してください。
+
+同じディレクトリのモジュールを import する Python は、import より前に `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))` を置いてください。  
+埋め込み版 Python (`._pth`) はスクリプトのディレクトリを `sys.path` に入れないためです。
