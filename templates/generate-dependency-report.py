@@ -1412,7 +1412,7 @@ def write_csv(output_dir: Path, data: Dict[str, object]) -> None:
 def collect_git_info(source_dir: Optional[Path]) -> str:
     """対象 (Doxyfile.part の所在ディレクトリ) が所属する Git のブランチ名と短縮ハッシュを返す。
 
-    形式は "main(48c6d43)"。未コミットの追加・変更・削除がある場合は "main(48c6d43+)"。
+    形式は "main(48c6d43)"。未コミットの追加・変更・削除がある場合は "main(48c6d43*)"。
     Git 管理下でない場合や情報を取得できない場合は空文字列 (対象欄には付加しない)。
     """
     if source_dir is None:
@@ -1438,7 +1438,7 @@ def collect_git_info(source_dir: Optional[Path]) -> str:
     if not branch or not short_hash:
         return ""
     status = run_git("status", "--porcelain")
-    dirty = "+" if status else ""
+    dirty = "*" if status else ""
     return f"{branch} ({short_hash}{dirty})"
 
 

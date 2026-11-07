@@ -1978,7 +1978,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
     def test_target_git_info(self):
         # 対象欄への Git 情報付加を検証する。source_dir (Doxyfile.part の所在) が Git 管理下なら
         # 「対象: <カテゴリ> <ブランチ> (<短縮ハッシュ>)」、未コミットの追加・変更・削除が
-        # あれば「+」付き、Git 管理下でなければ Git 情報は付かない。
+        # あれば「*」付き、Git 管理下でなければ Git 情報は付かない。
         def run_git(repo, *args):
             return subprocess.run(
                 ["git", "-C", str(repo), *args],
@@ -2022,7 +2022,7 @@ class GenerateDependencyReportTest(unittest.TestCase):
             short_hash = run_git(repo, "rev-parse", "--short=7", "HEAD")
             self.assertEqual(len(short_hash), 7, msg=short_hash)
 
-            # 1. クリーンな Git 管理下: ブランチ名と短縮ハッシュが付く (+ なし)。
+            # 1. クリーンな Git 管理下: ブランチ名と短縮ハッシュが付く (* なし)。
             out_clean = temp_dir / "clean"
             generate_dependency_report.generate_report(xml_dir, out_clean, "cat", repo)
             index_html = (out_clean / "index.html").read_text(encoding="utf-8")
@@ -2030,13 +2030,13 @@ class GenerateDependencyReportTest(unittest.TestCase):
                 "対象: cat main ({})</span>".format(short_hash), index_html
             )
 
-            # 2. 未コミットの追加がある: 「+」が付く。
+            # 2. 未コミットの追加がある: 「*」が付く。
             (repo / "new.txt").write_text("x", encoding="utf-8")
             out_dirty = temp_dir / "dirty"
             generate_dependency_report.generate_report(xml_dir, out_dirty, "cat", repo)
             index_html = (out_dirty / "index.html").read_text(encoding="utf-8")
             self.assertIn(
-                "対象: cat main ({}+)</span>".format(short_hash), index_html
+                "対象: cat main ({}*)</span>".format(short_hash), index_html
             )
 
             # 3. Git 管理下でないディレクトリ: Git 情報は付かない。
