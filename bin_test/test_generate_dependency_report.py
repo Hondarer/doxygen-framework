@@ -2958,8 +2958,11 @@ class OverviewInteractionTest(unittest.TestCase):
             self.assertIn("../../../ja-details/html/", data["hrefJaDetails"], msg=str(data))
             self.assertEqual(data["storedVariant"], "ja-details", msg=str(data))
             self.assertEqual(data["checkedVariant"], "ja-details", msg=str(data))
-            # リロード後も ja-details が維持される。
-            self.assertIn("../../../ja-details/html/", data["hrefAfterReload"], msg=str(data))
+            # 同じページの再読み込みと、閉じた後の別ページで、それぞれ保存値を維持する。
+            with self.subTest(operation="reload"):
+                self.assertIn("../../../ja-details/html/", data["hrefAfterReload"], msg=str(data))
+            with self.subTest(operation="reopen"):
+                self.assertIn("../../../ja-details/html/", data["hrefAfterReopen"], msg=str(data))
             # localStorage 未保存の en 環境では既定が en (通常) になる。
             self.assertIn("../../../en/html/", data["hrefEnDefault"], msg=str(data))
             # コピー md にも [Page](...) が含まれる。
