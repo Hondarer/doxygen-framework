@@ -941,43 +941,24 @@ TransactionResult *executeTransaction(const Transaction *transaction,
 
 ### 判断フローチャート
 
-```plantuml
-@startuml 判断フローチャート
-caption 判断フローチャート
-start
-:ドキュメントに追加したい情報を特定;
-
-:情報の性質を分析;
-
-if (重大な危険やリスクがある?\n例：メモリリーク、セキュリティ脆弱性\nデータ破損の可能性) then (Yes)
-  :\\warning を使用;
-  stop
-else (No)
-  if (必須の制約条件がある?\n例：呼び出し順序、初期化要件\nリソースの排他制御) then (Yes)
-    :\\attention を使用;
-    stop
-  else (No)
-    if (重要情報として強調すべき?\n例：仕様理解に必須\n判断ミスにつながる情報) then (Yes)
-      :\\important を使用;
-      stop
-    else (No)
-      if (技術的な詳細や実装仕様?\n例：アルゴリズムの説明\n使用ライブラリ、性能特性) then (Yes)
-        :\\note を使用;
-        stop
-      else (No)
-        if (補足情報や推奨事項?\n例：最適化のヒント\n代替手段の提案) then (Yes)
-          :\\remark を使用;
-          stop
-        else (No)
-          :通常の \\brief、\\param、タグなし本文を使用;
-          stop
-        endif
-      endif
-    endif
-  endif
-endif
-@enduml
+```mermaid
+flowchart TD
+    START([開始]) --> A["ドキュメントに追加したい情報を特定"]
+    A --> B["情報の性質を分析"]
+    B --> C{"重大な危険やリスクがある?<br>例: メモリリーク、セキュリティ脆弱性<br>データ破損の可能性"}
+    C -- Yes --> D["#92;warning を使用"] --> STOP1([終了])
+    C -- No --> E{"必須の制約条件がある?<br>例: 呼び出し順序、初期化要件<br>リソースの排他制御"}
+    E -- Yes --> F["#92;attention を使用"] --> STOP2([終了])
+    E -- No --> G{"重要情報として強調すべき?<br>例: 仕様理解に必須<br>判断ミスにつながる情報"}
+    G -- Yes --> H["#92;important を使用"] --> STOP3([終了])
+    G -- No --> I{"技術的な詳細や実装仕様?<br>例: アルゴリズムの説明<br>使用ライブラリ、性能特性"}
+    I -- Yes --> J["#92;note を使用"] --> STOP4([終了])
+    I -- No --> K{"補足情報や推奨事項?<br>例: 最適化のヒント<br>代替手段の提案"}
+    K -- Yes --> L["#92;remark を使用"] --> STOP5([終了])
+    K -- No --> M["通常の #92;brief、#92;param、タグなし本文を使用"] --> STOP6([終了])
 ```
+
+CodeBlock: 判断フローチャート
 
 ## その他
 

@@ -56,30 +56,31 @@ Table: ログ レベル別の ANSI カラー コード処理ルール
 
 ### 処理フロー
 
-```plantuml
-@startuml 処理フロー
-caption 処理フロー
+```mermaid
+flowchart TD
+    START([開始]) --> LOOP{"標準入力に行がある?"}
 
-start
-while (標準入力に行がある?) is (yes)
-  :行を読み取り;
-  if ('[info]' を含む?) then (yes)
-    :全ての ANSI コードを削除;
-    :脱色して出力;
-  elseif ('[critical]' を含む?) then (yes)
-    :太字と背景色を除去 (\\033[1;41m → \\033[0;31m);
-    :調整して出力;
-  elseif ('[warning]' または '[error]' を含む?) then (yes)
-    :太字コード (\\033[1;) を通常 (\\033[0;) に変換;
-    :調整して出力;
-  else (no)
-    :そのまま出力;
-  endif
-endwhile (no)
-stop
+    LOOP -- yes --> R1["行を読み取り"]
+    R1 --> C_INFO{"'[info]' を含む?"}
 
-@enduml
+    C_INFO -- yes --> A_INFO["全ての ANSI コードを削除<br>脱色して出力"]
+    A_INFO --> LOOP
+
+    C_INFO -- no --> C_CRIT{"'[critical]' を含む?"}
+    C_CRIT -- yes --> A_CRIT["太字と背景色を除去 (#92;033[1;41m → #92;033[0;31m)<br>調整して出力"]
+    A_CRIT --> LOOP
+
+    C_CRIT -- no --> C_WARN{"'[warning]' または '[error]' を含む?"}
+    C_WARN -- yes --> A_WARN["太字コード (#92;033[1;) を通常 (#92;033[0;) に変換<br>調整して出力"]
+    A_WARN --> LOOP
+
+    C_WARN -- no --> A_RAW["そのまま出力"]
+    A_RAW --> LOOP
+
+    LOOP -- no --> STOP([終了])
 ```
+
+CodeBlock: 処理フロー
 
 ### マッチング条件
 

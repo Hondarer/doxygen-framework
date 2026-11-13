@@ -14,36 +14,24 @@ Doxybook2 はグラフ データをテンプレート変数として公開して
 
 グラフ抽出は、既存のドキュメント生成パイプラインに統合されています。
 
-```plantuml
-@startuml グラフ抽出を含むドキュメント生成パイプライン
-    caption グラフ抽出を含むドキュメント生成パイプライン
-    start
-    :Doxygen 実行;
-    note right: XML + HTML を生成
-    :normalize-function-references.py;
-    note right
-        同名 static 関数の誤参照を
-        XML 段階で補正
-    end note
-    :extract-graphs.py;
-    note right
-        XML の graphType 要素と
-        references/referencedby を解析し
-        <plantuml> タグとして XML に挿入
-    end note
-    :preprocess.sh;
-    note right
-        <plantuml> タグを Markdown
-        コードフェンスに変換
-        (既存処理と統合)
-    end note
-    :doxybook2;
-    note right: XML → Markdown 変換
-    :postprocess.sh;
-    note right: Markdown の後処理
-    stop
-@enduml
+```mermaid
+flowchart TD
+    START([開始]) --> DOX["Doxygen 実行"]
+    DOX -.- NOTE_DOX["XML + HTML を生成"]
+    DOX --> NORM["normalize-function-references.py"]
+    NORM -.- NOTE_NORM["同名 static 関数の誤参照を<br>XML 段階で補正"]
+    NORM --> EXT["extract-graphs.py"]
+    EXT -.- NOTE_EXT["XML の graphType 要素と<br>references/referencedby を解析し<br>&lt;plantuml&gt; タグとして XML に挿入"]
+    EXT --> PRE["preprocess.sh"]
+    PRE -.- NOTE_PRE["&lt;plantuml&gt; タグを Markdown<br>コードフェンスに変換<br>(既存処理と統合)"]
+    PRE --> DOXYBOOK["doxybook2"]
+    DOXYBOOK -.- NOTE_DOXYBOOK["XML → Markdown 変換"]
+    DOXYBOOK --> POST["postprocess.sh"]
+    POST -.- NOTE_POST["Markdown の後処理"]
+    POST --> END_NODE([終了])
 ```
+
+CodeBlock: グラフ抽出を含むドキュメント生成パイプライン
 
 `cd framework/doxyfw && make` を実行すると、`extract-graphs.py` は `preprocess.sh` の前に自動的に呼び出されます。生成された `<plantuml>` タグは、既存の PlantUML 変換パイプラインによって Markdown コード フェンスに変換されます。
 

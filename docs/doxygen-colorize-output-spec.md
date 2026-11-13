@@ -42,25 +42,27 @@ RESET='\033[0m'
 
 ### 処理フロー
 
-```plantuml
-@startuml 処理フロー
-caption 処理フロー
+```mermaid
+flowchart TD
+    START([開始]) --> LOOP{"標準入力に行がある?"}
 
-start
-while (標準入力に行がある?) is (yes)
-  :行を読み取り;
-  if (' error: ' を含む?) then (yes)
-    :赤色で出力;
-  elseif (' warning: ' を含む?) then (yes)
-    :黄色で出力;
-  else (no)
-    :そのまま出力;
-  endif
-endwhile (no)
-stop
+    LOOP -- yes --> R1["行を読み取り"]
+    R1 --> C_ERR{"' error: ' を含む?"}
 
-@enduml
+    C_ERR -- yes --> A_ERR["赤色で出力"]
+    A_ERR --> LOOP
+
+    C_ERR -- no --> C_WARN{"' warning: ' を含む?"}
+    C_WARN -- yes --> A_WARN["黄色で出力"]
+    A_WARN --> LOOP
+
+    C_WARN -- no --> A_RAW["そのまま出力"]
+    A_RAW --> LOOP
+
+    LOOP -- no --> STOP([終了])
 ```
+
+CodeBlock: 処理フロー
 
 ### マッチング条件
 
