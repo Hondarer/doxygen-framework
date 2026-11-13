@@ -62,7 +62,7 @@ flowchart TD
     LOOP -- no --> STOP([終了])
 ```
 
-CodeBlock: 処理フロー
+Figure: 処理フロー
 
 ### マッチング条件
 

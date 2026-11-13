@@ -31,7 +31,7 @@ flowchart TD
     POST --> END_NODE([終了])
 ```
 
-CodeBlock: グラフ抽出を含むドキュメント生成パイプライン
+Figure: グラフ抽出を含むドキュメント生成パイプライン
 
 `cd framework/doxyfw && make` を実行すると、`extract-graphs.py` は `preprocess.sh` の前に自動的に呼び出されます。生成された `<plantuml>` タグは、既存の PlantUML 変換パイプラインによって Markdown コード フェンスに変換されます。
 

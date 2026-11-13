@@ -958,7 +958,7 @@ flowchart TD
     K -- No --> M["通常の #92;brief、#92;param、タグなし本文を使用"] --> STOP6([終了])
 ```
 
-CodeBlock: 判断フローチャート
+Figure: 判断フローチャート
 
 ## その他
 
