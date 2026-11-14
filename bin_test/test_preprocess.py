@@ -220,5 +220,120 @@ class StripAnonymousNamespacesTest(unittest.TestCase):
             self.assertNotIn("<innernamespace", named_namespace)
 
 
+class MermaidTagConversionTest(unittest.TestCase):
+    """<mermaid> タグをコード フェンスと Figure: 行へ変換する処理を確認する。"""
+
+    def _convert(self, body):
+        with tempfile.TemporaryDirectory() as temp_dir_text:
+            xml_dir = Path(temp_dir_text)
+            xml_path = xml_dir / "sample.xml"
+            xml_path.write_text(
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                "<doxygen><detaileddescription>\n"
+                f"{body}\n"
+                "</detaileddescription></doxygen>\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            subprocess.run(
+                [BASH, str(PREPROCESS_SCRIPT), str(xml_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            transformed = xml_path.read_text(encoding="utf-8")
+        # 変換後も XML として整形式であること
+        root = ET.fromstring(transformed)
+        return transformed, "".join(root.itertext())
+
+    def test_mermaid_tag_with_caption_becomes_fence_and_figure_line(self):
+        transformed, text = self._convert(
+            '<para><mermaid caption="lock の取得">    sequenceDiagram\n'
+            "        A-&gt;&gt;B: options, &amp;scope_out\n"
+            "        opt n &gt; 0\n"
+            "            B-&gt;&gt;B: __flag__ a* b\n"
+            "        end</mermaid>\n"
+            "</para>"
+        )
+
+        self.assertNotIn("<mermaid", transformed)
+        self.assertNotIn("</mermaid>", transformed)
+        # 本文の XML 実体参照は復号せずに保持する (Doxybook2 が復号する)
+        self.assertIn("A-&gt;&gt;B: options, &amp;scope_out", transformed)
+        # 共通の字下げを除き、相対的な字下げは保つ
+        self.assertIn(
+            "\n\n```mermaid\n"
+            "sequenceDiagram\n"
+            "    A->>B: options, &scope_out\n"
+            "    opt n > 0\n"
+            "        B->>B: __flag__ a* b\n"
+            "    end\n"
+            "```\n\n"
+            "Figure: lock の取得\n\n",
+            text,
+        )
+
+    def test_mermaid_tag_without_caption_becomes_fence_only(self):
+        # 入力 Markdown の ```mermaid は caption 属性のない <mermaid> になり、
+        # Figure: 行は後続の段落として出力される。
+        transformed, text = self._convert(
+            "<para><mermaid>flowchart LR\n"
+            "    A --&gt; B</mermaid>\n"
+            "</para>\n"
+            "<para>Figure: ページの図 </para>"
+        )
+
+        self.assertNotIn("<mermaid", transformed)
+        self.assertIn("\n\n```mermaid\nflowchart LR\n    A --> B\n```\n\n", text)
+        self.assertEqual(text.count("Figure:"), 1)
+        self.assertIn("Figure: ページの図", text)
+
+    def test_empty_caption_is_treated_as_no_caption(self):
+        _, text = self._convert(
+            '<para><mermaid caption="">flowchart LR\n    A --&gt; B</mermaid></para>'
+        )
+
+        self.assertIn("```mermaid\nflowchart LR\n    A --> B\n```", text)
+        self.assertNotIn("Figure:", text)
+
+    def test_caption_symbols_become_numeric_character_references(self):
+        transformed, text = self._convert(
+            '<para><mermaid caption="Foo&lt;T&gt;::operator* の図 operator[] ~Foo `q` C:\\dir '
+            '__init__ a_b $x &amp; &quot;s&quot;">flowchart TD\n'
+            "    n0 --&gt; n1</mermaid></para>"
+        )
+
+        # Doxybook2 が復号した後の Markdown では、記号が数値文字参照になる
+        self.assertIn(
+            "Figure: Foo&#60;T&#62;::operator&#42; の図 operator&#91;&#93; &#126;Foo "
+            "&#96;q&#96; C:&#92;dir __init__ a_b $x & \"s\"\n",
+            text,
+        )
+        # XML 上では数値文字参照の & をエスケープする
+        self.assertIn("operator&amp;#42;", transformed)
+
+    def test_plantuml_and_mermaid_tags_are_both_converted(self):
+        transformed, text = self._convert(
+            "<para><plantuml>\ncaption uml\nA -&gt; B\n</plantuml></para>\n"
+            '<para><mermaid caption="mmd">flowchart TD\n    n0 --&gt; n1</mermaid></para>'
+        )
+
+        self.assertNotIn("<plantuml", transformed)
+        self.assertNotIn("<mermaid", transformed)
+        self.assertIn("```plantuml\n@startuml\n", text)
+        self.assertIn("\n@enduml\n```", text)
+        self.assertIn("```mermaid\nflowchart TD\n    n0 --> n1\n```\n\nFigure: mmd\n", text)
+
+    def test_multiple_mermaid_tags_in_one_file_are_converted_separately(self):
+        _, text = self._convert(
+            '<para><mermaid caption="first">flowchart TD\n    a --&gt; b</mermaid></para>\n'
+            '<para><mermaid caption="second">flowchart BT\n    c --&gt; d</mermaid></para>'
+        )
+
+        self.assertIn("```mermaid\nflowchart TD\n    a --> b\n```\n\nFigure: first\n", text)
+        self.assertIn("```mermaid\nflowchart BT\n    c --> d\n```\n\nFigure: second\n", text)
+
+
 if __name__ == "__main__":
     unittest.main()

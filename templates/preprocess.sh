@@ -56,6 +56,12 @@ python3 "$SCRIPT_DIR/mark-admonitions.py" "$XML_FOLDER"
 # ディレクトリ パス情報を失い Files/ 直下にフラットに出力される。
 python3 "$SCRIPT_DIR/fix-anonymous-enums.py" "$XML_FOLDER"
 
+# <mermaid> タグを Mermaid のコード フェンスと Figure: キャプション行へ変換する。
+# Doxybook2 v1.6.1 は <mermaid> タグを認識せず、警告を出してタグを取り除くため、
+# XML 段階でテキストへ置き換える。対象は Doxygen コメントの @mermaid、
+# extract-graphs.py が挿入した自動生成グラフ、入力 Markdown の ```mermaid の 3 つである。
+python3 "$SCRIPT_DIR/convert-mermaid-tags.py" "$XML_FOLDER"
+
 # 各 XML ファイルを処理
 while IFS= read -r xml_file; do
     PROCESSED_COUNT=$((PROCESSED_COUNT + 1))

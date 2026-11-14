@@ -531,9 +531,11 @@ process_markdown_file() {
         return result s
     }
     /^[[:space:]]*```/ {
-        if (in_code_block) { in_code_block = 0 } else { in_code_block = 1 }
+        if (in_code_block) { in_code_block = 0; is_mermaid = 0 }
+        else { in_code_block = 1; is_mermaid = ($0 ~ /^[[:space:]]*```[[:space:]]*mermaid([[:space:]]|$)/) }
         print; next
     }
+    in_code_block && is_mermaid { print; next }
     in_code_block {
         # ダブル クォートで分割し、リテラル外 (奇数インデックス) のみ fix_ptr を適用する。
         n = split($0, parts, "\"")
