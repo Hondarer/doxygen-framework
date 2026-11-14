@@ -97,6 +97,7 @@ while IFS= read -r xml_file; do
     # doxybook2 は <name> タグの内容を見出しやテンプレートの変数として直接展開するため、
     # <bold> 変換とは別に <name> タグ内の __ も保護が必要。
     # <title> タグは extract-graphs.py が挿入するグラフ見出しで使用される。
+    # (グラフ本体の <mermaid> タグは、ループ前の convert-mermaid-tags.py で変換済み)
     # ループ展開で複数の __ を含む識別子 (__foo__bar__ など) にも対応する。
     sed ':loop; s|<name>\([^<]*\)__\([^<]*\)</name>|<name>\1!dunder!\2</name>|; t loop' | \
     sed ':loop; s|<title>\([^<]*\)__\([^<]*\)</title>|<title>\1!dunder!\2</title>|; t loop' | \

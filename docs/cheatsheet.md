@@ -297,23 +297,24 @@ Table: `@file` 説明文における用途別の文末表現例
  *  @deprecated     非推奨であることを記載します。
  *  @since          コードや API がいつから利用可能になったかを記載します。
  * 
- *  PlantUML の図を挿入することができます。<br>
- *  VS Code の PlantUML プラグインを使用するために、
- *  `@startuml` ~ `@enduml` の範囲は行頭の * を記載しません。
+ *  Mermaid の図を挿入することができます。<br>
+ *  エディターのプレビューを利用するために、
+ *  `@mermaid` ~ `@endmermaid` の範囲は行頭の * を記載しません。
+ *  キャプションは `@mermaid "キャプション"` の形式で指定します。
  * 
-    @startuml
-        caption 図のテスト
-        circle a
-        circle b
-        rectangle "a/b" as devide
-        circle return
-        a -> devide : 被除数
-        b -> devide : 除数
-        devide -> return
-    @enduml
+    @mermaid "図のテスト"
+        flowchart LR
+            a[被除数] --> divide["a/b"]
+            b[除数] --> divide
+            divide --> result[結果]
+    @endmermaid
  * 
  */
 ```
+
+行頭の `*` を記載しない図ブロックは、開始行と終了行をコメント本文と同じ桁に置き、図の本文を開始行より浅い位置に置かないでください。上の例のコメント本文は 4 桁目です。  
+違反すると、Doxygen は警告を出さずに前後の節を字下げコード ブロックとして出力します。`check-doxygen-indent.py` で検出できます。  
+PlantUML (`@startuml` ~ `@enduml`) は互換の記法で、字下げの規則は同じです。新規の図には `@mermaid` を使用してください。
 
 ### 構造体および class のメンバー
 

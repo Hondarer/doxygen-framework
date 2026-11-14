@@ -2,6 +2,9 @@
 
 Doxygen が出力した XML ファイルに次のようにパッチを適用することで、`[warning] Text tag "plantuml" not recognised, please contact the author` のメッセージを出力することなく Markdown を生成します。
 
+Mermaid の図 (`<mermaid>` タグ) の変換は [doxybook2 への Mermaid 対応](doxybook2-mermaid.md) を参照してください。  
+本文書は、互換の記法である PlantUML (`@startuml` の図) の変換を扱います。
+
 ## 変換ルール
 
 `<plantuml>` を

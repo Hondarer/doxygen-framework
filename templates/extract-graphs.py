@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-extract-graphs.py - Doxygen XML からグラフ情報を抽出し PlantUML として挿入する
+extract-graphs.py - Doxygen XML からグラフ情報を抽出し Mermaid として挿入する
 
-Doxygen が生成した XML ファイルを解析し、次のグラフ情報を PlantUML 形式に変換して
-XML の detaileddescription セクションに <plantuml> タグとして挿入する。
+Doxygen が生成した XML ファイルを解析し、次のグラフ情報を Mermaid の flowchart に変換して
+XML の detaileddescription セクションに <mermaid> タグとして挿入する。
 
 - インクルード依存グラフ (incdepgraph)
 - 逆インクルード依存グラフ (invincdepgraph)
@@ -14,8 +14,8 @@ XML の detaileddescription セクションに <plantuml> タグとして挿入�
 - コールグラフ (references)
 - 呼び出し元グラフ (referencedby)
 
-挿入された <plantuml> タグは、後続の preprocess.sh により Markdown コードフェンスに
-変換される。
+挿入された <mermaid> タグは、後続の preprocess.sh (convert-mermaid-tags.py) により
+Markdown のコード フェンスと Figure: キャプション行に変換される。
 
 使用方法: python3 extract-graphs.py <xml_directory>
 """
@@ -23,7 +23,9 @@ XML の detaileddescription セクションに <plantuml> タグとして挿入�
 import sys
 import os
 import glob
+import html
 import re
+from xml.sax.saxutils import escape as xml_escape
 
 # グラフあたりの最大ノード数 (これを超えるグラフは生成しない)
 # Doxygen の DOT_GRAPH_MAX_NODES (既定値 50) に合わせた値
@@ -49,6 +51,9 @@ GRAPH_DETAILS_ONLY = {
 # 詳細版のみマーカー文字列 (postprocess.sh が検出して詳細タグに変換する)
 # NOTE: preprocess.sh が __ を !dunder! に変換するため、__ を含む文字列は使用できない。
 DETAILS_ONLY_MARKER = "DOXYFW_DETAILS_ONLY"
+
+# 対象ノード (グラフの起点となる要素自身) を強調する Mermaid の style 指定
+MERMAID_HIGHLIGHT_STYLE = "fill:#ADD8E6,stroke:#333,font-weight:bold"
 
 
 def parse_graph_nodes(xml_text, graph_tag):
@@ -530,20 +535,66 @@ def parse_referencedby(memberdef_block, function_ids=None, compound_file_map=Non
     return refs
 
 
-def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=False):
-    """graphType のノードとエッジから PlantUML テキストを生成する。
+def _mermaid_label(label):
+    """ノード ラベルを Mermaid の二重引用符付きラベルへ埋め込める形にする。
+
+    label は XML から取り出した文字列 (実体参照を含む場合がある) を受け取る。
+    Mermaid は二重引用符付きラベルの中で HTML の実体参照を解釈するため、
+    & < > を実体参照にし、ラベルを閉じてしまう " は Mermaid の #quot; にする。
+    改行はラベル内の改行 <br/> にする。
+    """
+    plain = html.unescape(label)
+    escaped = (
+        plain.replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+        .replace('"', '#quot;')
+    )
+    return escaped.replace('\\n', '<br/>').replace('\n', '<br/>')
+
+
+def _render_flowchart(direction, labels, edges, highlight_id=None):
+    """Mermaid の flowchart テキストを生成する。
+
+    ノード ID は Mermaid の予約語や記号と衝突しないよう、n と連番にする。
+
+    Args:
+        direction: flowchart の向き ('TD' または 'BT')
+        labels: {node_id: label} のノード辞書 (挿入順に n0, n1, ... を割り当てる)
+        edges: [(from_id, to_id, arrow)] のエッジ リスト
+        highlight_id: 強調表示するノードの ID
+
+    Returns:
+        Mermaid テキスト
+    """
+    aliases = {node_id: f'n{i}' for i, node_id in enumerate(labels)}
+    lines = [f'flowchart {direction}']
+    for node_id, label in labels.items():
+        lines.append(f'    {aliases[node_id]}["{_mermaid_label(label)}"]')
+    if highlight_id in aliases:
+        lines.append(f'    style {aliases[highlight_id]} {MERMAID_HIGHLIGHT_STYLE}')
+    for from_id, to_id, arrow in edges:
+        if from_id in aliases and to_id in aliases:
+            lines.append(f'    {aliases[from_id]} {arrow} {aliases[to_id]}')
+    return '\n'.join(lines)
+
+
+def graph_to_mermaid(nodes, edges, first_node_id=None, reverse_edges=False,
+                     direction='TD'):
+    """graphType のノードとエッジから Mermaid テキストを生成する。
 
     Args:
         nodes: {node_id: label} のノード辞書
         edges: [(from_id, to_id, relation)] のエッジリスト
-        title: 図のキャプション
         first_node_id: 強調表示するノードの ID (対象要素自身)
         reverse_edges: True の場合、エッジを dst --> src と出力する。
                        エッジ方向を逆にすることで「依存ヘッダ → 対象」の矢印方向となり、
-                       対象が PlantUML レイアウトの末尾 (下) に配置される。
+                       対象が flowchart TD の末尾 (下) に配置される。
+        direction: flowchart の向き。継承グラフでは 'BT' を指定し、
+                   派生 --> 基底 の矢印で基底を上に配置する。
 
     Returns:
-        PlantUML テキスト (caption 行を含む、@startuml/@enduml は含まない)。
+        Mermaid テキスト。
         ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
     if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
@@ -556,118 +607,71 @@ def graph_to_plantuml(nodes, edges, title, first_node_id=None, reverse_edges=Fal
     if not valid_edges:
         return None
 
-    lines = []
-    lines.append(f'caption {title}')
-
-    for node_id, label in nodes.items():
-        safe_id = f'n{node_id}'
-        escaped = label.replace('"', '\\"')
-        if node_id == first_node_id:
-            lines.append(f'rectangle "**{escaped}**" as {safe_id} #LightBlue')
-        else:
-            lines.append(f'rectangle "{escaped}" as {safe_id}')
-
-    for src_id, dst_id, relation in edges:
-        if src_id not in nodes or dst_id not in nodes:
-            continue
-        safe_src = f'n{src_id}'
-        safe_dst = f'n{dst_id}'
-
-        if relation in (
-            'public-inheritance',
-            'protected-inheritance',
-            'private-inheritance'
-        ):
-            # -u--|> で矢印を上向きにし、自クラス (子) を下、継承元 (親) を上に配置する
-            arrow = '-u-|>'
-        elif relation == 'usage':
-            arrow = '..>'
-        else:
-            arrow = '-->'
-
+    mermaid_edges = []
+    for src_id, dst_id, relation in valid_edges:
+        arrow = '-.->' if relation == 'usage' else '-->'
         if reverse_edges:
             # エッジ方向を逆にする (dst --> src) ことで対象を末尾に配置する
-            lines.append(f'{safe_dst} {arrow} {safe_src}')
+            mermaid_edges.append((dst_id, src_id, arrow))
         else:
-            lines.append(f'{safe_src} {arrow} {safe_dst}')
+            mermaid_edges.append((src_id, dst_id, arrow))
 
-    return '\n'.join(lines)
+    return _render_flowchart(direction, nodes, mermaid_edges, first_node_id)
 
 
-def callgraph_to_plantuml(func_name, called_funcs, title):
-    """コールグラフの PlantUML テキストを生成する。
+def _unique_in_order(names):
+    """重複を除去する (順序は保持)。"""
+    seen = set()
+    unique = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique
+
+
+def callgraph_to_mermaid(func_name, called_funcs):
+    """コールグラフの Mermaid テキストを生成する。
 
     Args:
         func_name: 対象関数名
         called_funcs: 呼び出し先関数名のリスト
-        title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+        Mermaid テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
     if not called_funcs or len(called_funcs) + 1 > DOT_GRAPH_MAX_NODES:
         return None
 
-    # 重複を除去 (順序は保持)
-    seen = set()
-    unique_funcs = []
-    for f in called_funcs:
-        if f not in seen:
-            seen.add(f)
-            unique_funcs.append(f)
+    labels = {'current': func_name}
+    edges = []
+    for i, ref_name in enumerate(_unique_in_order(called_funcs)):
+        labels[f'ref{i}'] = ref_name
+        edges.append(('current', f'ref{i}', '-->'))
 
-    lines = []
-    lines.append(f'caption {title}')
-
-    escaped_name = func_name.replace('"', '\\"')
-    lines.append(f'rectangle "**{escaped_name}**" as current #LightBlue')
-
-    for i, ref_name in enumerate(unique_funcs):
-        escaped = ref_name.replace('"', '\\"')
-        lines.append(f'rectangle "{escaped}" as r{i}')
-
-    for i in range(len(unique_funcs)):
-        lines.append(f'current --> r{i}')
-
-    return '\n'.join(lines)
+    return _render_flowchart('TD', labels, edges, 'current')
 
 
-def callergraph_to_plantuml(func_name, caller_funcs, title):
-    """呼び出し元グラフの PlantUML テキストを生成する。
+def callergraph_to_mermaid(func_name, caller_funcs):
+    """呼び出し元グラフの Mermaid テキストを生成する。
 
     Args:
         func_name: 対象関数名
         caller_funcs: 呼び出し元関数名のリスト
-        title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+        Mermaid テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
     if not caller_funcs or len(caller_funcs) + 1 > DOT_GRAPH_MAX_NODES:
         return None
 
-    # 重複を除去 (順序は保持)
-    seen = set()
-    unique_funcs = []
-    for f in caller_funcs:
-        if f not in seen:
-            seen.add(f)
-            unique_funcs.append(f)
+    labels = {'current': func_name}
+    edges = []
+    for i, ref_name in enumerate(_unique_in_order(caller_funcs)):
+        labels[f'ref{i}'] = ref_name
+        edges.append((f'ref{i}', 'current', '-->'))
 
-    lines = []
-    lines.append(f'caption {title}')
-
-    escaped_name = func_name.replace('"', '\\"')
-    lines.append(f'rectangle "**{escaped_name}**" as current #LightBlue')
-
-    for i, ref_name in enumerate(unique_funcs):
-        escaped = ref_name.replace('"', '\\"')
-        lines.append(f'rectangle "{escaped}" as c{i}')
-
-    for i in range(len(unique_funcs)):
-        lines.append(f'c{i} --> current')
-
-    return '\n'.join(lines)
+    return _render_flowchart('TD', labels, edges, 'current')
 
 
 def build_recursive_callgraph(func_id, callees_map, func_name_map,
@@ -780,111 +784,78 @@ def build_recursive_callergraph(func_id, callers_map, func_name_map,
     ), edges
 
 
-def callgraph_to_plantuml_graph(func_id, nodes, edges, title):
-    """コールグラフの PlantUML テキストを生成する (グラフ構造版)。
+def callgraph_to_mermaid_graph(func_id, nodes, edges):
+    """コールグラフの Mermaid テキストを生成する (グラフ構造版)。
 
-    callgraph_to_plantuml の再帰対応版。nodes/edges を受け取り、
+    callgraph_to_mermaid の再帰対応版。nodes/edges を受け取り、
     多段のコールチェーンを表現する。
 
     Args:
         func_id: 起点関数 ID (強調表示する)
         nodes: {func_id: display_name}
         edges: [(from_id, to_id)]
-        title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+        Mermaid テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
     if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
         return None
     if not edges:
         return None
 
-    lines = []
-    lines.append(f'caption {title}')
-
-    id_to_alias = {nid: f'n{i}' for i, nid in enumerate(nodes)}
-
-    for node_id, display_name in nodes.items():
-        alias = id_to_alias[node_id]
-        escaped = display_name.replace('"', '\\"')
-        if node_id == func_id:
-            lines.append(f'rectangle "**{escaped}**" as {alias} #LightBlue')
-        else:
-            lines.append(f'rectangle "{escaped}" as {alias}')
-
-    for from_id, to_id in edges:
-        from_alias = id_to_alias.get(from_id)
-        to_alias = id_to_alias.get(to_id)
-        if from_alias and to_alias:
-            lines.append(f'{from_alias} --> {to_alias}')
-
-    return '\n'.join(lines)
+    return _render_flowchart(
+        'TD', nodes, [(from_id, to_id, '-->') for from_id, to_id in edges], func_id)
 
 
-def callergraph_to_plantuml_graph(func_id, nodes, edges, title):
-    """呼び出し元グラフの PlantUML テキストを生成する (グラフ構造版)。
+def callergraph_to_mermaid_graph(func_id, nodes, edges):
+    """呼び出し元グラフの Mermaid テキストを生成する (グラフ構造版)。
 
-    callergraph_to_plantuml の再帰対応版。nodes/edges を受け取り、
+    callergraph_to_mermaid の再帰対応版。nodes/edges を受け取り、
     多段の呼び出し元チェーンを表現する。
 
     Args:
         func_id: 起点関数 ID (強調表示する)
         nodes: {func_id: display_name}
         edges: [(from_id, to_id)] エッジは呼び出し方向 (caller -> callee)
-        title: 図のキャプション
 
     Returns:
-        PlantUML テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
+        Mermaid テキスト。ノードが DOT_GRAPH_MAX_NODES を超える場合は None を返す。
     """
     if not nodes or len(nodes) > DOT_GRAPH_MAX_NODES:
         return None
     if not edges:
         return None
 
-    lines = []
-    lines.append(f'caption {title}')
-
-    id_to_alias = {nid: f'n{i}' for i, nid in enumerate(nodes)}
-
-    for node_id, display_name in nodes.items():
-        alias = id_to_alias[node_id]
-        escaped = display_name.replace('"', '\\"')
-        if node_id == func_id:
-            lines.append(f'rectangle "**{escaped}**" as {alias} #LightBlue')
-        else:
-            lines.append(f'rectangle "{escaped}" as {alias}')
-
-    for from_id, to_id in edges:
-        from_alias = id_to_alias.get(from_id)
-        to_alias = id_to_alias.get(to_id)
-        if from_alias and to_alias:
-            lines.append(f'{from_alias} --> {to_alias}')
-
-    return '\n'.join(lines)
+    return _render_flowchart(
+        'TD', nodes, [(from_id, to_id, '-->') for from_id, to_id in edges], func_id)
 
 
-def build_plantuml_tag(plantuml_body, title, details_only=False):
-    """PlantUML テキストを <simplesect kind="par"> タグで囲む。
+def build_mermaid_tag(mermaid_body, title, caption, details_only=False):
+    """Mermaid テキストを <simplesect kind="par"> タグで囲む。
 
     Doxybook2 の details.tmpl で par セクションとして処理され、
     #### 見出し付きの独立セクションとして出力される。
+    <mermaid> タグは preprocess.sh (convert-mermaid-tags.py) がコード フェンスと
+    Figure: キャプション行へ変換する。
 
     details_only=True の場合、タイトルに DETAILS_ONLY_MARKER プレフィックスを付与する。
     postprocess.sh がこのマーカーを検出して詳細タグ (<!--details:--> / <!--:details-->) で囲む。
 
     Args:
-        plantuml_body: PlantUML テキスト (@startuml/@enduml は含まない)
-        title: セクションの見出しタイトル
+        mermaid_body: Mermaid テキスト
+        title: セクションの見出しタイトル (グラフ種別の名称)
+        caption: 図のキャプション (「<名前> の<グラフ種別>」)。
+                 XML から取り出した文字列 (実体参照を含む場合がある) を受け取る。
         details_only: True の場合、詳細版のみ表示マーカーを付与する
 
     Returns:
         挿入用の XML 文字列
     """
     effective_title = f"{DETAILS_ONLY_MARKER} {title}" if details_only else title
+    caption_attr = xml_escape(html.unescape(caption), {'"': '&quot;'})
     return (
         f'<para><simplesect kind="par"><title>{effective_title}</title>'
-        f'<para><plantuml>\n{plantuml_body}\n</plantuml></para>'
+        f'<para><mermaid caption="{caption_attr}">\n{xml_escape(mermaid_body)}\n</mermaid></para>'
         f'</simplesect></para>\n'
     )
 
@@ -982,7 +953,7 @@ def inject_compound_graphs(xml_text):
             # インクルード依存グラフ
             # reverse_edges=True により次を実現する。
             # - エッジを dst --> src と出力し「依存ヘッダー → 対象」の矢印方向にする
-            # - 対象が PlantUML レイアウトの末尾 (下) に配置される
+            # - 対象が flowchart TD の末尾 (下) に配置される
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
@@ -993,14 +964,13 @@ def inject_compound_graphs(xml_text):
                 display_nodes = build_file_graph_display_nodes(nodes)
                 heading = 'インクルード元'
                 caption = f'{display_name} の{heading}'
-                puml = graph_to_plantuml(
+                body = graph_to_mermaid(
                     display_nodes, edges,
-                    caption,
                     first_node_id=self_id,
                     reverse_edges=True
                 )
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["incdepgraph"]))
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["incdepgraph"]))
 
             # 逆インクルード依存グラフ
             graphs = parse_graph_nodes(content, 'invincdepgraph')
@@ -1010,13 +980,12 @@ def inject_compound_graphs(xml_text):
                 display_nodes = build_file_graph_display_nodes(nodes)
                 heading = 'インクルード先'
                 caption = f'{display_name} の{heading}'
-                puml = graph_to_plantuml(
+                body = graph_to_mermaid(
                     display_nodes, edges,
-                    caption,
                     first_node_id=self_id
                 )
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["invincdepgraph"]))
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["invincdepgraph"]))
 
         elif kind in ('class', 'struct'):
             # コンパウンド名を取得
@@ -1033,13 +1002,14 @@ def inject_compound_graphs(xml_text):
                 self_id = find_self_node(nodes, compound_name)
                 heading = '継承関係'
                 caption = f'{compound_name} の{heading}'
-                puml = graph_to_plantuml(
+                # 派生 --> 基底 の矢印を下から上へ描き、基底を上に配置する
+                body = graph_to_mermaid(
                     nodes, edges,
-                    caption,
-                    first_node_id=self_id
+                    first_node_id=self_id,
+                    direction='BT'
                 )
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["inheritancegraph"]))
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["inheritancegraph"]))
 
             # コラボレーション図
             graphs = parse_graph_nodes(content, 'collaborationgraph')
@@ -1047,20 +1017,20 @@ def inject_compound_graphs(xml_text):
                 self_id = find_self_node(nodes, compound_name)
                 heading = 'コラボレーション図'
                 caption = f'{compound_name} の{heading}'
-                puml = graph_to_plantuml(
+                body = graph_to_mermaid(
                     nodes, edges,
-                    caption,
                     first_node_id=self_id
                 )
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["collaborationgraph"]))
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["collaborationgraph"]))
 
         if not injections:
             return match.group(0)
 
         # detaileddescription の閉じタグの直前に挿入
         injection_text = ''.join(
-            build_plantuml_tag(puml, heading, details_only) for heading, puml, details_only in injections
+            build_mermaid_tag(body, heading, caption, details_only)
+            for heading, body, caption, details_only in injections
         )
 
         # detaileddescription が存在する場合、その閉じタグの前に挿入
@@ -1143,18 +1113,18 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
             if nodes and edges:
                 heading = '呼び出し元'
                 caption = f'{func_name} の{heading}'
-                puml = callergraph_to_plantuml_graph(func_id, nodes, edges, caption)
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["referencedby"]))
+                body = callergraph_to_mermaid_graph(func_id, nodes, edges)
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["referencedby"]))
         else:
             # フォールバック: 1 階層のみ
             callers = parse_referencedby(content, function_ids, compound_file_map, self_compound_id)
             if callers:
                 heading = '呼び出し元'
                 caption = f'{func_name} の{heading}'
-                puml = callergraph_to_plantuml(func_name, callers, caption)
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["referencedby"]))
+                body = callergraph_to_mermaid(func_name, callers)
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["referencedby"]))
 
         # 呼び出し先グラフ (references)
         if func_id and callees_map is not None and func_id in callees_map:
@@ -1164,24 +1134,25 @@ def inject_member_graphs(xml_text, function_ids=None, compound_file_map=None,
             if nodes and edges:
                 heading = '呼び出し先'
                 caption = f'{func_name} の{heading}'
-                puml = callgraph_to_plantuml_graph(func_id, nodes, edges, caption)
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["references"]))
+                body = callgraph_to_mermaid_graph(func_id, nodes, edges)
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["references"]))
         else:
             # フォールバック: 1 階層のみ
             called = parse_references(content, function_ids, compound_file_map, self_compound_id)
             if called:
                 heading = '呼び出し先'
                 caption = f'{func_name} の{heading}'
-                puml = callgraph_to_plantuml(func_name, called, caption)
-                if puml:
-                    injections.append((heading, puml, GRAPH_DETAILS_ONLY["references"]))
+                body = callgraph_to_mermaid(func_name, called)
+                if body:
+                    injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["references"]))
 
         if not injections:
             return match.group(0)
 
         injection_text = ''.join(
-            build_plantuml_tag(puml, heading, details_only) for heading, puml, details_only in injections
+            build_mermaid_tag(body, heading, caption, details_only)
+            for heading, body, caption, details_only in injections
         )
 
         # detaileddescription の閉じタグの直前に挿入
@@ -1233,7 +1204,7 @@ def is_header_file_xml(xml_text):
 def process_xml_file(xml_path, function_ids=None, compound_file_map=None,
                      callees_map=None, callers_map=None, func_name_map=None,
                      func_compound_map=None, func_file_path_map=None):
-    """XML ファイルを処理してグラフ情報を PlantUML として挿入する。
+    """XML ファイルを処理してグラフ情報を Mermaid として挿入する。
 
     Args:
         xml_path: XML ファイルのパス

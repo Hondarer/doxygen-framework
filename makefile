@@ -222,7 +222,7 @@ markdown-generation:
 	mkdir -p "$(DOCS_DOXYBOOK2_DIR)"
     # 宣言側 (統合済み) memberdef の説明をソース定義側 memberdef へ同期 (非グループ関数)
 	python3 templates/merge-member-docs.py "$(DOXYFW_XML_WORK_DIR)" || exit 1
-    # グラフ抽出 (XML のグラフ情報から PlantUML を生成し XML に挿入)
+    # グラフ抽出 (XML のグラフ情報から Mermaid を生成し XML に挿入)
 	python3 templates/extract-graphs.py "$(DOXYFW_XML_WORK_DIR)" || exit 1
     # グループへ移動したメンバーを定義元のソース ファイル XML へ具象化
 	python3 "$(GROUP_MEMBER_MATERIALIZER)" "$(DOXYFW_XML_WORK_DIR)" || exit 1

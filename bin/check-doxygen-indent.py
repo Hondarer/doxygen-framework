@@ -6,6 +6,9 @@ Doxygen コメント字下げレベル統一チェック・修正ツール
   - /** の字下げレベルから */ までの間で、すべての行の字下げレベルが統一されているかチェック
   - 不統一な場合、修正オプションで自動修正
   - --dry-run オプションで修正内容を表示（実際には修正しない）
+  - 行頭に * を置かずに記述した図ブロック (@mermaid 〜 @endmermaid、@startuml 〜 @enduml) の
+    字下げをチェック（開始行と終了行はコメント本文の桁、図の本文は開始行以上の深さ）
+    図ブロックは修正せず、どのモードでも指摘として表示する
 
 使用例：
   check-doxygen-indent.py --check <file>           # チェック モード (既定)
@@ -142,6 +145,209 @@ def scan_file(filepath, skip_single_line_comments=True):
     return issues
 
 
+# 行頭に * を置かずに記述した図ブロックの開始行と終了行
+DIAGRAM_START_PATTERN = re.compile(r'^[ \t]*([@\\](?:mermaid|startuml))(?![A-Za-z0-9_])')
+DIAGRAM_END_PATTERN = re.compile(r'^[ \t]*([@\\](?:endmermaid|enduml))(?![A-Za-z0-9_])')
+
+# * を持つ行で、* と後続の空白の次に来る本文 (*/ は本文として扱わない)
+STAR_BODY_PATTERN = re.compile(r'^([ \t]*\*)(?!/)([ \t]*)\S')
+
+# /** の行に続けて書いた本文
+OPEN_BODY_PATTERN = re.compile(r'^([ \t]*/\*\*)([ \t]*)(?!\*/)\S')
+
+
+def get_star_body_column(line):
+    """* を持つ行の本文の桁を返す (本文がなければ None)"""
+    match = STAR_BODY_PATTERN.match(line)
+    if match:
+        return len(match.group(1)) + len(match.group(2))
+    return None
+
+
+def get_open_body_column(line):
+    """/** の行に続けて書いた本文の桁を返す (本文がなければ None)"""
+    match = OPEN_BODY_PATTERN.match(line)
+    if match:
+        return len(match.group(1)) + len(match.group(2))
+    return None
+
+
+def get_diagram_body_indent(line):
+    """図の本文の行の字下げを返す (空行は None)
+
+    行頭に * を持つ行は、* と後続の空白の次に来る文字の位置を字下げとします。
+    """
+    if line.strip() == '':
+        return None
+    if re.match(r'^[ \t]*\*', line):
+        return get_star_body_column(line)
+    return get_indent_level(line)
+
+
+def scan_diagram_lines(lines, skip_single_line_comments=True):
+    """
+    行の並びを走査し、行頭に * を置かずに記述した図ブロックの字下げの不一致を検出
+
+    Args:
+        lines: 対象ファイルの行のリスト
+        skip_single_line_comments: True の場合、末尾コメント（/** ... */ が同一行）は除外
+
+    Returns:
+        list: 不一致が見つかった図ブロックのリスト
+    """
+    blocks = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        if not re.search(r'/\*\*', line):
+            i += 1
+            continue
+
+        # メンバーやマクロの横に書く /**< ... */ は図ブロックを持たないため対象外
+        if is_inline_doxygen_comment_start(line):
+            i = skip_to_comment_end(lines, i)
+            continue
+
+        # 末尾コメント (/** ... */ が同一行) の場合はスキップ (オプション)
+        if skip_single_line_comments and re.search(r'/\*\*.*\*/', line):
+            i += 1
+            continue
+
+        # コメント本文の桁 (図ブロックより前にある、* を持ち本文のある最も近い行から求める)
+        body_column = get_open_body_column(line)
+
+        j = i + 1
+        while j < len(lines):
+            next_line = lines[j]
+
+            start_match = DIAGRAM_START_PATTERN.match(next_line)
+            if start_match:
+                j = check_diagram_block(lines, j, start_match.group(1), body_column, blocks)
+                continue
+
+            if re.search(r'\*/', next_line):
+                break
+
+            column = get_star_body_column(next_line)
+            if column is not None:
+                body_column = column
+
+            j += 1
+
+        i = j + 1
+
+    return blocks
+
+
+def check_diagram_block(lines, start_index, keyword, body_column, blocks):
+    """
+    図ブロック 1 個の字下げを検査し、不一致があれば blocks へ追加
+
+    Returns:
+        int: 図ブロックの終了行の次の行インデックス
+             (終了行より前にコメントが終わる場合は、コメント終了行のインデックス)
+    """
+    start_line = lines[start_index]
+    start_indent = get_indent_level(start_line)
+    mismatches = []
+
+    if body_column is not None and start_indent != body_column:
+        mismatches.append({
+            'line_num': start_index + 1,
+            'kind': 'start',
+            'actual_indent': start_indent,
+            'expected_indent': body_column,
+            'snippet': start_line.rstrip(),
+        })
+
+    k = start_index + 1
+    next_index = k
+    while k < len(lines):
+        current = lines[k]
+
+        if DIAGRAM_END_PATTERN.match(current):
+            end_indent = get_indent_level(current)
+            if body_column is not None and end_indent != body_column:
+                mismatches.append({
+                    'line_num': k + 1,
+                    'kind': 'end',
+                    'actual_indent': end_indent,
+                    'expected_indent': body_column,
+                    'snippet': current.rstrip(),
+                })
+            next_index = k + 1
+            break
+
+        if re.search(r'\*/', current):
+            # 終了行のないまま、コメントが終わった
+            next_index = k
+            break
+
+        indent = get_diagram_body_indent(current)
+        if indent is not None and indent < start_indent:
+            mismatches.append({
+                'line_num': k + 1,
+                'kind': 'body',
+                'actual_indent': indent,
+                'expected_indent': start_indent,
+                'snippet': current.rstrip(),
+            })
+
+        k += 1
+    else:
+        next_index = k
+
+    if mismatches:
+        blocks.append({
+            'start_line': start_index + 1,
+            'keyword': keyword,
+            'body_column': body_column,
+            'mismatches': sorted(mismatches, key=lambda item: item['line_num']),
+        })
+
+    return next_index
+
+
+def scan_diagram_file(filepath, skip_single_line_comments=True, lines=None):
+    """
+    ファイルを走査し、行頭に * を置かずに記述した図ブロックの字下げの不一致を検出
+
+    Args:
+        filepath: 対象ファイルパス
+        skip_single_line_comments: True の場合、末尾コメント（/** ... */ が同一行）は除外
+        lines: 走査する行のリスト (None の場合はファイルから読み込む)
+
+    Returns:
+        list: 不一致が見つかった図ブロックのリスト
+    """
+    if lines is None:
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except (IOError, UnicodeDecodeError):
+            # 読み込めない旨は字下げレベルの検査と修正の側で表示済み
+            return []
+
+    blocks = scan_diagram_lines(lines, skip_single_line_comments=skip_single_line_comments)
+    for block in blocks:
+        block['file'] = filepath
+    return blocks
+
+
+def apply_modifications(filepath, modifications):
+    """修正プレビューの内容を反映した行のリストを返す (ファイルは変更しない)"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except (IOError, UnicodeDecodeError):
+        return None
+
+    for mod in modifications:
+        lines[mod['line_num'] - 1] = mod['after']
+    return lines
+
+
 def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
     """
     ファイルの字下げを修正
@@ -269,37 +475,83 @@ def format_rel_path(filepath, base_dir=None):
     return filepath
 
 
-def print_check_results(all_issues, filepath_list):
+DIAGRAM_MISMATCH_LABELS = {
+    'start': ('✗', '開始行'),
+    'end': ('━', '終了行'),
+    'body': ('✗', '図の本文'),
+}
+
+
+def print_diagram_issues(diagram_issues):
+    """図ブロックの字下げの不一致を表示し、不一致の行数を返す"""
+    print("\n❌ Doxygen コメントの図ブロックの字下げの不一致が検出されました\n")
+
+    mismatch_count = 0
+    for block in diagram_issues:
+        print(f"📄 {format_rel_path(block['file'])}")
+        body_column = block['body_column']
+        column_text = body_column if body_column is not None else '不明'
+        print(f"  L{block['start_line']}: {block['keyword']} (コメント本文の桁: {column_text})")
+
+        for mismatch in block['mismatches'][:5]:  # 最初の 5 件表示
+            marker, label = DIAGRAM_MISMATCH_LABELS[mismatch['kind']]
+            relation = '>=' if mismatch['kind'] == 'body' else '='
+            print(f"    {marker} L{mismatch['line_num']}: {label} indent={mismatch['actual_indent']} "
+                  f"(expected{relation}{mismatch['expected_indent']})")
+            print(f"       {repr(mismatch['snippet'][:60])}")
+
+        if len(block['mismatches']) > 5:
+            print(f"    ... ほか {len(block['mismatches']) - 5} 件")
+
+        mismatch_count += len(block['mismatches'])
+        print()
+
+    print("💡 図ブロックは自動修正しません。開始行と終了行をコメント本文の桁に揃え、"
+          "図の本文を開始行より浅くしないでください")
+    return mismatch_count
+
+
+def print_check_results(all_issues, filepath_list, diagram_issues=()):
     """チェック結果を表示"""
+    if not all_issues and not diagram_issues:
+        print(f"✅ {len(filepath_list)} ファイルをスキャン: 問題なし")
+        return 0
+
+    issue_count = 0
     if all_issues:
         print("\n❌ Doxygen コメント字下げレベルの不一致が検出されました\n")
-        
-        issue_count = 0
+
         for issue in all_issues:
             filename = issue['file']
             print(f"📄 {format_rel_path(filename)}")
             print(f"  L{issue['doc_start_line']}: /** (indent={issue['doc_start_indent']})")
             print(f"  期待される後続行のインデント: {issue['expected_indent']}")
-            
+
             for mismatch in issue['mismatches'][:5]:  # 最初の 5 件表示
                 marker = "━" if mismatch['is_closing'] else "✗"
                 print(f"    {marker} L{mismatch['line_num']}: indent={mismatch['actual_indent']} "
                       f"(expected={mismatch['expected_indent']})")
                 print(f"       {repr(mismatch['snippet'][:60])}")
-            
+
             if len(issue['mismatches']) > 5:
                 print(f"    ... ほか {len(issue['mismatches']) - 5} 件")
-            
+
             issue_count += len(issue['mismatches'])
             print()
-        
-        print(f"📊 合計: {len(filepath_list)} ファイルをスキャン")
+
+    diagram_mismatch_count = 0
+    if diagram_issues:
+        diagram_mismatch_count = print_diagram_issues(diagram_issues)
+        print()
+
+    print(f"📊 合計: {len(filepath_list)} ファイルをスキャン")
+    if all_issues:
         print(f"   {len(all_issues)} 個のコメントブロックで不一致を検出")
         print(f"   {issue_count} 行の詳細な不一致")
-        return 1
-    else:
-        print(f"✅ {len(filepath_list)} ファイルをスキャン: 問題なし")
-        return 0
+    if diagram_issues:
+        print(f"   {len(diagram_issues)} 個の図ブロックで字下げの不一致を検出")
+        print(f"   {diagram_mismatch_count} 行の図ブロックの不一致")
+    return 1
 
 
 def print_fix_preview(all_files_with_mods):
@@ -419,45 +671,61 @@ def main():
         fixed_count = 0
         total_mods = 0
         
+        diagram_issues = []
+
         for header in header_files:
             modified, modifications = fix_file(str(header), dry_run=False, skip_single_line_comments=skip_single_line)
             if modified:
                 fixed_count += 1
                 total_mods += len(modifications)
                 all_files_with_mods.append((str(header), modifications))
-        
+            # 図ブロックは書き換えず、修正後の内容で指摘だけを行う
+            diagram_issues.extend(scan_diagram_file(str(header), skip_single_line_comments=skip_single_line))
+
         if fixed_count:
             print(f"✅ {fixed_count} ファイルを修正しました ({total_mods} 行)")
             for filepath, mods in all_files_with_mods:
                 print(f"  {format_rel_path(filepath)}: {len(mods)} 行修正")
-            return 0
         else:
             print("✅ 修正対象のファイルはありません")
-            return 0
-    
+
+        if diagram_issues:
+            print_diagram_issues(diagram_issues)
+        return 0
+
     elif args.dry_run:
         # 修正プレビュー モード
         print(f"🔍 修正プレビューモード: {len(header_files)} ファイルを処理中...\n")
-        
+
         all_files_with_mods = []
-        
+        diagram_issues = []
+
         for header in header_files:
             modified, modifications = fix_file(str(header), dry_run=True, skip_single_line_comments=skip_single_line)
             if modified:
                 all_files_with_mods.append((str(header), modifications))
-        
-        return print_fix_preview(all_files_with_mods)
-    
+            # 図ブロックは書き換えず、修正を反映した場合の内容で指摘だけを行う
+            preview_lines = apply_modifications(str(header), modifications) if modified else None
+            diagram_issues.extend(scan_diagram_file(str(header), skip_single_line_comments=skip_single_line,
+                                                    lines=preview_lines))
+
+        result = print_fix_preview(all_files_with_mods)
+        if diagram_issues:
+            print_diagram_issues(diagram_issues)
+        return result
+
     else:
         # チェック モード (既定)
         print(f"🔍 チェックモード: {len(header_files)} ファイルをスキャン中...\n")
-        
+
         all_issues = []
+        diagram_issues = []
         for header in header_files:
             issues = scan_file(str(header), skip_single_line_comments=skip_single_line)
             all_issues.extend(issues)
-        
-        return print_check_results(all_issues, header_files)
+            diagram_issues.extend(scan_diagram_file(str(header), skip_single_line_comments=skip_single_line))
+
+        return print_check_results(all_issues, header_files, diagram_issues)
 
 
 if __name__ == '__main__':

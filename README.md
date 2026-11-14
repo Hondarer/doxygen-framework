@@ -75,10 +75,10 @@ app/example/prod/Doxyfile.part.internal # 内部仕様 (prod 全体)
 
 ## 必要なツール
 
-- Doxygen
+- Doxygen 1.17.0 以上
 - Doxybook2
 - Python 3
-- PlantUML
+- PlantUML (互換の変換経路である `@startuml` の図で使用)
 
 ## ライセンス
 

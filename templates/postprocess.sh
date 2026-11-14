@@ -361,12 +361,37 @@ process_markdown_file() {
     ' | \
     # __DETAILS_ONLY__ マーカー付き見出しブロックを詳細タグで囲む
     # extract-graphs.py が details_only=True のグラフ タイトルに付与した
-    # "__DETAILS_ONLY__" プレフィックスを検出し、その見出しと plantuml
-    # コード フェンスを <!--details:--> / <!--:details--> で囲む。
+    # "DOXYFW_DETAILS_ONLY" プレフィックスを検出し、その見出し、グラフの
+    # コード フェンス、直後の Figure: キャプション行を <!--details:--> / <!--:details--> で囲む。
+    # Figure: 行はコード フェンスの外にあるため、閉じコード フェンスの直後で閉じると
+    # キャプションだけが折り畳みの外に残る。閉じコード フェンスの後は空行を保持し、
+    # 次の空行でない行が Figure: で始まる場合は、その行の後で閉じる。
     # details.tmpl の単位項目タイトル marker は通常は **タイトル** に変換し、
     # DOXYFW_DETAILS_ONLY を持つグラフ タイトルだけは詳細タグ付き見出しに戻す。
     awk '
-    BEGIN { details_open = 0; in_fence = 0 }
+    BEGIN { details_open = 0; in_fence = 0; pending_close = 0 }
+    # 閉じコード フェンスの後で保留している <!--:details--> を出力する。
+    function close_details() {
+        print ""
+        print "<!--:details-->"
+        details_open = 0
+        pending_close = 0
+    }
+    pending_close {
+        if ($0 ~ /^[[:space:]]*$/) {
+            # 空行は出力せずに保持する (終端タグの前後の空行は close_details が出力する)
+            next
+        }
+        if ($0 ~ /^Figure:/) {
+            print ""
+            print
+            close_details()
+            next
+        }
+        close_details()
+        print ""
+        # この行は通常の行として、以降の規則で処理する
+    }
     /^#{1,6}[[:space:]]+DOXYFW_DETAILS_ONLY[[:space:]]/ {
         sub(/DOXYFW_DETAILS_ONLY /, "")
         print "<!--details:-->"
@@ -410,9 +435,7 @@ process_markdown_file() {
         if (in_fence) {
             print
             in_fence = 0
-            print ""
-            print "<!--:details-->"
-            details_open = 0
+            pending_close = 1
         } else {
             in_fence = 1
             print
@@ -420,6 +443,7 @@ process_markdown_file() {
         next
     }
     { print }
+    END { if (pending_close) close_details() }
     ' | \
     # !dunder! を __ に変換 (preprocess.sh で保護した __ を復元)
     # コード ブロックの種別に応じて変換先を切り替える。
@@ -427,6 +451,7 @@ process_markdown_file() {
     #   PlantUML では __ がアンダー ライン記法として解釈されるため、
     #   ~ (エスケープ文字) で 1 文字ずつエスケープする。
     # - 通常コード ブロック内 (cpp など): !dunder! を __ に復元
+    #   Mermaid コード ブロックもこの扱いとなり、ラベル内の __ は変換しない。
     # - コード ブロック外:
     #   - Markdown リンク URL ](url) 内: !dunder! を __ に復元 (URL 中の __ はエスケープしない)
     #   - インライン コード (`...`) 内: !dunder! を __ に復元 (エスケープ不要)
@@ -499,6 +524,8 @@ process_markdown_file() {
     #          Doxygen が型 ("int *") と変数名 ("b") を別々に XML 出力し
     #          Doxybook2 テンプレートで "int * b" のように結合されるケース。
     # コード フェンス内のみに適用し、文字列リテラル ("...") 内はスキップする。
+    # Mermaid コード フェンス内には適用しない。シーケンス図のメッセージのように、
+    # 引用符で囲まないテキストに * を含む図を書き換えないためである。
     # ※ inja の文字列末尾チェック手段がないためテンプレート側では対処不可。
     #   (at() は文字列に使用不可、split() は末尾空トークンを除去する)
     awk '

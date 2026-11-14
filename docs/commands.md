@@ -416,9 +416,47 @@ doxyfw は Doxybook2 変換前に `templates/merge-member-docs.py` を実行し�
  */
 ```
 
+## @mermaid "<caption>" ~ @endmermaid
+
+Mermaid 形式の図を表します。標準の図コマンドです。Doxygen 1.17.0 以上が必要です。
+
+キャプションは `@mermaid` の直後にダブル クォートで囲んで指定します。`@mermaid{caption="..."}` の形式は、波括弧を含む全体がキャプション文字列になるため使用しません。
+
+行頭の `*` を記載しない場合は、次の字下げを守ってください。
+
+- `@mermaid` の開始行と `@endmermaid` の終了行は、コメント本文と同じ桁に置きます。コメント本文の桁は、`*` を持つ行で `*` と後続の空白の次に来る文字の位置です。
+- 図の本文は、開始行より浅い位置に置きません。
+
+開始行がコメント本文より浅いと、Doxygen は警告を出さずに前後の `@par` の節を字下げコード ブロックとして出力します。開始行がコメント本文より深いと、図ブロック自体がコード ブロックになります。  
+この違反は `check-doxygen-indent.py` で検出できます。
+
+以下に例を示します。
+
+```c
+/**
+ *  @brief          2 つの整数を除算します。
+ *  @param[in]      a 被除数。
+ *  @param[in]      b 除数。
+ *  @return         除算結果。
+ *
+ *  Mermaid の図を挿入することができます。
+ *
+    @mermaid "除算の流れ"
+        flowchart LR
+            a[被除数] --> divide["a/b"]
+            b[除数] --> divide
+            divide --> result[除算結果]
+    @endmermaid
+ *  @warning        @p b が 0 の場合、結果は未定義です。
+ */
+double divide(int a, int b);
+```
+
 ## @startuml ~ @enduml
 
-PlantUML 形式の図を表します。
+PlantUML 形式の図を表します。互換の記法です。新規の図には `@mermaid` を使用してください。
+
+行頭の `*` を記載しない場合は、`@startuml` の開始行と `@enduml` の終了行をコメント本文と同じ桁に置き、図の本文を開始行より浅い位置に置かないでください。コメント本文の桁と違反時の出力は `@mermaid` の節と同じです。
 
 以下のように記載すると、[PlantUML プラグイン](https://marketplace.visualstudio.com/items?itemName=jebbs.plantuml) のプレビュー機能も活用できます。
 
