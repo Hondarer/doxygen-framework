@@ -251,6 +251,7 @@ class GitUrlResolver:
                 ["git", "-C", str(self.source_dir), *args],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         except OSError:
             return ""
@@ -266,6 +267,7 @@ class GitUrlResolver:
                 ["git", "-C", self.repo, *args],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         except OSError:
             return ""
@@ -367,6 +369,7 @@ class GitUrlResolver:
                 ["git", "-C", self.repo, "ls-files", "--error-unmatch", "--", rel],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         except OSError:
             return False
@@ -380,6 +383,7 @@ class GitUrlResolver:
                 ["git", "-C", self.repo, "check-ignore", "-q", "--", rel],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         except OSError:
             return False
@@ -1424,6 +1428,7 @@ def collect_git_info(source_dir: Optional[Path]) -> str:
                 ["git", "-C", str(source_dir), *args],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         except OSError:
             return None

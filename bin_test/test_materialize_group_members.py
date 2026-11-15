@@ -304,6 +304,7 @@ XML_OUTPUT = xml
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
         generated_xml_dir = self.xml_dir / "xml"
 
@@ -329,6 +330,7 @@ XML_OUTPUT = xml
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
         file_md = (docs_dir / "Files" / "sample_8c.md").read_text(encoding="utf-8")
         self.assertIn("### SAMPLE_MACRO", file_md)

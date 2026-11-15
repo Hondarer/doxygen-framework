@@ -142,14 +142,17 @@ REFERENCES_RELATION    = YES
 
 | グラフ種別 | Mermaid の宣言 | 矢印 | 配置 |
 |---|---|---|---|
-| インクルード依存 (`incdepgraph`) | `flowchart TD` | `-->` | XML の `node` から `childnode` への向きを逆にして出力し、対象ファイルを下に配置します |
-| 被インクルード関係 (`invincdepgraph`) | `flowchart TD` | `-->` | XML の `node` から `childnode` への向きのまま出力します |
+| インクルード依存 (`incdepgraph`) | `flowchart TD` | `-->` | XML のエッジ (対象 → インクルードされるファイル) の向きのまま出力し、対象ファイルを上に配置します |
+| 被インクルード関係 (`invincdepgraph`) | `flowchart BT` | `-->` | XML のエッジ (対象 → インクルードする側) を逆にして出力し、対象ファイルを上に配置します |
 | 継承関係 (`inheritancegraph`) | `flowchart BT` | `-->` | 派生から基底へ向け、基底を上に配置します |
 | コラボレーション図 (`collaborationgraph`) | `flowchart TD` | `usage` は `-.->`、それ以外は `-->` | XML の `node` から `childnode` への向きのまま出力します |
 | コールグラフ (`references`) | `flowchart TD` | `-->` | 呼び出し元から呼び出し先へ向けます |
 | 呼び出し元グラフ (`referencedby`) | `flowchart TD` | `-->` | 呼び出し元から呼び出し先へ向けます |
 
 Table: グラフ種別ごとの Mermaid の宣言と矢印
+
+2 種類のインクルード グラフは、Doxygen HTML と同じく「インクルードする側 → インクルードされる側」の矢印で対象ファイルを上に配置します。  
+`invincdepgraph` の XML は対象からインクルードする側へのエッジを持つため、出力時にエッジの向きを逆にします。
 
 ### ノード ID とラベル
 
@@ -208,7 +211,7 @@ Figure: add の呼び出し元
 ### インクルード依存グラフ
 
 `calculator.c` が `calculator.h` と `stdio.h` をインクルードする場合、次の Mermaid が生成されます。  
-エッジを逆向きに出力するため、対象の `calculator.c` は図の下に配置されます。
+XML の向きのまま `flowchart TD` で出力し、対象の `calculator.c` を図の上に配置します。
 
 ```mermaid
 flowchart TD
@@ -216,11 +219,26 @@ flowchart TD
     n1["calculator.h"]
     n2["stdio.h"]
     style n0 fill:#ADD8E6,stroke:#333,font-weight:bold
-    n1 --> n0
-    n2 --> n0
+    n0 --> n1
+    n0 --> n2
 ```
 
-Figure: calculator.c のインクルード元
+Figure: calculator.c のインクルード依存関係
+
+### 被インクルード関係グラフ
+
+`calculator_internal.h` が `calculator.h` をインクルードする場合、次の Mermaid が生成されます。  
+XML のエッジを逆向きにし、`flowchart BT` で対象の `calculator.h` を図の上に配置します。
+
+```mermaid
+flowchart BT
+    n0["calculator.h"]
+    n1["calculator_internal.h"]
+    style n0 fill:#ADD8E6,stroke:#333,font-weight:bold
+    n1 --> n0
+```
+
+Figure: calculator.h の被インクルード依存関係
 
 ### コラボレーション図
 
@@ -308,8 +326,8 @@ compound レベルのグラフ (インクルード依存図など) は、`conten
 
 | グラフ種別 | 見出し | キャプションの例 |
 |---|---|---|
-| インクルード依存 (`incdepgraph`) | `インクルード元` | `calculator.c のインクルード元` |
-| 被インクルード関係 (`invincdepgraph`) | `インクルード先` | `calculator.h のインクルード先` |
+| インクルード依存 (`incdepgraph`) | `インクルード依存関係` | `calculator.c のインクルード依存関係` |
+| 被インクルード関係 (`invincdepgraph`) | `被インクルード依存関係` | `calculator.h の被インクルード依存関係` |
 | 継承関係 (`inheritancegraph`) | `継承関係` | `Derived の継承関係` |
 | コラボレーション図 (`collaborationgraph`) | `コラボレーション図` | `UserInfo のコラボレーション図` |
 | 呼び出し元グラフ (`referencedby`) | `呼び出し元` | `add の呼び出し元` |

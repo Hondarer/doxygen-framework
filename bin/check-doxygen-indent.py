@@ -459,7 +459,8 @@ def fix_file(filepath, dry_run=False, skip_single_line_comments=True):
     
     # 修正が必要な場合は、ファイルに書き込み (dry_run でない場合)
     if modified and not dry_run:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        # リポジトリの改行規則 (LF) に合わせ、Windows で CRLF にしないため newline='\n' を指定する
+        with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
             f.writelines(lines)
     
     return modified, modifications

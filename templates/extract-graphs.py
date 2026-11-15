@@ -8,7 +8,7 @@ Doxygen が生成した XML ファイルを解析し、次のグラフ情報を 
 XML の detaileddescription セクションに <mermaid> タグとして挿入する。
 
 - インクルード依存グラフ (incdepgraph)
-- 逆インクルード依存グラフ (invincdepgraph)
+- 被インクルード関係グラフ (invincdepgraph)
 - 継承グラフ (inheritancegraph)
 - コラボレーション図 (collaborationgraph)
 - コールグラフ (references)
@@ -587,11 +587,12 @@ def graph_to_mermaid(nodes, edges, first_node_id=None, reverse_edges=False,
         nodes: {node_id: label} のノード辞書
         edges: [(from_id, to_id, relation)] のエッジリスト
         first_node_id: 強調表示するノードの ID (対象要素自身)
-        reverse_edges: True の場合、エッジを dst --> src と出力する。
-                       エッジ方向を逆にすることで「依存ヘッダ → 対象」の矢印方向となり、
-                       対象が flowchart TD の末尾 (下) に配置される。
-        direction: flowchart の向き。継承グラフでは 'BT' を指定し、
-                   派生 --> 基底 の矢印で基底を上に配置する。
+        reverse_edges: True の場合、エッジを dst --> src の向きに反転して出力する。
+                       XML 上のエッジの向きと、図で表現したい矢印の向きが逆のグラフ
+                       (Doxygen HTML の描画向きに合わせる場合など) で指定する。
+        direction: flowchart の向き ('TD' または 'BT')。
+                   'BT' を指定すると下から上へ描画され、矢印の終点側が上に配置される。
+                   継承グラフや被インクルード関係グラフでは 'BT' を指定する。
 
     Returns:
         Mermaid テキスト。
@@ -611,7 +612,7 @@ def graph_to_mermaid(nodes, edges, first_node_id=None, reverse_edges=False,
     for src_id, dst_id, relation in valid_edges:
         arrow = '-.->' if relation == 'usage' else '-->'
         if reverse_edges:
-            # エッジ方向を逆にする (dst --> src) ことで対象を末尾に配置する
+            # XML の向きとは逆に (dst --> src) 出力する
             mermaid_edges.append((dst_id, src_id, arrow))
         else:
             mermaid_edges.append((src_id, dst_id, arrow))
@@ -951,9 +952,8 @@ def inject_compound_graphs(xml_text):
                 display_name = _path_basename(compound_fullname)
 
             # インクルード依存グラフ
-            # reverse_edges=True により次を実現する。
-            # - エッジを dst --> src と出力し「依存ヘッダー → 対象」の矢印方向にする
-            # - 対象が flowchart TD の末尾 (下) に配置される
+            # Doxygen HTML の向きに合わせ、XML の向き (対象 → インクルードされるファイル) のまま
+            # flowchart TD で出力し、対象を上に配置する
             graphs = parse_graph_nodes(content, 'incdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
@@ -962,27 +962,31 @@ def inject_compound_graphs(xml_text):
                 inc_self_id = self_id if not display_name.lower().endswith('.h') else None
                 nodes, edges = filter_header_only_graph(nodes, edges, self_id=inc_self_id)
                 display_nodes = build_file_graph_display_nodes(nodes)
-                heading = 'インクルード元'
+                heading = 'インクルード依存関係'
                 caption = f'{display_name} の{heading}'
                 body = graph_to_mermaid(
                     display_nodes, edges,
-                    first_node_id=self_id,
-                    reverse_edges=True
+                    first_node_id=self_id
                 )
                 if body:
                     injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["incdepgraph"]))
 
-            # 逆インクルード依存グラフ
+            # 被インクルード関係グラフ
+            # Doxygen の XML では対象ノードが「対象をインクルードする側」を childnode に持つ。
+            # Doxygen HTML と同じく「インクルードする側 → 対象」の矢印で対象を上に配置するため、
+            # reverse_edges=True でエッジを反転し、direction='BT' で下から上へ描画する
             graphs = parse_graph_nodes(content, 'invincdepgraph')
             for nodes, edges in graphs:
                 self_id = find_self_node(nodes, compound_fullname)
                 nodes, edges = filter_header_only_graph(nodes, edges)
                 display_nodes = build_file_graph_display_nodes(nodes)
-                heading = 'インクルード先'
+                heading = '被インクルード依存関係'
                 caption = f'{display_name} の{heading}'
                 body = graph_to_mermaid(
                     display_nodes, edges,
-                    first_node_id=self_id
+                    first_node_id=self_id,
+                    reverse_edges=True,
+                    direction='BT'
                 )
                 if body:
                     injections.append((heading, body, caption, GRAPH_DETAILS_ONLY["invincdepgraph"]))

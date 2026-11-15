@@ -242,6 +242,28 @@ class CheckDoxygenIndentDiagramTest(unittest.TestCase):
         # * を持つ行の字下げは修正し、図ブロックは書き換えない
         self.assertEqual(fixed, text.replace("  *  @brief", "     *  @brief"))
 
+    def test_fix_mode_preserves_lf_line_endings(self):
+        text = make_header([]).replace("     *  @brief", "  *  @brief")
+        expected = text.replace("  *  @brief", "     *  @brief")
+        self.write_header(text)
+
+        result = self.run_script("--fix")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.header.read_bytes(), expected.encode("utf-8"))
+
+    def test_fix_mode_rewrites_crlf_input_with_lf_only(self):
+        text = make_header([]).replace("     *  @brief", "  *  @brief")
+        expected = text.replace("  *  @brief", "     *  @brief")
+        self.header.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+
+        result = self.run_script("--fix")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        actual = self.header.read_bytes()
+        self.assertNotIn(b"\r\n", actual)
+        self.assertEqual(actual, expected.encode("utf-8"))
+
     def test_dry_run_mode_reports_diagram_block_without_rewriting(self):
         text = make_header([
             "            @startuml サンプルの図",

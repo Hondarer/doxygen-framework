@@ -277,30 +277,34 @@ def member_xml(func_id, name, body_file, references=(), referencedby=()):
 
 
 class InjectCompoundGraphsTest(unittest.TestCase):
-    def test_incdepgraph_inserts_include_source_section(self):
+    def test_incdepgraph_inserts_include_dependency_section(self):
         graph = graph_xml("incdepgraph", [
             ("1", "inc/a.h", [("2", "include")]),
             ("2", "inc/b.h", []),
         ])
         out = eg.inject_compound_graphs(file_compound_xml("a_8h", "inc/a.h", graph))
-        self.assertIn("<title>DOXYFW_DETAILS_ONLY インクルード元</title>", out)
-        self.assertIn('caption="a.h のインクルード元"', out)
+        self.assertIn("<title>DOXYFW_DETAILS_ONLY インクルード依存関係</title>", out)
+        self.assertIn('caption="a.h のインクルード依存関係"', out)
         self.assertIn("flowchart TD", out)
-        # 逆向きのエッジで、対象 (n0) が下流になる
-        self.assertIn("n1 --&gt; n0", out)
+        # XML の向きのまま、対象 (n0) からの矢印にする
+        self.assertIn("n0 --&gt; n1", out)
         self.assertIn("style n0 ", out)
         self.assertNotIn("<plantuml", out)
 
-    def test_invincdepgraph_inserts_include_destination_section(self):
-        # invincdepgraph はエッジの向きを保つ (a.h を include する側が子)
+    def test_invincdepgraph_inserts_included_by_dependency_section(self):
+        # Doxygen XML の invincdepgraph は、対象 (a.h) の node が
+        # a.h を include する側 (user.h) を childnode に持つ
         graph = graph_xml("invincdepgraph", [
-            ("1", "inc/a.h", []),
-            ("2", "inc/user.h", [("1", "include")]),
+            ("1", "inc/a.h", [("2", "include")]),
+            ("2", "inc/user.h", []),
         ])
         out = eg.inject_compound_graphs(file_compound_xml("a_8h", "inc/a.h", graph))
-        self.assertIn("<title>DOXYFW_DETAILS_ONLY インクルード先</title>", out)
-        self.assertIn('caption="a.h のインクルード先"', out)
+        self.assertIn("<title>DOXYFW_DETAILS_ONLY 被インクルード依存関係</title>", out)
+        self.assertIn('caption="a.h の被インクルード依存関係"', out)
+        self.assertIn("flowchart BT", out)
+        # エッジを逆にして対象 (n0) への矢印にする
         self.assertIn("n1 --&gt; n0", out)
+        self.assertIn("style n0 ", out)
         self.assertNotIn("<plantuml", out)
 
     def test_inheritancegraph_inserts_bt_flowchart(self):
@@ -440,7 +444,9 @@ class MainIntegrationTest(unittest.TestCase):
             source = (xml_dir / "a_8c.xml").read_text(encoding="utf-8")
             klass = (xml_dir / "classDerived.xml").read_text(encoding="utf-8")
 
-            self.assertIn('caption="a.h のインクルード元"', header)
+            self.assertIn('caption="a.h のインクルード依存関係"', header)
+            self.assertIn("flowchart TD", header)
+            self.assertIn("n0 --&gt; n1", header)
             self.assertIn('caption="target の呼び出し先"', source)
             self.assertIn('caption="target の呼び出し元"', source)
             self.assertIn('caption="Derived の継承関係"', klass)

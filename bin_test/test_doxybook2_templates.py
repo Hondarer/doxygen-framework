@@ -76,6 +76,7 @@ XML_OUTPUT = xml
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
             )
             docs_dir = work_dir / "docs"
             docs_dir.mkdir()
@@ -95,6 +96,7 @@ XML_OUTPUT = xml
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
             )
 
             group_md = (
