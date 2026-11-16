@@ -30,34 +30,6 @@ async function newReportPage(browser, url, errors, options) {
   await page.evaluateOnNewDocument((opts) => {
     window.__DEP_REPORT_TEST__ = true;
     window.__copiedText = null;
-    window.__pageVariantReads = [];
-    window.__storageAccessErrors = [];
-    const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
-    if (storageDescriptor && storageDescriptor.configurable && storageDescriptor.get) {
-      Object.defineProperty(window, 'localStorage', {
-        ...storageDescriptor,
-        get() {
-          try {
-            return storageDescriptor.get.call(this);
-          } catch (error) {
-            window.__storageAccessErrors.push({ error: String(error), readyState: document.readyState });
-            throw error;
-          }
-        }
-      });
-    }
-    const getItem = Storage.prototype.getItem;
-    Storage.prototype.getItem = function (key) {
-      if (key !== 'doxyfw-dependency-page-variant') return getItem.call(this, key);
-      try {
-        const value = getItem.call(this, key);
-        window.__pageVariantReads.push({ value, readyState: document.readyState });
-        return value;
-      } catch (error) {
-        window.__pageVariantReads.push({ error: String(error), readyState: document.readyState });
-        throw error;
-      }
-    };
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: (text) => { window.__copiedText = text; return Promise.resolve(); } },
       configurable: true
@@ -66,6 +38,9 @@ async function newReportPage(browser, url, errors, options) {
       Object.defineProperty(navigator, 'language', { value: opts.language, configurable: true });
     }
   }, options || {});
+  // clearVariant は、保存値が残っている状態で開くページにだけ指定する。
+  // 起動直後のブラウザーで文書の開始時に removeItem を実行すると、その後に保存した値が
+  // 再読み込みで失われる場合がある (Chrome 153 で、CPU の負荷が高いときに確認)。
   // 保存値の削除は初回だけ行い、再読み込み時には実行しない。
   let clearScript;
   if (options && options.clearVariant) {
@@ -73,7 +48,7 @@ async function newReportPage(browser, url, errors, options) {
       try {
         window.localStorage.removeItem('doxyfw-dependency-page-variant');
       } catch (err) {
-        window.__pageVariantClearError = String(err);
+        // localStorage が使えない環境では何もしない
       }
     });
   }
@@ -81,33 +56,6 @@ async function newReportPage(browser, url, errors, options) {
   await page.waitForFunction(() => window.depReportOverviewTestApi, { timeout: 15000 });
   if (clearScript) await page.removeScriptToEvaluateOnNewDocument(clearScript.identifier);
   return page;
-}
-
-function pageVariantDiagnostics(page) {
-  return page.evaluate(() => {
-    const reads = window.__pageVariantReads.slice();
-    const storageAccessErrors = window.__storageAccessErrors.slice();
-    let storedValue = null;
-    let storageError = null;
-    try {
-      storedValue = window.localStorage.getItem('doxyfw-dependency-page-variant');
-    } catch (error) {
-      storageError = String(error);
-    }
-    const checked = document.querySelector('#pageVariantOptions .checked');
-    const link = document.querySelector('#detail a[target="doxyfw-dependency-page"]');
-    return {
-      url: location.href,
-      language: navigator.language,
-      reads,
-      storageAccessErrors,
-      storedValue,
-      storageError,
-      clearError: window.__pageVariantClearError || null,
-      checkedVariant: checked ? checked.getAttribute('data-page-variant') : null,
-      href: link ? link.getAttribute('href') : null
-    };
-  });
 }
 
 function pageLinkHref(page) {
@@ -124,7 +72,8 @@ async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) 
   const withPageUrl = reportUrl(withPagePath);
   try {
     // 1-3, 5: page 対応レポート (ja 環境、localStorage 未保存の状態から開始)
-    const page = await newReportPage(browser, withPageUrl, errors, { language: 'ja-JP', clearVariant: true });
+    // 起動直後のブラウザーには保存値がないため、clearVariant を指定しない。
+    const page = await newReportPage(browser, withPageUrl, errors, { language: 'ja-JP' });
     await page.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
     await sleep(200);
     const hrefJa = await pageLinkHref(page);
@@ -165,7 +114,6 @@ async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) 
     });
 
     // 3a. 同じページを再読み込みしても ja-details が維持される。
-    const beforeReload = await pageVariantDiagnostics(page);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => window.depReportOverviewTestApi, { timeout: 15000 });
     await page.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
@@ -174,7 +122,6 @@ async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) 
       { timeout: 15000 }
     );
     const hrefAfterReload = await pageLinkHref(page);
-    const afterReload = await pageVariantDiagnostics(page);
 
     // 3b. ページを閉じた後、別ページで開いても ja-details が維持される。
     await page.close();
@@ -182,7 +129,6 @@ async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) 
     await pageReopen.evaluate((id) => window.depReportOverviewTestApi.selectFunction(id), functionId);
     await sleep(200);
     const hrefAfterReopen = await pageLinkHref(pageReopen);
-    const afterReopen = await pageVariantDiagnostics(pageReopen);
     await pageReopen.close();
 
     // 4. localStorage 未保存の en 環境では既定が en (通常)
@@ -237,12 +183,6 @@ async function run(withPagePath, withoutPagePath, livedocsPagePath, functionId) 
       copyText: copyText ? copyText.slice(0, 2000) : null,
       hrefAfterReload,
       hrefAfterReopen,
-      pageVariantDiagnostics: {
-        browserVersion: await browser.version(),
-        beforeReload,
-        afterReload,
-        afterReopen
-      },
       hrefEnDefault,
       hrefWithoutTemplate,
       settingsVisibleWithout,
