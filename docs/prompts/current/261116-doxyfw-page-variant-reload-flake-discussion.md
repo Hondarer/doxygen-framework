@@ -4,7 +4,7 @@
 最終更新日時: 2026-11-16 17:59:48 JST
 最終更新エージェント: claude code / セッション ID: session_01KJc53SqgNC8iDAi6rvzgwh (版 1 は session_01KJc53UbHjwaWeuucBs5Q5U が Windows で作成)
 稼働 OS: Linux (WSL)
-上流文書: `../../../../../app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md` (対策元の残課題一覧。BL-003 が対象)
+上流文書: `../../../../../app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md` (対策元の残課題一覧。BL-003 が対象)
 下流文書: `261116-doxyfw-page-variant-reload-flake-design.md` (最終仕様)、`261116-doxyfw-page-variant-reload-flake-backlog.md` (残課題一覧)。未作成の場合や、削除されている場合があります。
 再開手順: このファイルを開いたエージェントは、作業の前に agree-before-implement スキルを読み込んでください。ユーザーが編集した最新版を読み直し、作業 WBS の `← **CURRENT**` の項目から再開します。最終更新エージェントのセッション情報や稼働 OS・最終更新日時が参照可能であれば再開時のコンテキストや環境差分の把握に利用し、別エージェントや別環境・別 OS からの引き継ぎ、担当変更によりセッションが見つからない場合も異常とせず、文書の記載から継続してください。`← **CURRENT**` の項目は処理が中止された項目である場合があり、どこまで進んでいたかは文書だけでは分かりません。対象成果物の内容を確認して実施済みの範囲を特定してから、作業を再開してください。`← **CURRENT**` がなく、作業 WBS がすべて完了 (✅) であれば、この案件の合意フローは完了しています。
 -->
@@ -24,7 +24,7 @@
 ## 作業 WBS と進捗管理
 
 この検討用 Markdown が管理する作業 WBS です。  
-対策元の残課題一覧 (`app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md`) の BL-003 を対象とし、進行の各段階で対策元の状態と経緯も更新します。  
+対策元の残課題一覧 (`app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md`) の BL-003 を対象とし、進行の各段階で対策元の状態と経緯も更新します。  
 項目 4 の内容は、[Q-004](#q-004-最初のページの削除指定を外す修正の採否)、[Q-005](#q-005-診断出力の追加の要否)、[Q-006](#q-006-修正後の検証の担当と方法-wsl)、[Q-007](#q-007-chrome-内部の原因の追究の扱い)、[Q-008](#q-008-前回の調査で追加した診断出力の削除範囲) の回答で見直します。
 
 凡例: ⏸️ 未着手、🔄 実施中、🚫 ブロック中、⚠️ 要注意、✅ 完了。現在取り組んでいる項目の末尾に `← **CURRENT**` を付けます。
@@ -67,7 +67,7 @@
 
 参照資料と版:
 
-- 対策元の残課題一覧: `app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md` の BL-003
+- 対策元の残課題一覧: `app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md` の BL-003
 - 過去の記録: `app/general/docs/prompts/past/261111-ci-time-backlog-followup-backlog.md` の BL-006 (run 42978073210 の同じテストの失敗。原因不明として閉じた)
 - doxyfw: `2c887ff` (版 1 の時点の作業ツリー。版 2 の時点は `1b9f8ea` で、差分はこの検討用 Markdown の追加だけ)
     - `framework/doxyfw/bin_test/page_link_probe.js`
@@ -578,7 +578,7 @@ A の選択を確認しました。推奨案と同じです。`pageVariantDiagno
 
 - `framework/doxyfw/bin_test/page_link_probe.js` (変更)
 - `framework/doxyfw/docs/prompts/current/261116-doxyfw-page-variant-reload-flake-backlog.md` (残課題一覧)
-- `app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md` の BL-003 の行と節 (対策元の状態と経緯の更新)
+- `app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md` の BL-003 の行と節 (対策元の状態と経緯の更新)
 
 受入条件: 最終仕様の「受入条件」に記載しました。根拠は [Q-004](#q-004-最初のページの削除指定を外す修正の採否)、[Q-006](#q-006-修正後の検証の担当と方法-wsl)、[Q-007](#q-007-chrome-内部の原因の追究の扱い)、[Q-008](#q-008-前回の調査で追加した診断出力の削除範囲) です。
 
@@ -590,7 +590,7 @@ A の選択を確認しました。推奨案と同じです。`pageVariantDiagno
 
 - `framework/doxyfw/bin_test/page_link_probe.js`: 最初に開くページの `clearVariant: true` を外し、理由のコメントを追加しました。`1144ce6` で追加した診断出力をすべて削除しました (追加 6 行、削除 66 行)。レビューで、長いコメント 1 行を 2 行に折り返しました。
 - `framework/doxyfw/docs/prompts/current/261116-doxyfw-page-variant-reload-flake-backlog.md`: BL-001 (Chrome の内部の原因が未確認) を記録し、整理しました。
-- `app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md`: BL-003 の行と節を「対応済み」に更新し、メタ情報の「下流文書」に最終仕様と残課題一覧のパスを追記しました。最終更新日時と最終更新エージェントは変更していません。
+- `app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md`: BL-003 の行と節を「対応済み」に更新し、メタ情報の「下流文書」に最終仕様と残課題一覧のパスを追記しました。最終更新日時と最終更新エージェントは変更していません。
 
 受入条件の確認結果:
 

@@ -126,4 +126,4 @@ CI での確認は、ユーザーの指示でコミットとプッシュをし�
 3. `page_link_probe.js` の最初のページを開く呼び出しに `clearVariant` がなく、英語環境のページと動的発行のページの呼び出しには `clearVariant: true` がある。
 4. `test_generate_dependency_report.py` と `generate-dependency-report.py` に差分がない。
 5. 変更した Markdown が、`text_style_jp.py --dry-run` で指摘なしになる。
-6. 残課題一覧に Chrome の内部の原因の追究が記録され、対策元の残課題一覧 (`app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md`) の BL-003 に、対処の内容と確認結果が記録されている。
+6. 残課題一覧に Chrome の内部の原因の追究が記録され、対策元の残課題一覧 (`app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md`) の BL-003 に、対処の内容と確認結果が記録されている。

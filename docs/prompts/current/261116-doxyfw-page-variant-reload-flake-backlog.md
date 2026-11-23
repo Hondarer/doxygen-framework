@@ -48,4 +48,4 @@
 ### 推奨される対応策
 
 - **恒久対応案**: 最小の再現手順 (1 回ごとにブラウザーを起動し、文書の開始時に `removeItem` を実行してから保存と再読み込みを行う) を使い、Chrome の版、ページの種類 (`file://` と `http://`)、削除の時点 (文書の開始時と読み込みの完了後) を変えて、発生する条件の範囲を調べます。Chromium の不具合報告を検索し、該当があれば `page_link_probe.js` のコメントへ `see: <URL>` を追加します。該当がなければ、報告するかを判断します。
-- **参考情報**: `framework/doxyfw/bin_test/page_link_probe.js` の `newReportPage()`。対策元の残課題一覧 `app/porter/docs/prompts/current/261115-porter-multicast-src-contract-backlog.md` の BL-003。
+- **参考情報**: `framework/doxyfw/bin_test/page_link_probe.js` の `newReportPage()`。対策元の残課題一覧 `app/porter/docs/prompts/past/261115-porter-multicast-src-contract-backlog.md` の BL-003。
