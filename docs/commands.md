@@ -1033,3 +1033,18 @@ int exampleFunction(int param1) {
     return 0;
 }
 ```
+
+### コード スパンの末尾文字に関する注意
+
+Doxygen 1.12.0 以降では、インライン コード スパンの末尾が奇数個のバックスラッシュ (例: `` `\\?\` ``) だと、Doxygen が直後へ挿入する内部コマンド `\endiskip` と結合し、出力に `endiskip` が残ります。  
+`` `\\?\C:\...` `` のように後ろへ文字を続けて、奇数個のバックスラッシュで終わらない例を記載してください。
+
+### 既存の検査コマンド一覧
+
+| コマンド | 検査内容 | 詳細 |
+| --- | --- | --- |
+| `check-doxygen-indent.py` | コメント ブロックと図ブロックの字下げ統一 | [check-doxygen-indent.md](check-doxygen-indent.md) |
+| `check-doxygen-separators.py` | `@file` 以外のセパレータ行検出 | - |
+| `check-doxygen-code-span-backslash.py` | 末尾のバックスラッシュが奇数個のコード スパン検出 | [check-doxygen-code-span-backslash.md](check-doxygen-code-span-backslash.md) |
+
+Table: Doxygen コメントの検査コマンド一覧

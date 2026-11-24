@@ -58,3 +58,38 @@ Doxygen コメントへ記述する図は、次の規範に従います。
 
 開始行がコメント本文より浅いと、Doxygen は警告を出さずに前後の `@par` の節を字下げコード ブロックとして出力します。開始行がコメント本文より深いと、図ブロック自体がコード ブロックになります。  
 この字下げの違反は、[Doxygen コメント字下げレベル チェック・修正コマンド](check-doxygen-indent.md) (`check-doxygen-indent.py`) で検出できます。検出だけを行い、図ブロックは書き換えません。
+
+### コード スパン末尾のバックスラッシュと内部コマンド iskip / endiskip
+
+Doxygen 1.12.0 以降では、`\verbatim`、`<code>`、バッククォートのコード スパンなど、字面どおりの本文を含む要素を処理する際、字下げ判定用の空白評価を一時停止するために内部コマンド `\iskip` と `\endiskip` を挿入します (`see: https://doxygen.github.io/doxygen-docs/d6/d57/pg_cmds_int.html`)。
+
+コード スパンの末尾が奇数個のバックスラッシュで終わると、Doxygen が直後へ挿入する `\endiskip` の先頭の `\` と対になり、`\\` と文字列 `endiskip` が XML と Doxybook2 の生成 Markdown へ漏れます。  
+Doxygen 1.18.0 に最小入力を与えた検証 (手順 1) の結果は次のとおりです。
+
+| 事例 | コメントの記載 | XML の `<detaileddescription>` | 結果 |
+| --- | --- | --- | --- |
+| C1 | `` `\\?\` `` | `\\?\\endiskip` | `endiskip` が漏れる |
+| C2 | `` `\\.\` `` | `\\.\\endiskip` | `endiskip` が漏れる |
+| C3 | `` `\\?\x` `` | `\\?\x` | 漏れない |
+| C4 | `` `a\` `` | `a\\endiskip` | `endiskip` が漏れる |
+| C5 | `` `\\` `` | `\\` | 漏れない (末尾の `\` が偶数個) |
+| C6 | `` `/` と `\\` `` | `/` と `\\` | 漏れない (末尾の `\` が偶数個) |
+| C7 | `<code>\\?\</code>` | `\?&lt;/code&gt;` | 漏れないが `</code>` 不足の警告が出て元の記載を保てない |
+| C8 | `@c \\?\` | `<computeroutput>\</computeroutput>?\` | 漏れないが先頭の `\` だけがコードになり元の記載を保てない |
+
+Table: コード スパン末尾のバックスラッシュに対する Doxygen 1.18.0 の検証結果
+
+この結果を踏まえ、Doxygen コメントではコード スパンの末尾を奇数個のバックスラッシュにしないでください。  
+拡張パス接頭辞などを示す場合は、`` `\\?\C:\...` `` や `` `\\.\...` `` のように後ろへ文字を続けて記述します。`check-doxygen-code-span-backslash.py` で再発を検出できます。
+
+## 既存の検査コマンド一覧
+
+Doxygen コメントの記述規約を確認するために、次の検査コマンドを `framework/doxyfw/bin/` に配置しています。
+
+| コマンド | 検査内容 | 文書 |
+| --- | --- | --- |
+| `check-doxygen-indent.py` | コメント ブロックと図ブロックの字下げ統一 | [Doxygen コメント字下げレベル チェック・修正コマンド](check-doxygen-indent.md) |
+| `check-doxygen-separators.py` | `@file` 以外の Doxygen コメントのセパレータ行検出 | - |
+| `check-doxygen-code-span-backslash.py` | 末尾のバックスラッシュが奇数個のコード スパン検出 | [Doxygen コード スパン末尾バックスラッシュ検査コマンド](check-doxygen-code-span-backslash.md) |
+
+Table: `framework/doxyfw/bin/` の検査コマンド一覧

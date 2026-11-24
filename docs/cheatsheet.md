@@ -729,6 +729,21 @@ int globalLibraryInit(const GlobalConfig *config);
 - 「内部に共有状態を持ちません」など、真のスレッド セーフ関数に対する不要な補足は避けます。
 - 「マルチスレッド セーフ」「リエントラント」などの語を断り書きなしで使うと読み手が解釈に揺れるため、分類名で統一します。
 
+### インライン コード スパンの末尾バックスラッシュ
+
+インライン コード スパンの末尾が奇数個のバックスラッシュ (例: `` `\\?\` ``) になると、Doxygen 1.12.0 以降が内部で挿入する `\endiskip` と結合して出力に `endiskip` が漏れます。  
+`` `\\?\C:\...` `` や `` `\\.\...` `` のように、末尾のバックスラッシュの後ろへ文字を続けて記述してください。`check-doxygen-code-span-backslash.py` で検出できます。
+
+## 既存の検査コマンド一覧
+
+| コマンド | 検査内容 | 詳細 |
+| --- | --- | --- |
+| `check-doxygen-indent.py` | コメント ブロックと図ブロックの字下げ統一 | [check-doxygen-indent.md](check-doxygen-indent.md) |
+| `check-doxygen-separators.py` | `@file` 以外のセパレータ行検出 | - |
+| `check-doxygen-code-span-backslash.py` | 末尾のバックスラッシュが奇数個のコード スパン検出 | [check-doxygen-code-span-backslash.md](check-doxygen-code-span-backslash.md) |
+
+Table: Doxygen コメントの検査コマンド一覧
+
 ## 他の参考サイト
 
 - [実践で使える! Doxygen コメント完全ガイド 2024 – 明日から使えるベスト プラクティス 10 選](https://dexall.co.jp/articles/?p=1917)
