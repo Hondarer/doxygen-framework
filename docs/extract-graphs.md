@@ -40,30 +40,30 @@ Figure: グラフ抽出を含むドキュメント生成パイプライン
 
 ### ファイル レベルのグラフ
 
+Table: ファイル レベルのグラフ種別と XML ソース要素
+
 | グラフ種別 | XML ソース要素 | 説明 |
 |---|---|---|
 | インクルード依存 | `incdepgraph` | 対象ファイルがインクルードしているファイルの関係を示します |
 | 被インクルード関係 | `invincdepgraph` | 対象ファイルをインクルードしているファイルの関係を示します |
 
-Table: ファイル レベルのグラフ種別と XML ソース要素
-
 ### クラス/構造体レベルのグラフ
+
+Table: クラスおよび構造体レベルのグラフ種別と XML ソース要素
 
 | グラフ種別 | XML ソース要素 | 説明 |
 |---|---|---|
 | 継承関係 | `inheritancegraph` | クラスの継承階層を示します |
 | コラボレーション図 | `collaborationgraph` | クラス/構造体のメンバー型の関連を示します |
 
-Table: クラスおよび構造体レベルのグラフ種別と XML ソース要素
-
 ### 関数レベルのグラフ
+
+Table: 関数レベルのグラフ種別と XML ソース要素
 
 | グラフ種別 | XML ソース要素 | 説明 |
 |---|---|---|
 | コールグラフ | `references` | 対象関数が呼び出す関数を示します |
 | 呼び出し元グラフ | `referencedby` | 対象関数を呼び出す関数を示します |
-
-Table: 関数レベルのグラフ種別と XML ソース要素
 
 ## Doxygen XML のグラフ データ構造
 
@@ -93,6 +93,8 @@ Table: 関数レベルのグラフ種別と XML ソース要素
 
 `relation` 属性の値と Mermaid の矢印の対応は次のとおりです。
 
+Table: relation 属性値と Mermaid の矢印の対応
+
 | relation 値 | 意味 | Mermaid の矢印 |
 |---|---|---|
 | `include` | インクルード関係 | `-->` |
@@ -100,8 +102,6 @@ Table: 関数レベルのグラフ種別と XML ソース要素
 | `public-inheritance` | public 継承 | `-->` |
 | `protected-inheritance` | protected 継承 | `-->` |
 | `private-inheritance` | private 継承 | `-->` |
-
-Table: relation 属性値と Mermaid の矢印の対応
 
 `usage` だけを破線の矢印 `-.->` で表し、それ以外の値はすべて実線の矢印 `-->` で表します。  
 継承は矢印の形では区別せず、`flowchart BT` の宣言によって基底クラスを上に配置します。
@@ -140,6 +140,8 @@ REFERENCES_RELATION    = YES
 
 すべてのグラフ種別を `flowchart` で出力します。宣言の向きと矢印は、グラフ種別ごとに次のとおりです。
 
+Table: グラフ種別ごとの Mermaid の宣言と矢印
+
 | グラフ種別 | Mermaid の宣言 | 矢印 | 配置 |
 |---|---|---|---|
 | インクルード依存 (`incdepgraph`) | `flowchart TD` | `-->` | XML のエッジ (対象 → インクルードされるファイル) の向きのまま出力し、対象ファイルを上に配置します |
@@ -148,8 +150,6 @@ REFERENCES_RELATION    = YES
 | コラボレーション図 (`collaborationgraph`) | `flowchart TD` | `usage` は `-.->`、それ以外は `-->` | XML の `node` から `childnode` への向きのまま出力します |
 | コールグラフ (`references`) | `flowchart TD` | `-->` | 呼び出し元から呼び出し先へ向けます |
 | 呼び出し元グラフ (`referencedby`) | `flowchart TD` | `-->` | 呼び出し元から呼び出し先へ向けます |
-
-Table: グラフ種別ごとの Mermaid の宣言と矢印
 
 2 種類のインクルード グラフは、Doxygen HTML と同じく「インクルードする側 → インクルードされる側」の矢印で対象ファイルを上に配置します。  
 `invincdepgraph` の XML は対象からインクルードする側へのエッジを持つため、出力時にエッジの向きを逆にします。
@@ -260,6 +260,8 @@ Figure: UserInfo のコラボレーション図
 
 グラフの生成は Doxyfile の設定によって制御されます。
 
+Table: Doxyfile 設定項目と生成対象グラフの対応
+
 | Doxyfile 設定 | 対応するグラフ |
 |---|---|
 | `INCLUDE_GRAPH = YES` | インクルード依存グラフ |
@@ -268,8 +270,6 @@ Figure: UserInfo のコラボレーション図
 | `COLLABORATION_GRAPH = YES` | コラボレーション図 |
 | `REFERENCES_RELATION = YES` | コールグラフ |
 | `REFERENCED_BY_RELATION = YES` | 呼び出し元グラフ |
-
-Table: Doxyfile 設定項目と生成対象グラフの対応
 
 これらの設定を `NO` にすると、対応する XML 要素が生成されなくなり、Markdown への図の挿入もスキップされます。
 
@@ -324,6 +324,8 @@ compound レベルのグラフ (インクルード依存図など) は、`conten
 
 `<title>` の見出しと、`<mermaid>` の `caption` 属性のキャプションは別の文字列です。見出しはグラフ種別の名称、キャプションは `<名前> の<見出し>` です。
 
+Table: グラフ種別ごとの見出しとキャプション
+
 | グラフ種別 | 見出し | キャプションの例 |
 |---|---|---|
 | インクルード依存 (`incdepgraph`) | `インクルード依存関係` | `calculator.c のインクルード依存関係` |
@@ -332,8 +334,6 @@ compound レベルのグラフ (インクルード依存図など) は、`conten
 | コラボレーション図 (`collaborationgraph`) | `コラボレーション図` | `UserInfo のコラボレーション図` |
 | 呼び出し元グラフ (`referencedby`) | `呼び出し元` | `add の呼び出し元` |
 | コールグラフ (`references`) | `呼び出し先` | `divide の呼び出し先` |
-
-Table: グラフ種別ごとの見出しとキャプション
 
 ファイル レベルのグラフの `<名前>` はファイルの basename、クラス/構造体レベルのグラフはコンパウンド名、関数レベルのグラフは関数名です。  
 `GRAPH_DETAILS_ONLY` が `True` のグラフ種別では、見出しの先頭に `DOXYFW_DETAILS_ONLY` を付与します。

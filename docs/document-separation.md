@@ -32,14 +32,14 @@ app/calc/
 
 設定ファイルは `app/{CATEGORY}/prod/` 配下に配置します。
 
+Table: Doxyfile.part の命名規則と用途
+
 | ファイル名 | 用途 | 主な入力範囲 |
 | :--- | :--- | :--- |
 | `Doxyfile.part` | 既定設定 (単一ドキュメント) | プロジェクト全般 |
 | `Doxyfile.part.public` | 公開 API ドキュメント | `include` 配下の公開ヘッダー |
 | `Doxyfile.part.internal` | 内部仕様ドキュメント | `include`, `include_internal`, `libsrc` |
 | `Doxyfile.part.{SUBCATEGORY}` | 任意の分類 (テスト仕様など) | 対象ディレクトリ |
-
-Table: Doxyfile.part の命名規則と用途
 
 `Doxyfile.part` と `Doxyfile.part.{SUBCATEGORY}` は共存できます。また、`Doxyfile.part` を置かず `Doxyfile.part.public` と `Doxyfile.part.internal` のみで構成することもできます。
 

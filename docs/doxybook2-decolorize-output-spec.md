@@ -42,6 +42,8 @@ bin_internal/doxybook2-decolorize-output.sh
 
 ### 処理ルール
 
+Table: ログ レベル別の ANSI カラー コード処理ルール
+
 | ログ レベル | 検出パターン | 処理内容 | 処理後の表示 |
 |------------|--------------|----------|--------------|
 | Info | `[info]` | すべての ANSI コードを削除 | 既定 (着色なし) |
@@ -49,8 +51,6 @@ bin_internal/doxybook2-decolorize-output.sh
 | Warning | `[warning]` | 太字コードを除去、黄色は維持 | 🟡 黄 (通常の太さ) |
 | Error | `[error]` | 太字コードを除去、赤色は維持 | 🔴 赤 (通常の太さ) |
 | その他 | (該当なし) | そのまま出力 | 変更なし |
-
-Table: ログ レベル別の ANSI カラー コード処理ルール
 
 ## 実装詳細
 
@@ -153,14 +153,14 @@ echo "$line" | sed 's/\x1b\[1;/\x1b[0;/g'
 
 #### Doxygen 着色スクリプトとの対比
 
+Table: Doxygen 着色スクリプトと doxybook2 脱色スクリプトの比較
+
 | 項目 | bin_internal/doxygen-colorize-output.sh | bin_internal/doxybook2-decolorize-output.sh |
 |------|----------------------------|--------------------------------|
 | 目的 | 着色を追加 | 着色を削除/調整 |
 | 対象 | error, warning | info, warning, error |
 | 処理 | ANSI コードを付与 | ANSI コードを除去/変換 |
 | 理由 | 着色が不足 | 着色が過剰 |
-
-Table: Doxygen 着色スクリプトと doxybook2 脱色スクリプトの比較
 
 #### パターン マッチングの簡潔性
 

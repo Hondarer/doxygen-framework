@@ -291,11 +291,11 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
  *  @parblock
  *  導入の文です。
  *
+ *  Table: 段落の中の表題
+ *
  *  | 項目 | 値 |
  *  | ------ | ---- |
  *  | A | 1 |
- *
- *  Table: 段落の中の表題
  *
  *  表の後の文も同じ見出しの中です。
  *  @endparblock
@@ -342,12 +342,12 @@ Doxygen にスレッド セーフを表す専用コマンドはないため、`@
 
 ### @par との使い分け
 
+Table: `@section` と `@par` の使い分けと見出しレベル
+
 | コマンド | 用途 | 見出しレベル |
 | --- | --- | --- |
 | `@section` | ファイル全体の構造化、複数のマクロや定義のグループ化 | 独立したセクション見出し |
 | `@par` | 関数やメンバーの補足情報、履歴などの追加項目 | 段落見出し |
-
-Table: `@section` と `@par` の使い分けと見出しレベル
 
 `@section` は主にファイル レベルのドキュメントで使用し、`@par` は関数やメンバーのドキュメントで使用します。
 
@@ -649,14 +649,14 @@ int getErrorCode();
 
 ## コード ブロックの使い分けガイド
 
+Table: Doxygen コード ブロック コマンドの比較と使い分け
+
 | コマンド | シンタックス ハイライト | Doxygen コマンド解釈 | 主な用途 |
 | --- | --- | --- | --- |
 | `@code ~ @endcode` | ✅ あり | ❌ なし | プログラミング コードの例示 |
 | `@verbatim ~ @endverbatim` | ❌ なし | ❌ なし | シェル コマンド、設定ファイルの内容 |
 | `@code{.unparsed} ~ @endcode` | ❌ なし | ❌ なし | プレーン テキスト |
 | Markdown 形式 | ✅ あり | ❌ なし | 非推奨 |
-
-Table: Doxygen コード ブロック コマンドの比較と使い分け
 
 ### 選択基準
 
@@ -777,6 +777,8 @@ class Token {};  // @class を省略
 
 本リポジトリでは、Markdown 文書の admonition を `NOTE`、`TIP`、`IMPORTANT`、`WARNING`、`CAUTION`、`DEPRECATED` の 6 種として扱います。Doxygen では次のコマンド (タグ) を使用してください。
 
+Table: Markdown admonition と Doxygen コマンドの対応
+
 | Markdown admonition | Doxygen コマンド | 備考 |
 |---|---|---|
 | `NOTE` | `@note` | 技術的な背景や実装の注釈 |
@@ -786,8 +788,6 @@ class Token {};  // @class を省略
 | `CAUTION` | `@attention` | 必須の制約条件・使用条件 |
 | `DEPRECATED` | `@deprecated` | 非推奨 API、代替案、廃止予定 |
 
-Table: Markdown admonition と Doxygen コマンドの対応
-
 `@remarks` は `@remark` と同等の別名ですが、本リポジトリでは非推奨です。新規作成・既存更新では `@remark` に統一してください。
 
 適切なコマンド (タグ) の使い分けにより、開発者にとって実用的で理解しやすいドキュメントを作成できます。各コマンド (タグ) の特徴を理解し、情報の重要度と緊急度に応じて適切に選択することで、コードの品質と保守性の向上につながります。
@@ -796,6 +796,8 @@ Table: Markdown admonition と Doxygen コマンドの対応
 
 #### 優先度・重要度マトリックス
 
+Table: Doxygen 注釈タグの優先度・重要度マトリックス
+
 | タグ | 重要度 | 緊急度 | 主な用途 |
 |---|---|---|---|
 | `\warning` | 🔴 高 | 🔴 高 | 重大なエラーや危険の回避 |
@@ -803,8 +805,6 @@ Table: Markdown admonition と Doxygen コマンドの対応
 | `\important` | 🔴 高 | 🟢 低 | 重要情報の強調 |
 | `\note` | 🟡 中 | 🟡 中 | 技術的詳細・実装仕様 |
 | `\remark` | 🟢 低～中 | 🟢 低 | 補足情報・推奨事項 |
-
-Table: Doxygen 注釈タグの優先度・重要度マトリックス
 
 ### @warning - 危険回避のための警告
 
@@ -1041,10 +1041,10 @@ Doxygen 1.12.0 以降では、インライン コード スパンの末尾が奇
 
 ### 既存の検査コマンド一覧
 
+Table: Doxygen コメントの検査コマンド一覧
+
 | コマンド | 検査内容 | 詳細 |
 | --- | --- | --- |
 | `check-doxygen-indent.py` | コメント ブロックと図ブロックの字下げ統一 | [check-doxygen-indent.md](check-doxygen-indent.md) |
 | `check-doxygen-separators.py` | `@file` 以外のセパレータ行検出 | - |
 | `check-doxygen-code-span-backslash.py` | 末尾のバックスラッシュが奇数個のコード スパン検出 | [check-doxygen-code-span-backslash.md](check-doxygen-code-span-backslash.md) |
-
-Table: Doxygen コメントの検査コマンド一覧

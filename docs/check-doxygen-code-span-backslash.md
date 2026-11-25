@@ -37,12 +37,12 @@ NG: 1 件の該当コード スパンを検出しました。
 
 ## 終了コード
 
+Table: `check-doxygen-code-span-backslash.py` の終了コード
+
 | 終了コード | 意味 |
 | --- | --- |
 | `0` | 該当するコード スパンなし (または対象ファイルなし) |
 | `1` | 1 件以上の該当コード スパンを検出、または指定パスが存在しない |
-
-Table: `check-doxygen-code-span-backslash.py` の終了コード
 
 ## 対処方法
 

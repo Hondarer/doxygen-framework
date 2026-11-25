@@ -6,24 +6,26 @@
 
 ### header.tmpl
 
+Table: header.tmpl のローカライズ未対応箇所一覧
+
 | 行 | 現在の英語 | 備考 |
 |---|---|---|
 | 15 | `# {{name}} {{title(kind)}} Reference` | `title(kind)` が英語 (例: `Namespace Reference`, `Class Reference`) を返す。doxybook2 の組み込み関数のため template 側での対応が困難。 |
 
-Table: header.tmpl のローカライズ未対応箇所一覧
-
 ### breadcrumbs.tmpl
+
+Table: breadcrumbs.tmpl のローカライズ未対応箇所一覧
 
 | 行 | 現在の英語 |
 |---|---|
 | 2 | `**Module:**` |
 
-Table: breadcrumbs.tmpl のローカライズ未対応箇所一覧
-
 ### nonclass_members_tables.tmpl
 
 > [!NOTE]
 > `kind_nonclass.tmpl` から include されておらず、現状は出力に現れません。
+
+Table: nonclass_members_tables.tmpl のローカライズ未対応箇所一覧
 
 | 行 | 現在の英語 |
 |---|---|
@@ -31,5 +33,3 @@ Table: breadcrumbs.tmpl のローカライズ未対応箇所一覧
 | 63 | `## Slots` |
 | 86 | `## Signals` |
 | 132 | `## Attributes` |
-
-Table: nonclass_members_tables.tmpl のローカライズ未対応箇所一覧

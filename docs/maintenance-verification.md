@@ -66,6 +66,8 @@ Doxygen 1.12.0 以降では、`\verbatim`、`<code>`、バッククォートの�
 コード スパンの末尾が奇数個のバックスラッシュで終わると、Doxygen が直後へ挿入する `\endiskip` の先頭の `\` と対になり、`\\` と文字列 `endiskip` が XML と Doxybook2 の生成 Markdown へ漏れます。  
 Doxygen 1.18.0 に最小入力を与えた検証 (手順 1) の結果は次のとおりです。
 
+Table: コード スパン末尾のバックスラッシュに対する Doxygen 1.18.0 の検証結果
+
 | 事例 | コメントの記載 | XML の `<detaileddescription>` | 結果 |
 | --- | --- | --- | --- |
 | C1 | `` `\\?\` `` | `\\?\\endiskip` | `endiskip` が漏れる |
@@ -77,8 +79,6 @@ Doxygen 1.18.0 に最小入力を与えた検証 (手順 1) の結果は次の�
 | C7 | `<code>\\?\</code>` | `\?&lt;/code&gt;` | 漏れないが `</code>` 不足の警告が出て元の記載を保てない |
 | C8 | `@c \\?\` | `<computeroutput>\</computeroutput>?\` | 漏れないが先頭の `\` だけがコードになり元の記載を保てない |
 
-Table: コード スパン末尾のバックスラッシュに対する Doxygen 1.18.0 の検証結果
-
 この結果を踏まえ、Doxygen コメントではコード スパンの末尾を奇数個のバックスラッシュにしないでください。  
 拡張パス接頭辞などを示す場合は、`` `\\?\C:\...` `` や `` `\\.\...` `` のように後ろへ文字を続けて記述します。`check-doxygen-code-span-backslash.py` で再発を検出できます。
 
@@ -86,10 +86,10 @@ Table: コード スパン末尾のバックスラッシュに対する Doxygen 
 
 Doxygen コメントの記述規約を確認するために、次の検査コマンドを `framework/doxyfw/bin/` に配置しています。
 
+Table: `framework/doxyfw/bin/` の検査コマンド一覧
+
 | コマンド | 検査内容 | 文書 |
 | --- | --- | --- |
 | `check-doxygen-indent.py` | コメント ブロックと図ブロックの字下げ統一 | [Doxygen コメント字下げレベル チェック・修正コマンド](check-doxygen-indent.md) |
 | `check-doxygen-separators.py` | `@file` 以外の Doxygen コメントのセパレータ行検出 | - |
 | `check-doxygen-code-span-backslash.py` | 末尾のバックスラッシュが奇数個のコード スパン検出 | [Doxygen コード スパン末尾バックスラッシュ検査コマンド](check-doxygen-code-span-backslash.md) |
-
-Table: `framework/doxyfw/bin/` の検査コマンド一覧

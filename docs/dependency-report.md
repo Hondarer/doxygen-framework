@@ -37,15 +37,17 @@ postprocess.sh
 
 出力先は Doxygen HTML の出力ディレクトリ配下です。
 
+Table: 依存関係レポートの実行条件別出力先
+
 | 実行条件 | 出力先 |
 |---|---|
 | `CATEGORY` なし | `pages/doxygen/dependency/` |
 | `CATEGORY=calc` | `pages/doxygen/calc/dependency/` |
 | `CATEGORY=calc SUBCATEGORY=internal` | `pages/doxygen/calc_internal/dependency/` |
 
-Table: 依存関係レポートの実行条件別出力先
-
 生成ファイルは以下の通りです。
+
+Table: 依存関係レポートの生成ファイル一覧と用途
 
 | ファイル | 用途 |
 |---|---|
@@ -60,8 +62,6 @@ Table: 依存関係レポートの実行条件別出力先
 | `webcola.LICENSE.txt` | WebCola のライセンス |
 | `cytoscape-cola.js` | Cytoscape.js から WebCola レイアウトを使うための拡張 |
 | `cytoscape-cola.LICENSE.txt` | cytoscape-cola のライセンス |
-
-Table: 依存関係レポートの生成ファイル一覧と用途
 
 `dependency-data.js` は `window.DoxyfwDependencyData = ...;` 形式です。  
 この形式にしている理由は、`file://` で HTML を直接開いた場合でもブラウザーの `fetch()` 制限を受けずに表示できるようにするためです。
@@ -100,6 +100,8 @@ Warning: include function definition fallback to src: cplat_foo (src/cmd/sample/
 複数行にまたがる呼び出しの継続行は、行内に `;` を持たず、定義行と同じく「関数名 + `(`」の形になります。  
 そこで、関数名の直前に置かれた前置きが「型名や修飾子 (識別子) の並びと、任意のポインター記号」の形であることを要求します。
 
+Table: 関数定義行と呼び出し行の判定例
+
 | 行 | 判定 | 前置き |
 |---|---|---|
 | `int cplat_foo(cplat_screen *s,` | 定義 | `int` |
@@ -108,8 +110,6 @@ Warning: include function definition fallback to src: cplat_foo (src/cmd/sample/
 | `rc = cplat_foo(a,` | 呼び出し | `rc =` |
 | `cfg.cplat_foo(a,` | 呼び出し | `cfg.` |
 | `bar(baz, cplat_foo(a,` | 呼び出し | `bar(baz,` |
-
-Table: 関数定義行と呼び出し行の判定例
 
 前置きが識別子の並びに見えても、`if`、`return`、`case` などの文の開始キーワードを含む場合は定義とみなしません。
 
@@ -160,6 +160,8 @@ level が小さい leaf 関数は対象範囲内で他関数に依存せず、�
 
 `dependencyClass` は以下のいずれかです。
 
+Table: 依存クラス (dependencyClass) のランクと分類条件
+
 | 分類 | rank | 条件 |
 |---|---:|---|
 | `leaf-static` | 0 | `static` 関数で、対象範囲内の呼び出し先がありません。 |
@@ -172,8 +174,6 @@ level が小さい leaf 関数は対象範囲内で他関数に依存せず、�
 | `other-to-libsrc-caller` | 5 | `libsrc` 以外から `libsrc` の対象範囲内関数を呼び出す |
 | `cross-area-caller` | 6 | 上記以外のカテゴリをまたいで対象範囲内関数を呼び出す |
 | `cycle` | - | 循環依存グループに属します。 |
-
-Table: 依存クラス (dependencyClass) のランクと分類条件
 
 `static` 関数は C ファイル内に限定される場合が多いため、`leaf-static` は局所的に確認しやすい候補として扱えます。  
 ただし、`include` と `include_internal` にある `static` 関数は複数の翻訳単位から呼び出される可能性があるため、`leaf-static` とは別の分類にします。  
@@ -222,6 +222,8 @@ JSON、関数 CSV、ファイル CSV は画面上部のダウンロード リン
 
 `関数一覧` タブでは以下の列を表示します。
 
+Table: 依存レポート関数一覧タブの表示列
+
 | 列 | 意味 |
 |---|---|
 | `level` | 依存 level または `cycle` |
@@ -234,8 +236,6 @@ JSON、関数 CSV、ファイル CSV は画面上部のダウンロード リン
 | `呼び出し先` | 対象範囲内の呼び出し先数 |
 | `呼び出し元` | 対象範囲内の呼び出し元数 |
 | `他ファイル` | 他ファイルの対象範囲内関数を呼び出す数 |
-
-Table: 依存レポート関数一覧タブの表示列
 
 検索欄では関数名とファイル名を検索できます。  
 level、分類、ファイルのフィルターも利用できます。
@@ -260,6 +260,8 @@ Doxygen ページへのリンクは `doxygen-page`、ソース ページへの�
 
 `ファイル一覧` タブでは以下の列を表示します。
 
+Table: 依存レポート ファイル一覧タブの表示列
+
 | 列 | 意味 |
 |---|---|
 | `領域` | ファイル内で最も多い領域 |
@@ -271,8 +273,6 @@ Doxygen ページへのリンクは `doxygen-page`、ソース ページへの�
 | `level` | ファイル内関数の level 分布 |
 | `分類` | ファイル内関数の分類分布 |
 | `領域内訳` | ファイル内関数の領域分布 |
-
-Table: 依存レポート ファイル一覧タブの表示列
 
 検索欄ではファイル名と分類を検索できます。  
 level、分類、export、static、領域のフィルターを利用できます。  
@@ -313,6 +313,8 @@ PNG 保存では、現在のテーマと表示状態を反映します。
 
 `dependency-functions.csv` の列は以下の通りです。
 
+Table: dependency-functions.csv の出力列定義
+
 | 列 | 意味 |
 |---|---|
 | `dependencyLevel` | 依存 level |
@@ -338,9 +340,9 @@ PNG 保存では、現在のテーマと表示状態を反映します。
 | `gitUrl` | Git blob ページへの URL |
 | `brief` | Doxygen から取得した概要説明 |
 
-Table: dependency-functions.csv の出力列定義
-
 `dependency-files.csv` の列は以下の通りです。
+
+Table: dependency-files.csv の出力列定義
 
 | 列 | 意味 |
 |---|---|
@@ -358,11 +360,11 @@ Table: dependency-functions.csv の出力列定義
 | `sourceUrl` | Doxygen ソース ページへの相対 URL |
 | `gitUrl` | Git blob ページへの URL |
 
-Table: dependency-files.csv の出力列定義
-
 ## データ形式
 
 `dependency-data.js` の root オブジェクトは以下のキーを持ちます。
+
+Table: dependency-data.js のルート オブジェクト構成キー
 
 | キー | 内容 |
 |---|---|
@@ -375,8 +377,6 @@ Table: dependency-files.csv の出力列定義
 | `pageUrlTemplate` | 通常の発行結果にある Page への URL テンプレート |
 | `livedocsPageUrlTemplate` | 動的発行の配信時にだけ設定する Page の基底 URL |
 | `pageLanguages` | 通常の発行結果で選択できる言語 |
-
-Table: dependency-data.js のルート オブジェクト構成キー
 
 `functions` の各要素は `dependency-functions.csv` と同等の情報を持ちます。  
 `edges` の各要素は `caller`、`callee`、`sameFile`、`callKind`、`callerArea`、`calleeArea`、`callerFile`、`calleeFile` を持ちます。

@@ -60,14 +60,14 @@ while (sectiondef) {
 
 この処理により、次の情報が失われます。
 
+Table: doxybook2 における Doxygen XML 要素の処理内容
+
 | XML 要素 | doxybook2 の処理 |
 |----------|------------------|
 | `sectiondef kind` 属性 | 確認しない (すべての sectiondef を同一視) |
 | `<header>` | 読み取らない (無視される) |
 | `<description>` | 読み取らない (無視される) |
 | `<memberdef>` | 抽出され、kind 属性に基づいてカテゴリ分け |
-
-Table: doxybook2 における Doxygen XML 要素の処理内容
 
 ## 出力結果
 
@@ -165,14 +165,14 @@ doxybook2 と Doxygen を併用するプロジェクトでは、メンバー グ
 
 ### 出力結果の比較
 
+Table: メンバー グループと `@section` 使用時の出力結果比較
+
 | 項目 | メンバー グループ | `@section` 使用 |
 | --- | --- | --- |
 | グループ見出し | ❌ 出力されない | ✅ 出力される |
 | グループ説明 (表など) | ❌ 出力されない | ✅ 出力される |
 | 個別マクロの説明 | ✅ 出力される | ✅ 出力される |
 | Doxygen HTML 出力 | ✅ グループ化表示 | ✅ セクション表示 |
-
-Table: メンバー グループと `@section` 使用時の出力結果比較
 
 ### 注意事項
 
@@ -182,12 +182,12 @@ Table: メンバー グループと `@section` 使用時の出力結果比較
 
 本フレームワークでは、`preprocess.sh` で次の変換を行うことで、適切な見出しレベルで出力されるように調整しています。
 
+Table: Doxygen コマンドと Markdown 見出しレベルの変換対応
+
 | Doxygen コマンド | XML 要素 | 変換後 | Markdown 見出し |
 | --- | --- | --- | --- |
 | `@section` | `<sect1>` | `<sect5>` | `#####` (レベル 5) |
 | `@subsection` | `<sect2>` | `<sect6>` | `######` (レベル 6) |
-
-Table: Doxygen コマンドと Markdown 見出しレベルの変換対応
 
 ### 参考
 

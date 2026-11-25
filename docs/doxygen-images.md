@@ -30,12 +30,12 @@ RECURSIVE  = YES
 
 `IMAGE_PATH` に画像ファイルを配置しても、Markdown から参照されていなければコピーされません。
 
+Table: Markdown での参照状況による画像コピー条件
+
 | 状況 | コピーされるか |
 |---|---|
 | Markdown で `![...](filename.png)` と参照している | ✅ コピーされる |
 | `IMAGE_PATH` に置いているが Markdown から未参照 | ❌ コピーされない |
-
-Table: Markdown での参照状況による画像コピー条件
 
 ### コピー対象の拡張子
 
@@ -63,6 +63,8 @@ HTML での表示はブラウザーに依存します。公式ドキュメント
 
 HTML 出力での実用的な対応形式は次のとおりです。
 
+Table: 画像拡張子別の HTML 出力形式とブラウザー表示対応
+
 | 拡張子 | HTML 出力での扱い | ブラウザーでの表示 |
 |---|---|---|
 | `.png` | `<img>` タグ | ✅ |
@@ -71,8 +73,6 @@ HTML 出力での実用的な対応形式は次のとおりです。
 | `.webp` | `<img>` タグ | ✅ (主要ブラウザー) |
 | `.svg` | `<object type="image/svg+xml">` タグ | ✅ |
 | その他 | `<img>` タグ | ブラウザー依存 |
-
-Table: 画像拡張子別の HTML 出力形式とブラウザー表示対応
 
 `.svg` のみ、Doxygen ソース コード内の `DocImage::isSVG()` (`src/docnode.cpp`) が拡張子を判定して `<object>` タグに切り替えます。
 
@@ -107,12 +107,12 @@ HTML の出力:       <img src="diagram.png">
 
 この置き換えにより、VS Code プレビューと Doxygen HTML の両方で画像が表示されます。
 
+Table: 閲覧環境ごとの画像パス解決と表示結果
+
 | 環境 | パスの解決 | 結果 |
 |---|---|---|
 | VS Code プレビュー | `images/diagram.png` (相対パス) | ✅ 表示される |
 | Doxygen HTML | `diagram.png` (ファイル名のみ) | ✅ 表示される |
-
-Table: 閲覧環境ごとの画像パス解決と表示結果
 
 ### 注意点
 
