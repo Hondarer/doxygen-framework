@@ -27,7 +27,7 @@
 
 **Context**
 
-- **経緯と背景**: [対策元の BL-001](261116-doxyfw-page-variant-reload-flake-backlog.md#bl-001-起動直後の-chrome-で文書の開始時の削除の後に保存した-localstorage-の値が再読み込みで失われる理由が未確認) は、前案件で CI の不定期な失敗をテストの修正だけで解消したため、理由の追究を見送った項目です。現在の `framework/doxyfw/bin_test/page_link_probe.js` は、削除の指定を保存値が残っているページだけに限っており、テストは安定しています。つまり、調査をしなくても製品とテストの動作は変わりません。
+- **経緯と背景**: [対策元の BL-001](../past/261116-doxyfw-page-variant-reload-flake-backlog.md#bl-001-起動直後の-chrome-で文書の開始時の削除の後に保存した-localstorage-の値が再読み込みで失われる理由が未確認) は、前案件で CI の不定期な失敗をテストの修正だけで解消したため、理由の追究を見送った項目です。現在の `framework/doxyfw/bin_test/page_link_probe.js` は、削除の指定を保存値が残っているページだけに限っており、テストは安定しています。つまり、調査をしなくても製品とテストの動作は変わりません。
 - **影響範囲**: 影響を受けるのは、起動直後のブラウザーで保存領域へ書き込む puppeteer のテストを将来書く場合だけです。現在、`framework` 配下の `bin_test` で `localStorage` の `removeItem` を使うのは `page_link_probe.js` だけです。
 - **各案の違い**: A では、調査報告が残り、将来のテストの書き手が条件を知ることができます。B では、作業量はかかりませんが、BL-001 は未確認のまま残ります。
 
